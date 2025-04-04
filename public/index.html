@@ -289,6 +289,18 @@
       font-size: 14px;
       color: #777;
     }
+    .debug-log {
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -352,6 +364,8 @@
       <button id="clearCommentsBtn">Clear All Comments</button>
       <button id="processCommentsBtn">Process Comments</button>
       <div class="loader" id="loader"></div>
+      
+      <div class="debug-log" id="debugLog"></div>
     </div>
     
     <div class="results-section">
@@ -384,6 +398,9 @@
     // Store comments
     let comments = [];
     
+    // Debug mode - set to true to enable debug logging
+    const DEBUG = true;
+    
     // DOM elements
     const commentInput = document.getElementById('commentInput');
     const addCommentBtn = document.getElementById('addCommentBtn');
@@ -403,6 +420,26 @@
     const totalCommentsEl = document.getElementById('totalComments');
     const categoryCountEl = document.getElementById('categoryCount');
     const avgSentimentEl = document.getElementById('avgSentiment');
+    const debugLog = document.getElementById('debugLog');
+    
+    // Debugging function
+    function debug(message, data) {
+      if (!DEBUG) return;
+      
+      console.log(message, data);
+      
+      if (debugLog) {
+        const timestamp = new Date().toLocaleTimeString();
+        const dataStr = data ? (typeof data === 'object' ? JSON.stringify(data, null, 2) : data) : '';
+        
+        const logEntry = document.createElement('div');
+        logEntry.innerHTML = `<strong>${timestamp}</strong>: ${message} ${dataStr}`;
+        
+        debugLog.appendChild(logEntry);
+        debugLog.style.display = 'block';
+        debugLog.scrollTop = debugLog.scrollHeight;
+      }
+    }
     
     // Processing method selection
     useSimulation.addEventListener('change', updateProcessingMethod);
@@ -486,8 +523,10 @@
       reader.readAsText(file);
     });
     
-    // Parse CSV content
+    // Parse CSV content with improved error handling
     function parseCSV(content) {
+      debug("Parsing CSV content", content.substring(0, 200) + "...");
+      
       // Split by new lines
       const lines = content.split(/\r?\n/);
       
@@ -496,30 +535,73 @@
         return;
       }
       
-      const headers = lines[0].toLowerCase().split(',');
+      // Clean up any quotes or extra whitespace in header
+      const headers = lines[0].toLowerCase().trim().replace(/"/g, '').split(',');
+      debug("CSV headers found", headers);
       
       // Check if there's a 'comment' column
       const commentColumnIndex = headers.indexOf('comment');
+      debug("Comment column index", commentColumnIndex);
+      
+      let newComments = [];
       
       if (commentColumnIndex > -1) {
         // If there's a comment column, extract comments from that column
+        debug("Extracting comments from 'comment' column");
         for (let i = 1; i < lines.length; i++) {
-          const columns = lines[i].split(',');
-          if (columns.length > commentColumnIndex && columns[commentColumnIndex].trim()) {
-            comments.push(columns[commentColumnIndex].trim());
+          if (!lines[i].trim()) continue; // Skip empty lines
+          
+          try {
+            // Handle CSV properly, dealing with possible quotes
+            let columns;
+            if (lines[i].includes('"')) {
+              // Handle quoted values that might contain commas
+              const matches = lines[i].match(/(?:^|,)("(?:[^"]*(?:""[^"]*)*)"|[^,]*)/g);
+              if (matches) {
+                columns = matches.map(m => 
+                  m.startsWith(',') ? m.substring(1) : m // Remove leading comma
+                ).map(m => 
+                  m.startsWith('"') && m.endsWith('"') ? m.substring(1, m.length - 1).replace(/""/g, '"') : m // Handle quotes
+                );
+              } else {
+                columns = lines[i].split(',');
+              }
+            } else {
+              columns = lines[i].split(',');
+            }
+            
+            debug(`Line ${i} columns`, columns);
+            
+            if (columns.length > commentColumnIndex && columns[commentColumnIndex].trim()) {
+              newComments.push(columns[commentColumnIndex].trim());
+            }
+          } catch (e) {
+            debug(`Error parsing line ${i}`, e.message);
+            console.error("Error parsing CSV line", i, lines[i], e);
           }
         }
       } else {
-        // Otherwise, treat each line as a comment
-        for (let i = 0; i < lines.length; i++) {
+        // Otherwise, treat each line as a comment (skipping the header)
+        debug("No 'comment' column found, treating each line as comment");
+        for (let i = 1; i < lines.length; i++) {
           if (lines[i].trim()) {
-            comments.push(lines[i].trim());
+            newComments.push(lines[i].trim());
           }
         }
       }
       
+      debug(`Extracted ${newComments.length} comments from CSV`);
+      
+      if (newComments.length === 0) {
+        alert('No comments found in the CSV file. Make sure it has a "comment" column or one comment per line.');
+        return;
+      }
+      
+      // Add new comments to the existing list
+      comments = comments.concat(newComments);
       updateCommentsList();
-      alert(`Successfully loaded ${comments.length} comments from CSV.`);
+      
+      alert(`Successfully loaded ${newComments.length} comments from CSV.`);
     }
     
     // Format file size
@@ -551,20 +633,26 @@
             return;
           }
           
+          debug("Using Claude API for processing", { commentCount: comments.length });
+          
           try {
             categorizedComments = await processWithClaudeAPI(comments, apiKey);
           } catch (apiError) {
             console.error('API error:', apiError);
-            alert('There was an error connecting to the Claude API. Using simulation instead.\n\nNote: This app needs a backend server to proxy requests to Claude API.');
+            debug("Claude API error, falling back to simulation", apiError.message);
+            alert('There was an error connecting to the Claude API. Using simulation instead.\n\nError: ' + apiError.message + '\n\nNote: This app needs a backend server to proxy requests to Claude API.');
             categorizedComments = await simulateClaudeAPI(comments);
           }
         } else {
+          debug("Using simulation for processing", { commentCount: comments.length });
           categorizedComments = await simulateClaudeAPI(comments);
         }
         
+        debug("Received categorized comments", categorizedComments);
         displayCategorizedComments(categorizedComments);
       } catch (error) {
         console.error('Error processing comments:', error);
+        debug("Error processing comments", error.message);
         alert('Error processing comments: ' + error.message);
       } finally {
         // Hide loader
@@ -572,36 +660,71 @@
       }
     });
     
-    // Process with Claude API
+    // Process with Claude API - improved error handling and debugging
     async function processWithClaudeAPI(commentList, apiKey) {
       try {
+        debug("Calling Claude API with", { commentCount: commentList.length });
+        
         // In a real implementation, we call the backend proxy API
         const response = await fetch('/api/claude', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({
             comments: commentList,
             apiKey: apiKey
           })
         });
-
+        
+        debug("API response status", response.status);
+        
+        // Handle non-OK responses properly
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'API request failed');
+          let errorMessage = 'API request failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error?.message || errorData.details || errorMessage;
+          } catch (e) {
+            // If we can't parse JSON, try to get text
+            errorMessage = await response.text() || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
-
-        const data = await response.json();
+        
+        // Get the response text
+        const responseText = await response.text();
+        debug("Raw API response received", responseText.substring(0, 200) + "...");
+        
+        // Try to parse the JSON response
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          debug("Failed to parse JSON response", e.message);
+          throw new Error("Invalid response format from server");
+        }
+        
+        // Validate the response structure
+        if (!data.categories || !Array.isArray(data.categories)) {
+          debug("Invalid response structure", data);
+          throw new Error("Response does not contain categories array");
+        }
         
         // Process the categorized comments and add sentiment analysis
         const processedData = data.categories.map(category => {
+          // Ensure comment numbers are valid (between 1 and commentList.length)
+          const validCommentIndices = category.comments.filter(
+            num => num >= 1 && num <= commentList.length
+          );
+          
           // Map comment numbers back to actual comments
-          const categoryComments = category.comments.map(num => commentList[num-1]);
+          const categoryComments = validCommentIndices.map(num => commentList[num-1]);
           
           // Use sentiment from Claude API if available, otherwise generate it
           const sentimentScore = category.sentiment !== undefined ? 
-            category.sentiment : 
+            parseFloat(category.sentiment).toFixed(2) : 
             generateSentimentScore(category.name, categoryComments);
           
           return {
@@ -613,15 +736,54 @@
           };
         });
         
+        debug("Processed data", { categoryCount: processedData.length });
         return processedData;
       } catch (error) {
+        debug("Claude API error", error.message);
         console.error('Claude API error:', error);
+        
+        // Try to use the test endpoint as a fallback
+        try {
+          debug("Attempting to use test endpoint as fallback");
+          const testResponse = await fetch('/api/claude/test', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              comments: commentList
+            })
+          });
+          
+          if (testResponse.ok) {
+            const testData = await testResponse.json();
+            debug("Test endpoint returned data", testData);
+            
+            // Process test data
+            return testData.categories.map(category => {
+              const categoryComments = category.comments.map(num => commentList[num-1] || "");
+              
+              return {
+                name: category.name,
+                count: categoryComments.length,
+                summary: category.summary,
+                comments: categoryComments,
+                sentiment: category.sentiment
+              };
+            });
+          }
+        } catch (fallbackError) {
+          debug("Fallback to test endpoint failed", fallbackError.message);
+        }
+        
         throw error;
       }
     }
     
     // Generate a sentiment score based on category name and comments
     function generateSentimentScore(categoryName, comments) {
+      debug("Generating sentiment score for", { category: categoryName, commentCount: comments.length });
+      
       // In a real implementation, this would come from Claude API
       const positiveCategories = ["positive", "praise", "good", "excellent", "happy", "satisfied", "like", "love"];
       const negativeCategories = ["negative", "complaint", "bad", "poor", "terrible", "unhappy", "angry", "hate", "bug", "issue"];
@@ -670,11 +832,14 @@
       let finalScore = sentimentSum / (comments.length + 1);
       finalScore = Math.max(-1, Math.min(1, finalScore));
       
+      debug("Generated sentiment score", finalScore.toFixed(2));
       return finalScore.toFixed(2);
     }
     
     // Simulate Claude API call for testing
     async function simulateClaudeAPI(commentList) {
+      debug("Simulating API with", { commentCount: commentList.length });
+      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -787,6 +952,7 @@
         category.sentiment = generateSentimentScore(category.name, category.comments);
       });
       
+      debug("Simulation generated categories", Object.keys(categorizedComments));
       return Object.values(categorizedComments);
     }
     
@@ -938,3 +1104,38 @@
         categoryCard.appendChild(commentsContainer);
         
         categoriesContainer.appendChild(categoryCard);
+      });
+      
+      debug("Displayed categories", { count: categories.length });
+    }
+    
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', () => {
+      debug("App initialized");
+      
+      // Check for stored API key in localStorage
+      const storedApiKey = localStorage.getItem('claudeApiKey');
+      if (storedApiKey) {
+        apiKeyInput.value = storedApiKey;
+        debug("Loaded stored API key");
+      }
+      
+      // Save API key to localStorage when entered
+      apiKeyInput.addEventListener('change', () => {
+        if (apiKeyInput.value.trim()) {
+          localStorage.setItem('claudeApiKey', apiKeyInput.value.trim());
+          debug("Saved API key to localStorage");
+        }
+      });
+      
+      // Also allow adding comments by pressing Enter in the input field
+      commentInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          addCommentBtn.click();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
