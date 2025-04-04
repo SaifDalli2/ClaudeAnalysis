@@ -1,7 +1,7 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -10,7 +10,14 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // For serving the frontend files
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Root route - serve the main HTML file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // API proxy endpoint
 app.post('/api/claude', async (req, res) => {
@@ -84,6 +91,12 @@ Each comment must appear in exactly one category. The comment numbers should cor
       details: error.response?.data?.error || error.message
     });
   }
+});
+
+// Catch-all route - serve the main HTML file for any unknown routes
+// This ensures that client-side routing works
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
