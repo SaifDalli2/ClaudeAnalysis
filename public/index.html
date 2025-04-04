@@ -219,6 +219,76 @@
       border-radius: 4px;
       font-size: 14px;
     }
+    .sentiment-bar-container {
+      margin-top: 10px;
+      width: 100%;
+      height: 10px;
+      background-color: #eee;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .sentiment-bar {
+      height: 100%;
+      transition: width 0.5s ease-in-out;
+    }
+    .sentiment-score {
+      font-size: 14px;
+      margin-top: 5px;
+      color: #555;
+    }
+    .sentiment-positive {
+      background-color: #4caf50;
+    }
+    .sentiment-neutral {
+      background-color: #ffc107; 
+    }
+    .sentiment-negative {
+      background-color: #f44336;
+    }
+    .sentiment-label {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      font-size: 12px;
+      color: #777;
+    }
+    .sentiment-details {
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .sentiment-emoji {
+      font-size: 20px;
+      margin-right: 8px;
+    }
+    .overall-stats {
+      background: #f0f7fc;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .stat-card {
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #777;
+    }
   </style>
 </head>
 <body>
@@ -246,12 +316,12 @@
           <p style="font-size: 12px; margin-top: 5px;">Your API key is stored locally in your browser only.</p>
           
           <div class="deploy-instructions">
-            <strong>Note:</strong> Due to browser security restrictions (CORS), direct API calls to Claude won't work from this web page. For production use:
+            <strong>Note:</strong> For this to work with the Claude API:
             <ol>
-              <li>Create a backend API that passes requests to Claude API</li>
-              <li>Deploy this app with your backend endpoint configured</li>
+              <li>The app must be deployed with a backend server that proxies requests to Claude API</li>
+              <li>The API endpoint should be configured at "/api/claude"</li>
             </ol>
-            <p>Currently, the app will use simulated results when you click "Process".</p>
+            <p>Otherwise, the app will use simulated results.</p>
           </div>
         </div>
       </div>
@@ -287,6 +357,25 @@
     <div class="results-section">
       <h2>Categorized Comments</h2>
       <div class="result-info">Each comment is assigned to exactly one category based on its primary topic or sentiment.</div>
+      
+      <div id="overallStats" class="overall-stats" style="display: none;">
+        <h3>Overall Statistics</h3>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="totalComments">0</div>
+            <div class="stat-label">Total Comments</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="categoryCount">0</div>
+            <div class="stat-label">Categories</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="avgSentiment">0.0</div>
+            <div class="stat-label">Avg. Sentiment</div>
+          </div>
+        </div>
+      </div>
+      
       <div id="categoriesContainer"></div>
     </div>
   </div>
@@ -310,6 +399,10 @@
     const useSimulation = document.getElementById('useSimulation');
     const useApi = document.getElementById('useApi');
     const apiKeySection = document.getElementById('apiKeySection');
+    const overallStats = document.getElementById('overallStats');
+    const totalCommentsEl = document.getElementById('totalComments');
+    const categoryCountEl = document.getElementById('categoryCount');
+    const avgSentimentEl = document.getElementById('avgSentiment');
     
     // Processing method selection
     useSimulation.addEventListener('change', updateProcessingMethod);
@@ -355,6 +448,7 @@
       comments = [];
       updateCommentsList();
       categoriesContainer.innerHTML = '';
+      overallStats.style.display = 'none';
     });
     
     // Update the comments list display
@@ -396,6 +490,12 @@
     function parseCSV(content) {
       // Split by new lines
       const lines = content.split(/\r?\n/);
+      
+      if (lines.length === 0) {
+        alert('The CSV file appears to be empty.');
+        return;
+      }
+      
       const headers = lines[0].toLowerCase().split(',');
       
       // Check if there's a 'comment' column
@@ -411,7 +511,7 @@
         }
       } else {
         // Otherwise, treat each line as a comment
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = 0; i < lines.length; i++) {
           if (lines[i].trim()) {
             comments.push(lines[i].trim());
           }
@@ -455,7 +555,7 @@
             categorizedComments = await processWithClaudeAPI(comments, apiKey);
           } catch (apiError) {
             console.error('API error:', apiError);
-            alert('There was an error connecting to the Claude API. Using simulation instead.\n\nNote: Direct API calls to Claude are blocked by browser security (CORS). This app needs to be deployed with a backend proxy.');
+            alert('There was an error connecting to the Claude API. Using simulation instead.\n\nNote: This app needs a backend server to proxy requests to Claude API.');
             categorizedComments = await simulateClaudeAPI(comments);
           }
         } else {
@@ -475,50 +575,15 @@
     // Process with Claude API
     async function processWithClaudeAPI(commentList, apiKey) {
       try {
-        // NOTE: This will fail in a browser due to CORS restrictions
-        // In a real implementation, you would need a backend proxy server
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        // In a real implementation, we call the backend proxy API
+        const response = await fetch('/api/claude', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'claude-3-sonnet-20240229',
-            max_tokens: 4000,
-            messages: [
-              {
-                role: 'user',
-                content: `Please categorize each of the following comments into exactly one category based on its primary topic or sentiment. Each comment must be assigned to exactly one category.
-
-Comments:
-${commentList.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
-
-For each category:
-1. Provide a descriptive category name
-2. List the comment numbers that belong to this category
-3. Write a concise summary that captures the key points from all comments in this category
-
-Return the results in JSON format like this:
-{
-  "categories": [
-    {
-      "name": "Category Name",
-      "comments": [1, 5, 9], 
-      "summary": "Summary of comments in this category",
-    },
-    {
-      "name": "Another Category",
-      "comments": [2, 3, 6],
-      "summary": "Summary of comments in this category"
-    }
-  ]
-}
-
-Each comment must appear in exactly one category. The comment numbers should correspond to the numbers I assigned above.`
-              }
-            ]
+            comments: commentList,
+            apiKey: apiKey
           })
         });
 
@@ -529,40 +594,81 @@ Each comment must appear in exactly one category. The comment numbers should cor
 
         const data = await response.json();
         
-        // Parse the JSON from Claude's response
-        try {
-          const responseContent = data.content[0].text;
-          // Find JSON in the response
-          const jsonMatch = responseContent.match(/```json([\s\S]*?)```/) || 
-                            responseContent.match(/({[\s\S]*})/);
+        // Process the categorized comments and add sentiment analysis
+        const processedData = data.categories.map(category => {
+          // Map comment numbers back to actual comments
+          const categoryComments = category.comments.map(num => commentList[num-1]);
           
-          let jsonData;
-          if (jsonMatch && jsonMatch[1]) {
-            jsonData = JSON.parse(jsonMatch[1].trim());
-          } else {
-            jsonData = JSON.parse(responseContent);
-          }
+          // Generate sentiment score for this category (should come from Claude API in real implementation)
+          const sentimentScore = generateSentimentScore(category.name, categoryComments);
           
-          // Process the categorized comments
-          return jsonData.categories.map(category => {
-            // Map comment numbers back to actual comments
-            const categoryComments = category.comments.map(num => commentList[num-1]);
-            
-            return {
-              name: category.name,
-              count: categoryComments.length,
-              summary: category.summary,
-              comments: categoryComments
-            };
-          });
-        } catch (parseError) {
-          console.error('Error parsing Claude response:', parseError);
-          throw new Error('Failed to parse Claude response');
-        }
+          return {
+            name: category.name,
+            count: categoryComments.length,
+            summary: category.summary,
+            comments: categoryComments,
+            sentiment: sentimentScore
+          };
+        });
+        
+        return processedData;
       } catch (error) {
         console.error('Claude API error:', error);
         throw error;
       }
+    }
+    
+    // Generate a sentiment score based on category name and comments
+    function generateSentimentScore(categoryName, comments) {
+      // In a real implementation, this would come from Claude API
+      const positiveCategories = ["positive", "praise", "good", "excellent", "happy", "satisfied", "like", "love"];
+      const negativeCategories = ["negative", "complaint", "bad", "poor", "terrible", "unhappy", "angry", "hate", "bug", "issue"];
+      
+      let baseScore = 0;
+      
+      // Check if category name suggests sentiment
+      const categoryLower = categoryName.toLowerCase();
+      for (const term of positiveCategories) {
+        if (categoryLower.includes(term)) {
+          baseScore += 0.3;
+          break;
+        }
+      }
+      
+      for (const term of negativeCategories) {
+        if (categoryLower.includes(term)) {
+          baseScore -= 0.3;
+          break;
+        }
+      }
+      
+      // Analyze comments for sentiment words
+      const positiveWords = ["good", "great", "excellent", "awesome", "amazing", "love", "like", "helpful", "best", "perfect", "happy"];
+      const negativeWords = ["bad", "poor", "terrible", "worst", "hate", "dislike", "problem", "issue", "fix", "broken", "disappointed", "frustrating"];
+      
+      let sentimentSum = baseScore;
+      
+      comments.forEach(comment => {
+        let commentScore = 0;
+        const commentLower = comment.toLowerCase();
+        
+        // Count positive and negative words
+        for (const word of positiveWords) {
+          if (commentLower.includes(word)) commentScore += 0.1;
+        }
+        
+        for (const word of negativeWords) {
+          if (commentLower.includes(word)) commentScore -= 0.1;
+        }
+        
+        sentimentSum += commentScore;
+      });
+      
+      // Average and normalize to -1 to 1 range
+      let finalScore = sentimentSum / (comments.length + 1);
+      finalScore = Math.max(-1, Math.min(1, finalScore));
+      
+      return finalScore.toFixed(2);
     }
     
     // Simulate Claude API call for testing
@@ -648,7 +754,7 @@ Each comment must appear in exactly one category. The comment numbers should cor
         categorizedComments[category].count++;
       });
       
-      // Generate summaries
+      // Generate summaries and sentiment scores
       Object.keys(categorizedComments).forEach(key => {
         const category = categorizedComments[key];
         
@@ -674,6 +780,9 @@ Each comment must appear in exactly one category. The comment numbers should cor
         } else {
           category.summary = "General feedback and comments that don't fit into other specific categories.";
         }
+        
+        // Generate sentiment score
+        category.sentiment = generateSentimentScore(category.name, category.comments);
       });
       
       return Object.values(categorizedComments);
@@ -682,6 +791,25 @@ Each comment must appear in exactly one category. The comment numbers should cor
     // Display categorized comments
     function displayCategorizedComments(categories) {
       categoriesContainer.innerHTML = '';
+      
+      // Calculate overall statistics
+      const totalComments = categories.reduce((sum, category) => sum + category.count, 0);
+      const categoryCount = categories.length;
+      
+      let totalSentiment = 0;
+      categories.forEach(category => {
+        totalSentiment += parseFloat(category.sentiment) * category.count;
+      });
+      const avgSentiment = (totalSentiment / totalComments).toFixed(2);
+      
+      // Update statistics display
+      totalCommentsEl.textContent = totalComments;
+      categoryCountEl.textContent = categoryCount;
+      avgSentimentEl.textContent = avgSentiment;
+      overallStats.style.display = 'block';
+      
+      // Sort categories by count (highest first)
+      categories.sort((a, b) => b.count - a.count);
       
       categories.forEach(category => {
         const categoryCard = document.createElement('div');
@@ -702,44 +830,23 @@ Each comment must appear in exactly one category. The comment numbers should cor
         categorySummary.className = 'category-summary';
         categorySummary.textContent = category.summary;
         
-        // Create toggle button for showing/hiding comments
-        const showCommentsBtn = document.createElement('button');
-        showCommentsBtn.className = 'show-comments-btn';
-        showCommentsBtn.textContent = 'Show comments';
+        // Create sentiment score and visualization
+        const sentimentScore = parseFloat(category.sentiment);
+        const sentimentContainer = document.createElement('div');
+        sentimentContainer.className = 'sentiment-container';
         
-        // Create comments container
-        const commentsContainer = document.createElement('div');
-        commentsContainer.className = 'category-comments';
+        const sentimentDetails = document.createElement('div');
+        sentimentDetails.className = 'sentiment-details';
         
-        // Add each comment to the container
-        category.comments.forEach(comment => {
-          const commentEl = document.createElement('div');
-          commentEl.className = 'category-comment';
-          commentEl.textContent = `"${comment}"`;
-          commentsContainer.appendChild(commentEl);
-        });
+        const sentimentEmoji = document.createElement('div');
+        sentimentEmoji.className = 'sentiment-emoji';
         
-        // Toggle comments visibility
-        showCommentsBtn.addEventListener('click', () => {
-          if (commentsContainer.style.display === 'none') {
-            commentsContainer.style.display = 'block';
-            showCommentsBtn.textContent = 'Hide comments';
-          } else {
-            commentsContainer.style.display = 'none';
-            showCommentsBtn.textContent = 'Show comments';
-          }
-        });
+        if (sentimentScore > 0.33) {
+          sentimentEmoji.textContent = '😃';
+        } else if (sentimentScore > -0.33) {
+          sentimentEmoji.textContent = '😐';
+        } else {
+          sentimentEmoji.textContent = '😞';
+        }
         
-        categoryHeader.appendChild(categoryName);
-        categoryHeader.appendChild(categoryCount);
-        categoryCard.appendChild(categoryHeader);
-        categoryCard.appendChild(categorySummary);
-        categoryCard.appendChild(showCommentsBtn);
-        categoryCard.appendChild(commentsContainer);
-        
-        categoriesContainer.appendChild(categoryCard);
-      });
-    }
-  </script>
-</body>
-</html>
+        const sentimentScore
