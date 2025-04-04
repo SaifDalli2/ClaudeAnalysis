@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 app.post('/api/claude', async (req, res) => {
   try {
     // Get comments from request
-    const { comments } = req.body;
+    const { comments, apiKey } = req.body;
     
     // Call Claude API
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
@@ -41,6 +41,7 @@ For each category:
 1. Provide a descriptive category name
 2. List the comment numbers that belong to this category
 3. Write a concise summary that captures the key points from all comments in this category
+4. Analyze the sentiment of the comments in this category on a scale from -1 (very negative) to 1 (very positive)
 
 Return the results in JSON format like this:
 {
@@ -49,22 +50,24 @@ Return the results in JSON format like this:
       "name": "Category Name",
       "comments": [1, 5, 9], 
       "summary": "Summary of comments in this category",
+      "sentiment": 0.7
     },
     {
       "name": "Another Category",
       "comments": [2, 3, 6],
-      "summary": "Summary of comments in this category"
+      "summary": "Summary of comments in this category",
+      "sentiment": -0.4
     }
   ]
 }
 
-Each comment must appear in exactly one category. The comment numbers should correspond to the numbers I assigned above.`
+Each comment must appear in exactly one category. The comment numbers should correspond to the numbers I assigned above. The sentiment score should be a number between -1 and 1.`
         }
       ]
     }, {
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.CLAUDE_API_KEY,
+        'x-api-key': apiKey || process.env.CLAUDE_API_KEY,
         'anthropic-version': '2023-06-01'
       }
     });
