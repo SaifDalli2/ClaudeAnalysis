@@ -40,26 +40,7 @@ const translations = {
     negative: 'سلبي',
     sentiment: 'المشاعر: {score}',
     selectedFile: 'الملف المحدد: {filename} ({size})'
-  
-  // Check for stored API key in localStorage
-  const storedApiKey = localStorage.getItem('claudeApiKey');
-  if (storedApiKey) {
-    apiKeyInput.value = storedApiKey;
   }
-  
-  // Save API key to localStorage when entered
-  apiKeyInput.addEventListener('change', () => {
-    const apiKey = apiKeyInput.value.trim();
-    if (apiKey) {
-      localStorage.setItem('claudeApiKey', apiKey);
-      debug("API key saved to localStorage");
-    }
-  });
-
-  // Set initial UI states
-  updateProcessingMethod();
-  updateLanguage();
-}
 };
 
 // Helper function to get translation
@@ -76,6 +57,8 @@ function t(key, replacements = {}) {
 
 // Wait for DOM to fully load before accessing elements
 document.addEventListener('DOMContentLoaded', function() {
+  console.log("DOM fully loaded - initializing app");
+  
   // DOM elements
   const commentInput = document.getElementById('commentInput');
   const addCommentBtn = document.getElementById('addCommentBtn');
@@ -98,6 +81,39 @@ document.addEventListener('DOMContentLoaded', function() {
   const debugLog = document.getElementById('debugLog');
   const langSwitch = document.getElementById('langSwitch');
 
+  // Check that all required elements exist
+  if (!commentInput || !addCommentBtn || !commentsList || !processCommentsBtn || 
+      !categoriesContainer || !loader || !csvFileInput || !loadCsvBtn || 
+      !fileInfo || !clearCommentsBtn || !apiKeyInput || !useSimulation || 
+      !useApi || !apiKeySection || !overallStats || !totalCommentsEl || 
+      !categoryCountEl || !avgSentimentEl || !debugLog || !langSwitch) {
+    console.error("DOM elements missing. Check that all IDs are correct in HTML.");
+    return;
+  }
+
+  console.log("All DOM elements found successfully");
+
+  // Debugging function
+  function debug(message, data) {
+    if (!DEBUG) return;
+    
+    console.log(message, data);
+    
+    if (debugLog) {
+      const timestamp = new Date().toLocaleTimeString();
+      const dataStr = data ? (typeof data === 'object' ? JSON.stringify(data, null, 2) : data) : '';
+      
+      const logEntry = document.createElement('div');
+      logEntry.innerHTML = `<strong>${timestamp}</strong>: ${message} ${dataStr}`;
+      
+      debugLog.appendChild(logEntry);
+      debugLog.style.display = 'block';
+      debugLog.scrollTop = debugLog.scrollHeight;
+    }
+  }
+
+  debug("App initialization started");
+
   // Language switching functionality
   langSwitch.addEventListener('click', function() {
     currentLang = currentLang === 'en' ? 'ar' : 'en';
@@ -105,6 +121,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   function updateLanguage() {
+    debug("Updating language to: " + currentLang);
+    
     // Update document direction and language
     document.documentElement.lang = currentLang;
     if (currentLang === 'ar') {
@@ -129,30 +147,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.title = document.querySelector('title').getAttribute(`data-${currentLang}`);
   }
 
-  // Debugging function
-  function debug(message, data) {
-    if (!DEBUG) return;
-    
-    console.log(message, data);
-    
-    if (debugLog) {
-      const timestamp = new Date().toLocaleTimeString();
-      const dataStr = data ? (typeof data === 'object' ? JSON.stringify(data, null, 2) : data) : '';
-      
-      const logEntry = document.createElement('div');
-      logEntry.innerHTML = `<strong>${timestamp}</strong>: ${message} ${dataStr}`;
-      
-      debugLog.appendChild(logEntry);
-      debugLog.style.display = 'block';
-      debugLog.scrollTop = debugLog.scrollHeight;
-    }
-  }
-
   // Processing method selection
   useSimulation.addEventListener('change', updateProcessingMethod);
   useApi.addEventListener('change', updateProcessingMethod);
   
   function updateProcessingMethod() {
+    debug("Processing method changed", { useApi: useApi.checked });
+    
     if (useApi.checked) {
       apiKeySection.style.display = 'block';
     } else {
@@ -174,6 +175,8 @@ document.addEventListener('DOMContentLoaded', function() {
       // Show corresponding content
       const tabId = tab.getAttribute('data-tab');
       document.getElementById(tabId).classList.add('active');
+      
+      debug("Tab changed to:", tabId);
     });
   });
   
@@ -184,6 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
       comments.push(commentText);
       updateCommentsList();
       commentInput.value = '';
+      debug("Comment added:", commentText);
     }
   });
   
@@ -193,6 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCommentsList();
     categoriesContainer.innerHTML = '';
     overallStats.style.display = 'none';
+    debug("All comments cleared");
   });
   
   // Update the comments list display
@@ -204,13 +209,18 @@ document.addEventListener('DOMContentLoaded', function() {
       commentEl.textContent = comment;
       commentsList.appendChild(commentEl);
     });
+    debug("Comments list updated", { count: comments.length });
   }
   
   // Handle CSV file upload
   csvFileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (file) {
-      fileInfo.textContent = t('selectedFile', { filename: file.name, size: formatFileSize(file.size) });
+      fileInfo.textContent = t('selectedFile', { 
+        filename: file.name, 
+        size: formatFileSize(file.size) 
+      });
+      debug("CSV file selected", { name: file.name, size: file.size });
     } else {
       fileInfo.textContent = '';
     }
@@ -218,32 +228,50 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Load comments from CSV
   loadCsvBtn.addEventListener('click', () => {
+    debug("Load CSV button clicked");
+    
     const file = csvFileInput.files[0];
     if (!file) {
       alert(t('csvFileAlert'));
+      debug("No CSV file selected");
       return;
     }
     
+    // Show loader while parsing
+    loader.style.display = 'block';
+    
     const reader = new FileReader();
+    
     reader.onload = (e) => {
       try {
         const content = e.target.result;
+        debug("CSV file read", { size: content.length });
         parseCSV(content);
       } catch (error) {
         debug("Error reading CSV file", error.message);
         alert(`Error reading CSV: ${error.message}`);
+      } finally {
+        loader.style.display = 'none';
       }
     };
+    
     reader.onerror = (e) => {
       debug("FileReader error", e);
       alert(`Error reading file: ${e.target.error}`);
+      loader.style.display = 'none';
     };
+    
     reader.readAsText(file);
   });
   
   // Parse CSV content
   function parseCSV(content) {
     debug("Parsing CSV content", content.substring(0, 200) + "...");
+    
+    if (!content || content.trim() === '') {
+      alert(t('emptyCSVAlert'));
+      return;
+    }
     
     // Split by new lines
     const lines = content.split(/\r?\n/);
@@ -277,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       // Otherwise, treat each line as a comment (skipping the header)
       debug("No 'comment' column found, treating each line as comment");
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 0; i < lines.length; i++) {
         if (lines[i].trim()) {
           newComments.push(lines[i].trim());
         }
@@ -300,6 +328,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Parse a single CSV line, handling quotes correctly
   function parseCSVLine(line) {
+    if (!line) return [];
+    
     // Simple CSV parsing for basic cases
     if (!line.includes('"')) {
       return line.split(',');
@@ -341,6 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Process comments
   processCommentsBtn.addEventListener('click', async () => {
+    debug("Process comments button clicked");
+    
     if (comments.length === 0) {
       alert(t('noCommentsAlert'));
       return;
@@ -747,57 +779,4 @@ document.addEventListener('DOMContentLoaded', function() {
       sentimentLabelNeg.textContent = t('negative');
       
       const sentimentLabelPos = document.createElement('div');
-      sentimentLabelPos.textContent = t('positive');
-      
-      sentimentLabel.appendChild(sentimentLabelNeg);
-      sentimentLabel.appendChild(sentimentLabelPos);
-      
-      // Create show comments button
-      const showCommentsBtn = document.createElement('button');
-      showCommentsBtn.className = 'show-comments-btn';
-      showCommentsBtn.textContent = t('showComments');
-      showCommentsBtn.setAttribute('data-expanded', 'false');
-      
-      // Create comments container
-      const commentsContainer = document.createElement('div');
-      commentsContainer.className = 'category-comments';
-      
-      // Add comments to container
-      category.comments.forEach(comment => {
-        const commentEl = document.createElement('div');
-        commentEl.className = 'category-comment';
-        commentEl.textContent = comment;
-        commentsContainer.appendChild(commentEl);
-      });
-      
-      // Toggle comments visibility
-      showCommentsBtn.addEventListener('click', () => {
-        const isExpanded = showCommentsBtn.getAttribute('data-expanded') === 'true';
-        if (isExpanded) {
-          commentsContainer.style.display = 'none';
-          showCommentsBtn.textContent = t('showComments');
-          showCommentsBtn.setAttribute('data-expanded', 'false');
-        } else {
-          commentsContainer.style.display = 'block';
-          showCommentsBtn.textContent = t('hideComments');
-          showCommentsBtn.setAttribute('data-expanded', 'true');
-        }
-      });
-      
-      // Assemble the category card
-      categoryHeader.appendChild(categoryName);
-      categoryHeader.appendChild(categoryCount);
-      
-      categoryCard.appendChild(categoryHeader);
-      categoryCard.appendChild(categorySummary);
-      categoryCard.appendChild(sentimentDetails);
-      categoryCard.appendChild(sentimentBarContainer);
-      categoryCard.appendChild(sentimentLabel);
-      categoryCard.appendChild(showCommentsBtn);
-      categoryCard.appendChild(commentsContainer);
-      
-      categoriesContainer.appendChild(categoryCard);
-    });
-    
-    debug("Displayed categories", { count: categories.length });
-  }
+      sentimentL
