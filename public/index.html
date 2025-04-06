@@ -3,103 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comment Categorization System</title>
+  <title data-en="Comment Categorization System" data-ar="نظام تصنيف التعليقات">Comment Categorization System</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <button class="lang-switch" id="langSwitch">العربية</button>
+  
   <header class="header">
     <div class="logo-container">
       <svg class="logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#5A4FCF"/>
-        <path d="M2 17L12 22L22 17" stroke="#5A4FCF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M2 12L12 17L22 12" stroke="#5A4FCF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#E2FF66"/>
+        <path d="M2 17L12 22L22 17" stroke="#E2FF66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M2 12L12 17L22 12" stroke="#E2FF66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <div class="logo-text">Comment Categorizer</div>
+      <div class="logo-text" data-en="Comment Categorizer" data-ar="مصنف التعليقات">Comment Categorizer</div>
     </div>
   </header>
 
   <div class="container">
     <div class="input-section">
-      <h1>Comment Categorization System</h1>
-      <p>Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
+      <h1 data-en="Comment Categorization System" data-ar="نظام تصنيف التعليقات">Comment Categorization System</h1>
+      <p data-en="Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category." data-ar="أدخل التعليقات ليتم تصنيفها وتلخيصها. سيتم تعيين كل تعليق إلى فئة واحدة بالضبط.">Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
       
       <div class="api-key-section">
-        <h3>Processing Method</h3>
+        <h3 data-en="Processing Method" data-ar="طريقة المعالجة">Processing Method</h3>
         <div class="radio-group">
           <div class="radio-option">
             <input type="radio" id="useSimulation" name="processingMethod" value="simulation" checked>
-            <label for="useSimulation">Use Simulation (No API key required)</label>
+            <label for="useSimulation" data-en="Use Simulation (No API key required)" data-ar="استخدم المحاكاة (لا يتطلب مفتاح API)">Use Simulation (No API key required)</label>
           </div>
           <div class="radio-option">
             <input type="radio" id="useApi" name="processingMethod" value="api">
-            <label for="useApi">Use Claude API</label>
+            <label for="useApi" data-en="Use Claude API" data-ar="استخدم Claude API">Use Claude API</label>
           </div>
         </div>
         
         <div id="apiKeySection" style="display: none; margin-top: 15px;">
-          <label for="apiKeyInput">Claude API Key:</label>
-          <input type="password" id="apiKeyInput" placeholder="Enter your Claude API key">
-          <p style="font-size: 12px; margin-top: 5px;">Your API key is stored locally in your browser only.</p>
+          <label for="apiKeyInput" data-en="Claude API Key:" data-ar="مفتاح Claude API:">Claude API Key:</label>
+          <input type="password" id="apiKeyInput" data-en-placeholder="Enter your Claude API key" data-ar-placeholder="أدخل مفتاح Claude API الخاص بك" placeholder="Enter your Claude API key">
+          <p style="font-size: 12px; margin-top: 5px;" data-en="Your API key is stored locally in your browser only." data-ar="يتم تخزين مفتاح API الخاص بك محليًا في متصفحك فقط.">Your API key is stored locally in your browser only.</p>
           
           <div class="deploy-instructions">
-            <strong>Note:</strong> For this to work with the Claude API:
+            <strong data-en="Note:" data-ar="ملاحظة:">Note:</strong> <span data-en="For this to work with the Claude API:" data-ar="لكي يعمل هذا مع Claude API:">For this to work with the Claude API:</span>
             <ol>
-              <li>The app must be deployed with a backend server that proxies requests to Claude API</li>
-              <li>The API endpoint should be configured at "/api/claude"</li>
+              <li data-en="The app must be deployed with a backend server that proxies requests to Claude API" data-ar="يجب نشر التطبيق مع خادم خلفي يوجه الطلبات إلى Claude API">The app must be deployed with a backend server that proxies requests to Claude API</li>
+              <li data-en="The API endpoint should be configured at &quot;/api/claude&quot;" data-ar="يجب تكوين نقطة نهاية API على &quot;/api/claude&quot;">The API endpoint should be configured at "/api/claude"</li>
             </ol>
-            <p>Otherwise, the app will use simulated results.</p>
+            <p data-en="Otherwise, the app will use simulated results." data-ar="وإلا، سيستخدم التطبيق نتائج محاكاة.">Otherwise, the app will use simulated results.</p>
           </div>
         </div>
       </div>
       
       <div class="tabs">
-        <div class="tab active" data-tab="manual-entry">Manual Entry</div>
-        <div class="tab" data-tab="csv-upload">CSV Upload</div>
+        <div class="tab active" data-tab="manual-entry" data-en="Manual Entry" data-ar="إدخال يدوي">Manual Entry</div>
+        <div class="tab" data-tab="csv-upload" data-en="CSV Upload" data-ar="تحميل CSV">CSV Upload</div>
       </div>
       
       <div class="tab-content active" id="manual-entry">
-        <h3>Add Comment</h3>
-        <textarea id="commentInput" placeholder="Type your comment here..."></textarea>
-        <button id="addCommentBtn">Add Comment</button>
+        <h3 data-en="Add Comment" data-ar="إضافة تعليق">Add Comment</h3>
+        <textarea id="commentInput" data-en-placeholder="Type your comment here..." data-ar-placeholder="اكتب تعليقك هنا..." placeholder="Type your comment here..."></textarea>
+        <button id="addCommentBtn" data-en="Add Comment" data-ar="إضافة تعليق">Add Comment</button>
       </div>
       
       <div class="tab-content" id="csv-upload">
-        <h3>Upload CSV File</h3>
+        <h3 data-en="Upload CSV File" data-ar="تحميل ملف CSV">Upload CSV File</h3>
         <div class="file-upload">
-          <label for="csvFileInput">Select a CSV file with comments (one comment per line or in a 'comment' column):</label>
+          <label for="csvFileInput" data-en="Select a CSV file with comments (one comment per line or in a 'comment' column):" data-ar="حدد ملف CSV مع التعليقات (تعليق واحد لكل سطر أو في عمود 'comment'):">Select a CSV file with comments (one comment per line or in a 'comment' column):</label>
           <input type="file" id="csvFileInput" accept=".csv">
           <div class="file-info" id="fileInfo"></div>
         </div>
-        <button id="loadCsvBtn">Load Comments from CSV</button>
+        <button id="loadCsvBtn" data-en="Load Comments from CSV" data-ar="تحميل التعليقات من CSV">Load Comments from CSV</button>
       </div>
       
-      <h3>Comments List</h3>
+      <h3 data-en="Comments List" data-ar="قائمة التعليقات">Comments List</h3>
       <div class="comment-list" id="commentsList"></div>
-      <button id="clearCommentsBtn">Clear All Comments</button>
-      <button id="processCommentsBtn">Process Comments</button>
+      <button id="clearCommentsBtn" data-en="Clear All Comments" data-ar="مسح جميع التعليقات">Clear All Comments</button>
+      <button id="processCommentsBtn" data-en="Process Comments" data-ar="معالجة التعليقات">Process Comments</button>
       <div class="loader" id="loader"></div>
       
       <div class="debug-log" id="debugLog"></div>
     </div>
     
     <div class="results-section">
-      <h2>Categorized Comments</h2>
-      <div class="result-info">Each comment is assigned to exactly one category based on its primary topic or sentiment.</div>
+      <h2 data-en="Categorized Comments" data-ar="التعليقات المصنفة">Categorized Comments</h2>
+      <div class="result-info" data-en="Each comment is assigned to exactly one category based on its primary topic or sentiment." data-ar="يتم تعيين كل تعليق إلى فئة واحدة بالضبط بناءً على موضوعه الرئيسي أو مشاعره.">Each comment is assigned to exactly one category based on its primary topic or sentiment.</div>
       
       <div id="overallStats" class="overall-stats" style="display: none;">
-        <h3>Overall Statistics</h3>
+        <h3 data-en="Overall Statistics" data-ar="الإحصائيات العامة">Overall Statistics</h3>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value" id="totalComments">0</div>
-            <div class="stat-label">Total Comments</div>
+            <div class="stat-label" data-en="Total Comments" data-ar="إجمالي التعليقات">Total Comments</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="categoryCount">0</div>
-            <div class="stat-label">Categories</div>
+            <div class="stat-label" data-en="Categories" data-ar="الفئات">Categories</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="avgSentiment">0.0</div>
-            <div class="stat-label">Avg. Sentiment</div>
+            <div class="stat-label" data-en="Avg. Sentiment" data-ar="متوسط المشاعر">Avg. Sentiment</div>
           </div>
         </div>
       </div>
