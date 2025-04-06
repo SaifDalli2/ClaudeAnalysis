@@ -774,5 +774,4 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Check for stored API key in localStorage
   const storedApiKey = localStorage.getItem('claudeApiKey');
-  if (storedApiKey) {
-    apiKeyInput.
+  if (sto
