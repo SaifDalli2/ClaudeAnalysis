@@ -4,61 +4,8 @@ let comments = [];
 // Debug mode
 const DEBUG = true;
 
-// Current language (en or ar)
-let currentLang = 'en';
-
-// Translations for dynamic content
-const translations = {
-  en: {
-    showComments: 'Show Comments',
-    hideComments: 'Hide Comments',
-    noCommentsAlert: 'Please add some comments first.',
-    apiKeyAlert: 'Please enter your Claude API key.',
-    csvFileAlert: 'Please select a CSV file first.',
-    emptyCSVAlert: 'The CSV file appears to be empty.',
-    noCommentsFoundAlert: 'No comments found in the CSV file. Make sure it has a "comment" column or one comment per line.',
-    csvLoadSuccess: 'Successfully loaded {count} comments from CSV.',
-    apiError: 'There was an error connecting to the Claude API. Using simulation instead.\n\nError: {message}\n\nNote: This app needs a backend server to proxy requests to Claude API.',
-    processingError: 'Error processing comments: {message}',
-    positive: 'Positive',
-    negative: 'Negative',
-    sentiment: 'Sentiment: {score}',
-    selectedFile: 'Selected file: {filename} ({size})'
-  },
-  ar: {
-    showComments: 'عرض التعليقات',
-    hideComments: 'إخفاء التعليقات',
-    noCommentsAlert: 'الرجاء إضافة بعض التعليقات أولاً.',
-    apiKeyAlert: 'الرجاء إدخال مفتاح Claude API الخاص بك.',
-    csvFileAlert: 'الرجاء تحديد ملف CSV أولاً.',
-    emptyCSVAlert: 'يبدو أن ملف CSV فارغ.',
-    noCommentsFoundAlert: 'لم يتم العثور على تعليقات في ملف CSV. تأكد من أنه يحتوي على عمود "comment" أو تعليق واحد لكل سطر.',
-    csvLoadSuccess: 'تم تحميل {count} تعليقات من CSV بنجاح.',
-    apiError: 'حدث خطأ أثناء الاتصال بـ Claude API. استخدام المحاكاة بدلاً من ذلك.\n\nخطأ: {message}\n\nملاحظة: يحتاج هذا التطبيق إلى خادم خلفي لتوجيه الطلبات إلى Claude API.',
-    processingError: 'خطأ في معالجة التعليقات: {message}',
-    positive: 'إيجابي',
-    negative: 'سلبي',
-    sentiment: 'المشاعر: {score}',
-    selectedFile: 'الملف المحدد: {filename} ({size})'
-  }
-};
-
-// Helper function to get translation
-function t(key, replacements = {}) {
-  let text = translations[currentLang][key] || translations.en[key] || key;
-  
-  // Apply any replacements
-  Object.keys(replacements).forEach(placeholder => {
-    text = text.replace(`{${placeholder}}`, replacements[placeholder]);
-  });
-  
-  return text;
-}
-
 // Wait for DOM to fully load before accessing elements
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("DOM fully loaded - initializing app");
-  
   // DOM elements
   const commentInput = document.getElementById('commentInput');
   const addCommentBtn = document.getElementById('addCommentBtn');
@@ -79,19 +26,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const categoryCountEl = document.getElementById('categoryCount');
   const avgSentimentEl = document.getElementById('avgSentiment');
   const debugLog = document.getElementById('debugLog');
-  const langSwitch = document.getElementById('langSwitch');
-
-  // Check that all required elements exist
-  if (!commentInput || !addCommentBtn || !commentsList || !processCommentsBtn || 
-      !categoriesContainer || !loader || !csvFileInput || !loadCsvBtn || 
-      !fileInfo || !clearCommentsBtn || !apiKeyInput || !useSimulation || 
-      !useApi || !apiKeySection || !overallStats || !totalCommentsEl || 
-      !categoryCountEl || !avgSentimentEl || !debugLog || !langSwitch) {
-    console.error("DOM elements missing. Check that all IDs are correct in HTML.");
-    return;
-  }
-
-  console.log("All DOM elements found successfully");
 
   // Debugging function
   function debug(message, data) {
@@ -112,48 +46,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  debug("App initialization started");
-
-  // Language switching functionality
-  langSwitch.addEventListener('click', function() {
-    currentLang = currentLang === 'en' ? 'ar' : 'en';
-    updateLanguage();
-  });
-
-  function updateLanguage() {
-    debug("Updating language to: " + currentLang);
-    
-    // Update document direction and language
-    document.documentElement.lang = currentLang;
-    if (currentLang === 'ar') {
-      document.body.classList.add('rtl');
-      langSwitch.textContent = 'English';
-    } else {
-      document.body.classList.remove('rtl');
-      langSwitch.textContent = 'العربية';
-    }
-
-    // Update all elements with data-en and data-ar attributes
-    document.querySelectorAll('[data-en]').forEach(el => {
-      el.textContent = el.getAttribute(`data-${currentLang}`);
-    });
-
-    // Update placeholders
-    document.querySelectorAll('[data-en-placeholder]').forEach(el => {
-      el.placeholder = el.getAttribute(`data-${currentLang}-placeholder`);
-    });
-
-    // Update document title
-    document.title = document.querySelector('title').getAttribute(`data-${currentLang}`);
-  }
-
   // Processing method selection
   useSimulation.addEventListener('change', updateProcessingMethod);
   useApi.addEventListener('change', updateProcessingMethod);
   
   function updateProcessingMethod() {
-    debug("Processing method changed", { useApi: useApi.checked });
-    
     if (useApi.checked) {
       apiKeySection.style.display = 'block';
     } else {
@@ -175,8 +72,6 @@ document.addEventListener('DOMContentLoaded', function() {
       // Show corresponding content
       const tabId = tab.getAttribute('data-tab');
       document.getElementById(tabId).classList.add('active');
-      
-      debug("Tab changed to:", tabId);
     });
   });
   
@@ -187,7 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
       comments.push(commentText);
       updateCommentsList();
       commentInput.value = '';
-      debug("Comment added:", commentText);
     }
   });
   
@@ -197,7 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCommentsList();
     categoriesContainer.innerHTML = '';
     overallStats.style.display = 'none';
-    debug("All comments cleared");
   });
   
   // Update the comments list display
@@ -209,58 +102,29 @@ document.addEventListener('DOMContentLoaded', function() {
       commentEl.textContent = comment;
       commentsList.appendChild(commentEl);
     });
-    debug("Comments list updated", { count: comments.length });
   }
   
   // Handle CSV file upload
   csvFileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (file) {
-      fileInfo.textContent = t('selectedFile', { 
-        filename: file.name, 
-        size: formatFileSize(file.size) 
-      });
-      debug("CSV file selected", { name: file.name, size: file.size });
-    } else {
-      fileInfo.textContent = '';
+      fileInfo.textContent = `Selected file: ${file.name} (${formatFileSize(file.size)})`;
     }
   });
   
   // Load comments from CSV
   loadCsvBtn.addEventListener('click', () => {
-    debug("Load CSV button clicked");
-    
     const file = csvFileInput.files[0];
     if (!file) {
-      alert(t('csvFileAlert'));
-      debug("No CSV file selected");
+      alert('Please select a CSV file first.');
       return;
     }
     
-    // Show loader while parsing
-    loader.style.display = 'block';
-    
     const reader = new FileReader();
-    
     reader.onload = (e) => {
-      try {
-        const content = e.target.result;
-        debug("CSV file read", { size: content.length });
-        parseCSV(content);
-      } catch (error) {
-        debug("Error reading CSV file", error.message);
-        alert(`Error reading CSV: ${error.message}`);
-      } finally {
-        loader.style.display = 'none';
-      }
+      const content = e.target.result;
+      parseCSV(content);
     };
-    
-    reader.onerror = (e) => {
-      debug("FileReader error", e);
-      alert(`Error reading file: ${e.target.error}`);
-      loader.style.display = 'none';
-    };
-    
     reader.readAsText(file);
   });
   
@@ -268,16 +132,11 @@ document.addEventListener('DOMContentLoaded', function() {
   function parseCSV(content) {
     debug("Parsing CSV content", content.substring(0, 200) + "...");
     
-    if (!content || content.trim() === '') {
-      alert(t('emptyCSVAlert'));
-      return;
-    }
-    
     // Split by new lines
     const lines = content.split(/\r?\n/);
     
     if (lines.length === 0) {
-      alert(t('emptyCSVAlert'));
+      alert('The CSV file appears to be empty.');
       return;
     }
     
@@ -305,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       // Otherwise, treat each line as a comment (skipping the header)
       debug("No 'comment' column found, treating each line as comment");
-      for (let i = 0; i < lines.length; i++) {
+      for (let i = 1; i < lines.length; i++) {
         if (lines[i].trim()) {
           newComments.push(lines[i].trim());
         }
@@ -315,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     debug("Extracted " + newComments.length + " comments from CSV");
     
     if (newComments.length === 0) {
-      alert(t('noCommentsFoundAlert'));
+      alert('No comments found in the CSV file. Make sure it has a "comment" column or one comment per line.');
       return;
     }
     
@@ -323,13 +182,11 @@ document.addEventListener('DOMContentLoaded', function() {
     comments = comments.concat(newComments);
     updateCommentsList();
     
-    alert(t('csvLoadSuccess', { count: newComments.length }));
+    alert(`Successfully loaded ${newComments.length} comments from CSV.`);
   }
   
   // Parse a single CSV line, handling quotes correctly
   function parseCSVLine(line) {
-    if (!line) return [];
-    
     // Simple CSV parsing for basic cases
     if (!line.includes('"')) {
       return line.split(',');
@@ -371,10 +228,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Process comments
   processCommentsBtn.addEventListener('click', async () => {
-    debug("Process comments button clicked");
-    
     if (comments.length === 0) {
-      alert(t('noCommentsAlert'));
+      alert('Please add some comments first.');
       return;
     }
     
@@ -388,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (useApi.checked) {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) {
-          alert(t('apiKeyAlert'));
+          alert('Please enter your Claude API key.');
           loader.style.display = 'none';
           return;
         }
@@ -400,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (apiError) {
           console.error('API error:', apiError);
           debug("Claude API error, falling back to simulation", apiError.message);
-          alert(t('apiError', { message: apiError.message }));
+          alert('There was an error connecting to the Claude API. Using simulation instead.\n\nError: ' + apiError.message + '\n\nNote: This app needs a backend server to proxy requests to Claude API.');
           categorizedComments = await simulateClaudeAPI(comments);
         }
       } else {
@@ -413,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
       console.error('Error processing comments:', error);
       debug("Error processing comments", error.message);
-      alert(t('processingError', { message: error.message }));
+      alert('Error processing comments: ' + error.message);
     } finally {
       // Hide loader
       loader.style.display = 'none';
@@ -717,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const categoryCount = document.createElement('div');
       categoryCount.className = 'category-count';
-      categoryCount.textContent = `${category.count} ${currentLang === 'ar' ? 'تعليقات' : 'comments'}`;
+      categoryCount.textContent = `${category.count} comments`;
       
       const categorySummary = document.createElement('div');
       categorySummary.className = 'category-summary';
@@ -744,7 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const sentimentScoreEl = document.createElement('div');
       sentimentScoreEl.className = 'sentiment-score';
-      sentimentScoreEl.textContent = t('sentiment', { score: sentimentScore });
+      sentimentScoreEl.textContent = `Sentiment: ${sentimentScore}`;
       
       sentimentDetails.appendChild(sentimentEmoji);
       sentimentDetails.appendChild(sentimentScoreEl);
@@ -776,7 +631,86 @@ document.addEventListener('DOMContentLoaded', function() {
       sentimentLabel.className = 'sentiment-label';
       
       const sentimentLabelNeg = document.createElement('div');
-      sentimentLabelNeg.textContent = t('negative');
+      sentimentLabelNeg.textContent = 'Negative';
       
       const sentimentLabelPos = document.createElement('div');
-      sentimentL
+      sentimentLabelPos.textContent = 'Positive';
+      
+      sentimentLabel.appendChild(sentimentLabelNeg);
+      sentimentLabel.appendChild(sentimentLabelPos);
+      
+      // Create show comments button
+      const showCommentsBtn = document.createElement('button');
+      showCommentsBtn.className = 'show-comments-btn';
+      showCommentsBtn.textContent = 'Show Comments';
+      showCommentsBtn.setAttribute('data-expanded', 'false');
+      
+      // Create comments container
+      const commentsContainer = document.createElement('div');
+      commentsContainer.className = 'category-comments';
+      
+      // Add comments to container
+      category.comments.forEach(comment => {
+        const commentEl = document.createElement('div');
+        commentEl.className = 'category-comment';
+        commentEl.textContent = comment;
+        commentsContainer.appendChild(commentEl);
+      });
+      
+      // Toggle comments visibility
+      showCommentsBtn.addEventListener('click', () => {
+        const isExpanded = showCommentsBtn.getAttribute('data-expanded') === 'true';
+        if (isExpanded) {
+          commentsContainer.style.display = 'none';
+          showCommentsBtn.textContent = 'Show Comments';
+          showCommentsBtn.setAttribute('data-expanded', 'false');
+        } else {
+          commentsContainer.style.display = 'block';
+          showCommentsBtn.textContent = 'Hide Comments';
+          showCommentsBtn.setAttribute('data-expanded', 'true');
+        }
+      });
+      
+      // Assemble the category card
+      categoryHeader.appendChild(categoryName);
+      categoryHeader.appendChild(categoryCount);
+      
+      categoryCard.appendChild(categoryHeader);
+      categoryCard.appendChild(categorySummary);
+      categoryCard.appendChild(sentimentDetails);
+      categoryCard.appendChild(sentimentBarContainer);
+      categoryCard.appendChild(sentimentLabel);
+      categoryCard.appendChild(showCommentsBtn);
+      categoryCard.appendChild(commentsContainer);
+      
+      categoriesContainer.appendChild(categoryCard);
+    });
+    
+    debug("Displayed categories", { count: categories.length });
+  }
+  
+  // Check for stored API key in localStorage
+  const storedApiKey = localStorage.getItem('claudeApiKey');
+  if (storedApiKey) {
+    apiKeyInput.value = storedApiKey;
+    debug("Loaded stored API key");
+  }
+  
+  // Save API key to localStorage when entered
+  apiKeyInput.addEventListener('change', () => {
+    if (apiKeyInput.value.trim()) {
+      localStorage.setItem('claudeApiKey', apiKeyInput.value.trim());
+      debug("Saved API key to localStorage");
+    }
+  });
+  
+  // Also allow adding comments by pressing Enter in the input field
+  commentInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      addCommentBtn.click();
+    }
+  });
+  
+  debug("App initialization complete");
+});
