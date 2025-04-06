@@ -40,7 +40,26 @@ const translations = {
     negative: 'سلبي',
     sentiment: 'المشاعر: {score}',
     selectedFile: 'الملف المحدد: {filename} ({size})'
+  
+  // Check for stored API key in localStorage
+  const storedApiKey = localStorage.getItem('claudeApiKey');
+  if (storedApiKey) {
+    apiKeyInput.value = storedApiKey;
   }
+  
+  // Save API key to localStorage when entered
+  apiKeyInput.addEventListener('change', () => {
+    const apiKey = apiKeyInput.value.trim();
+    if (apiKey) {
+      localStorage.setItem('claudeApiKey', apiKey);
+      debug("API key saved to localStorage");
+    }
+  });
+
+  // Set initial UI states
+  updateProcessingMethod();
+  updateLanguage();
+}
 };
 
 // Helper function to get translation
@@ -192,6 +211,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const file = event.target.files[0];
     if (file) {
       fileInfo.textContent = t('selectedFile', { filename: file.name, size: formatFileSize(file.size) });
+    } else {
+      fileInfo.textContent = '';
     }
   });
   
@@ -205,8 +226,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const reader = new FileReader();
     reader.onload = (e) => {
-      const content = e.target.result;
-      parseCSV(content);
+      try {
+        const content = e.target.result;
+        parseCSV(content);
+      } catch (error) {
+        debug("Error reading CSV file", error.message);
+        alert(`Error reading CSV: ${error.message}`);
+      }
+    };
+    reader.onerror = (e) => {
+      debug("FileReader error", e);
+      alert(`Error reading file: ${e.target.error}`);
     };
     reader.readAsText(file);
   });
@@ -771,7 +801,3 @@ document.addEventListener('DOMContentLoaded', function() {
     
     debug("Displayed categories", { count: categories.length });
   }
-  
-  // Check for stored API key in localStorage
-  const storedApiKey = localStorage.getItem('claudeApiKey');
-  if (sto
