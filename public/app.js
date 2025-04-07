@@ -1,3 +1,275 @@
+// Display categorized comments
+  function displayCategorizedComments(categories) {
+    try {
+      if (!categoriesContainer) {
+        throw new Error('Categories container element not found');
+      }
+      
+      // Clear previous content
+      categoriesContainer.innerHTML = '';
+      
+      // Validate categories data
+      if (!Array.isArray(categories) || categories.length === 0) {
+        throw new Error('Invalid categories data');
+      }
+      
+      // Calculate overall statistics
+      const totalComments = categories.reduce((sum, category) => sum + (category.count || 0), 0);
+      const categoryCount = categories.length;
+      
+      let totalSentiment = 0;
+      let validSentimentCount = 0;
+      
+      categories.forEach(category => {
+        const sentimentValue = parseFloat(category.sentiment || 0);
+        if (!isNaN(sentimentValue) && category.count > 0) {
+          totalSentiment += sentimentValue * category.count;
+          validSentimentCount += category.count;
+        }
+      });
+      
+      // Calculate average sentiment (or default to 0 if no valid sentiment)
+      const avgSentiment = validSentimentCount > 0 ? 
+        (totalSentiment / validSentimentCount).toFixed(2) : 
+        "0.00";
+      
+      // Update statistics display if elements exist
+      if (totalCommentsEl) totalCommentsEl.textContent = totalComments;
+      if (categoryCountEl) categoryCountEl.textContent = categoryCount;
+      if (avgSentimentEl) avgSentimentEl.textContent = avgSentiment;
+      if (overallStats) overallStats.style.display = 'block';
+      
+      debug("Statistics calculated", { totalComments, categoryCount, avgSentiment });
+      
+      // Sort categories by count (highest first) - with null/undefined handling
+      categories.sort((a, b) => (b.count || 0) - (a.count || 0));
+      
+      // Create and display category cards
+      categories.forEach(category => {
+        try {
+          // Skip invalid categories
+          if (!category || !category.name) return;
+          
+          const categoryCard = document.createElement('div');
+          categoryCard.className = 'category-card';
+          
+          const categoryHeader = document.createElement('div');
+          categoryHeader.className = 'category-header';
+          
+          const categoryName = document.createElement('div');
+          categoryName.className = 'category-name';
+          categoryName.textContent = category.name;
+          
+          const categoryCount = document.createElement('div');
+          categoryCount.className = 'category-count';
+          const commentsText = translations && translations[currentLanguage] && 
+            translations[currentLanguage]['comments'] ? 
+            translations[currentLanguage]['comments'] : 'comments';
+          categoryCount.textContent = `${category.count || 0} ${commentsText}`;
+          
+          const categorySummary = document.createElement('div');
+          categorySummary.className = 'category-summary';
+          categorySummary.textContent = category.summary || '';
+          
+          // Create sentiment score and visualization
+          const sentimentScore = parseFloat(category.sentiment || 0);
+          const sentimentContainer = document.createElement('div');
+          sentimentContainer.className = 'sentiment-container';
+          
+          const sentimentDetails = document.createElement('div');
+          sentimentDetails.className = 'sentiment-details';
+          
+          const sentimentEmoji = document.createElement('div');
+          sentimentEmoji.className = 'sentiment-emoji';
+          
+          if (sentimentScore > 0.33) {
+            sentimentEmoji.textContent = '😃';
+          } else if (sentimentScore > -0.33) {
+            sentimentEmoji.textContent = '😐';
+          } else {
+            sentimentEmoji.textContent = '😞';
+          }
+          
+          const sentimentScoreEl = document.createElement('div');
+          sentimentScoreEl.className = 'sentiment-score';
+          const sentimentText = translations && translations[currentLanguage] && 
+            translations[currentLanguage]['sentiment'] ? 
+            translations[currentLanguage]['sentiment'] : 'Sentiment:';
+          sentimentScoreEl.textContent = `${sentimentText} ${sentimentScore.toFixed(2)}`;
+          
+          sentimentDetails.appendChild(sentimentEmoji);
+          sentimentDetails.appendChild(sentimentScoreEl);
+          
+          // Create sentiment bar visualization
+          const sentimentBarContainer = document.createElement('div');
+          sentimentBarContainer.className = 'sentiment-bar-container';
+          
+          const sentimentBar = document.createElement('div');
+          sentimentBar.className = 'sentiment-bar';
+          
+          // Determine sentiment bar color and width based on score
+          if (sentimentScore > 0.33) {
+            sentimentBar.classList.add('sentiment-positive');
+          } else if (sentimentScore > -0.33) {
+            sentimentBar.classList.add('sentiment-neutral');
+          } else {
+            sentimentBar.classList.add('sentiment-negative');
+          }
+          
+          // Convert score from -1...1 to 0...100% for width
+          const barWidthPercent = ((sentimentScore + 1) / 2) * 100;
+          sentimentBar.style.width = `${Math.max(0, Math.min(100, barWidthPercent))}%`;
+          
+          sentimentBarContainer.appendChild(sentimentBar);
+          
+          // Create sentiment label
+          const sentimentLabel = document.createElement('div');
+          sentimentLabel.className = 'sentiment-label';
+          
+          const sentimentLabelNeg = document.createElement('div');
+          sentimentLabelNeg.textContent = translations && translations[currentLanguage] && 
+            translations[currentLanguage]['negative'] ? 
+            translations[currentLanguage]['negative'] : 'Negative';
+          
+          const sentimentLabelPos = document.createElement('div');
+          sentimentLabelPos.textContent = translations && translations[currentLanguage] && 
+            translations[currentLanguage]['positive'] ? 
+            translations[currentLanguage]['positive'] : 'Positive';
+          
+          sentimentLabel.appendChild(sentimentLabelNeg);
+          sentimentLabel.appendChild(sentimentLabelPos);
+          
+          // Create show comments button
+          const showCommentsBtn = document.createElement('button');
+          showCommentsBtn.className = 'show-comments-btn';
+          showCommentsBtn.textContent = translations && translations[currentLanguage] && 
+            translations[currentLanguage]['show-comments'] ? 
+            translations[currentLanguage]['show-comments'] : 'Show Comments';
+          showCommentsBtn.setAttribute('data-expanded', 'false');
+          
+          // Create comments container
+          const commentsContainer = document.createElement('div');
+          commentsContainer.className = 'category-comments';
+          
+          // Add comments to container
+          if (Array.isArray(category.comments)) {
+            category.comments.forEach(comment => {
+              if (!comment) return;
+              
+              const commentEl = document.createElement('div');
+              commentEl.className = 'category-comment';
+              commentEl.textContent = comment;
+              commentsContainer.appendChild(commentEl);
+            });
+          }
+          
+          // Toggle comments visibility
+          showCommentsBtn.addEventListener('click', () => {
+            try {
+              const isExpanded = showCommentsBtn.getAttribute('data-expanded') === 'true';
+              if (isExpanded) {
+                commentsContainer.style.display = 'none';
+                showCommentsBtn.textContent = translations && translations[currentLanguage] && 
+                  translations[currentLanguage]['show-comments'] ? 
+                  translations[currentLanguage]['show-comments'] : 'Show Comments';
+                showCommentsBtn.setAttribute('data-expanded', 'false');
+              } else {
+                commentsContainer.style.display = 'block';
+                showCommentsBtn.textContent = translations && translations[currentLanguage] && 
+                  translations[currentLanguage]['hide-comments'] ? 
+                  translations[currentLanguage]['hide-comments'] : 'Hide Comments';
+                showCommentsBtn.setAttribute('data-expanded', 'true');
+              }
+            } catch (error) {
+              console.error('Error toggling comments visibility:', error);
+              debug("Toggle comments error", error.message);
+            }
+          });
+          
+          // Assemble the category card
+          categoryHeader.appendChild(categoryName);
+          categoryHeader.appendChild(categoryCount);
+          
+          categoryCard.appendChild(categoryHeader);
+          categoryCard.appendChild(categorySummary);
+          categoryCard.appendChild(sentimentDetails);
+          categoryCard.appendChild(sentimentBarContainer);
+          categoryCard.appendChild(sentimentLabel);
+          categoryCard.appendChild(showCommentsBtn);
+          categoryCard.appendChild(commentsContainer);
+          
+          categoriesContainer.appendChild(categoryCard);
+        } catch (cardError) {
+          console.error('Error creating category card:', cardError);
+          debug("Category card creation error", cardError.message);
+        }
+      });
+      
+      debug("Displayed categories", { count: categories.length });
+    } catch (error) {
+      console.error('Error displaying categories:', error);
+      debug("Display categories error", error.message);
+      
+      // Show error message in the UI
+      if (categoriesContainer) {
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'error-message';
+        errorMessage.textContent = currentLanguage === 'ar' 
+          ? 'حدث خطأ أثناء عرض الفئات. يرجى المحاولة مرة أخرى.'
+          : 'An error occurred while displaying categories. Please try again.';
+        categoriesContainer.innerHTML = '';
+        categoriesContainer.appendChild(errorMessage);
+      }
+    }
+  }
+  
+  // Check for stored API key in localStorage
+  if (apiKeyInput) {
+    try {
+      const storedApiKey = localStorage.getItem('claudeApiKey');
+      if (storedApiKey) {
+        apiKeyInput.value = storedApiKey;
+        debug("Loaded stored API key");
+      }
+      
+      // Save API key to localStorage when entered
+      apiKeyInput.addEventListener('change', () => {
+        if (apiKeyInput.value.trim()) {
+          localStorage.setItem('claudeApiKey', apiKeyInput.value.trim());
+          debug("Saved API key to localStorage");
+        }
+      });
+    } catch (storageError) {
+      console.error('Error accessing localStorage:', storageError);
+      debug("localStorage error", storageError.message);
+    }
+  }
+  
+  // Also allow adding comments by pressing Enter in the input field
+  if (commentInput) {
+    commentInput.addEventListener('keypress', (e) => {
+      try {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (addCommentBtn) {
+            addCommentBtn.click();
+          }
+        }
+      } catch (keypressError) {
+        console.error('Error handling keypress:', keypressError);
+        debug("Keypress error", keypressError.message);
+      }
+    });
+  }
+  
+  // Initialize language
+  initializeLanguage();
+  
+  // Update processing method display
+  updateProcessingMethod();
+  
+  debug("App initialization complete");
+});
 // Store comments
 let comments = [];
 
@@ -715,275 +987,3 @@ document.addEventListener('DOMContentLoaded', function() {
       return "0.00"; // Default neutral score on error
     }
   }
-  // Display categorized comments
-  function displayCategorizedComments(categories) {
-    try {
-      if (!categoriesContainer) {
-        throw new Error('Categories container element not found');
-      }
-      
-      // Clear previous content
-      categoriesContainer.innerHTML = '';
-      
-      // Validate categories data
-      if (!Array.isArray(categories) || categories.length === 0) {
-        throw new Error('Invalid categories data');
-      }
-      
-      // Calculate overall statistics
-      const totalComments = categories.reduce((sum, category) => sum + (category.count || 0), 0);
-      const categoryCount = categories.length;
-      
-      let totalSentiment = 0;
-      let validSentimentCount = 0;
-      
-      categories.forEach(category => {
-        const sentimentValue = parseFloat(category.sentiment || 0);
-        if (!isNaN(sentimentValue) && category.count > 0) {
-          totalSentiment += sentimentValue * category.count;
-          validSentimentCount += category.count;
-        }
-      });
-      
-      // Calculate average sentiment (or default to 0 if no valid sentiment)
-      const avgSentiment = validSentimentCount > 0 ? 
-        (totalSentiment / validSentimentCount).toFixed(2) : 
-        "0.00";
-      
-      // Update statistics display if elements exist
-      if (totalCommentsEl) totalCommentsEl.textContent = totalComments;
-      if (categoryCountEl) categoryCountEl.textContent = categoryCount;
-      if (avgSentimentEl) avgSentimentEl.textContent = avgSentiment;
-      if (overallStats) overallStats.style.display = 'block';
-      
-      debug("Statistics calculated", { totalComments, categoryCount, avgSentiment });
-      
-      // Sort categories by count (highest first) - with null/undefined handling
-      categories.sort((a, b) => (b.count || 0) - (a.count || 0));
-      
-      // Create and display category cards
-      categories.forEach(category => {
-        try {
-          // Skip invalid categories
-          if (!category || !category.name) return;
-          
-          const categoryCard = document.createElement('div');
-          categoryCard.className = 'category-card';
-          
-          const categoryHeader = document.createElement('div');
-          categoryHeader.className = 'category-header';
-          
-          const categoryName = document.createElement('div');
-          categoryName.className = 'category-name';
-          categoryName.textContent = category.name;
-          
-          const categoryCount = document.createElement('div');
-          categoryCount.className = 'category-count';
-          const commentsText = translations && translations[currentLanguage] && 
-            translations[currentLanguage]['comments'] ? 
-            translations[currentLanguage]['comments'] : 'comments';
-          categoryCount.textContent = `${category.count || 0} ${commentsText}`;
-          
-          const categorySummary = document.createElement('div');
-          categorySummary.className = 'category-summary';
-          categorySummary.textContent = category.summary || '';
-          
-          // Create sentiment score and visualization
-          const sentimentScore = parseFloat(category.sentiment || 0);
-          const sentimentContainer = document.createElement('div');
-          sentimentContainer.className = 'sentiment-container';
-          
-          const sentimentDetails = document.createElement('div');
-          sentimentDetails.className = 'sentiment-details';
-          
-          const sentimentEmoji = document.createElement('div');
-          sentimentEmoji.className = 'sentiment-emoji';
-          
-          if (sentimentScore > 0.33) {
-            sentimentEmoji.textContent = '😃';
-          } else if (sentimentScore > -0.33) {
-            sentimentEmoji.textContent = '😐';
-          } else {
-            sentimentEmoji.textContent = '😞';
-          }
-          
-          const sentimentScoreEl = document.createElement('div');
-          sentimentScoreEl.className = 'sentiment-score';
-          const sentimentText = translations && translations[currentLanguage] && 
-            translations[currentLanguage]['sentiment'] ? 
-            translations[currentLanguage]['sentiment'] : 'Sentiment:';
-          sentimentScoreEl.textContent = `${sentimentText} ${sentimentScore.toFixed(2)}`;
-          
-          sentimentDetails.appendChild(sentimentEmoji);
-          sentimentDetails.appendChild(sentimentScoreEl);
-          
-          // Create sentiment bar visualization
-          const sentimentBarContainer = document.createElement('div');
-          sentimentBarContainer.className = 'sentiment-bar-container';
-          
-          const sentimentBar = document.createElement('div');
-          sentimentBar.className = 'sentiment-bar';
-          
-          // Determine sentiment bar color and width based on score
-          if (sentimentScore > 0.33) {
-            sentimentBar.classList.add('sentiment-positive');
-          } else if (sentimentScore > -0.33) {
-            sentimentBar.classList.add('sentiment-neutral');
-          } else {
-            sentimentBar.classList.add('sentiment-negative');
-          }
-          
-          // Convert score from -1...1 to 0...100% for width
-          const barWidthPercent = ((sentimentScore + 1) / 2) * 100;
-          sentimentBar.style.width = `${Math.max(0, Math.min(100, barWidthPercent))}%`;
-          
-          sentimentBarContainer.appendChild(sentimentBar);
-          
-          // Create sentiment label
-          const sentimentLabel = document.createElement('div');
-          sentimentLabel.className = 'sentiment-label';
-          
-          const sentimentLabelNeg = document.createElement('div');
-          sentimentLabelNeg.textContent = translations && translations[currentLanguage] && 
-            translations[currentLanguage]['negative'] ? 
-            translations[currentLanguage]['negative'] : 'Negative';
-          
-          const sentimentLabelPos = document.createElement('div');
-          sentimentLabelPos.textContent = translations && translations[currentLanguage] && 
-            translations[currentLanguage]['positive'] ? 
-            translations[currentLanguage]['positive'] : 'Positive';
-          
-          sentimentLabel.appendChild(sentimentLabelNeg);
-          sentimentLabel.appendChild(sentimentLabelPos);
-          
-          // Create show comments button
-          const showCommentsBtn = document.createElement('button');
-          showCommentsBtn.className = 'show-comments-btn';
-          showCommentsBtn.textContent = translations && translations[currentLanguage] && 
-            translations[currentLanguage]['show-comments'] ? 
-            translations[currentLanguage]['show-comments'] : 'Show Comments';
-          showCommentsBtn.setAttribute('data-expanded', 'false');
-          
-          // Create comments container
-          const commentsContainer = document.createElement('div');
-          commentsContainer.className = 'category-comments';
-          
-          // Add comments to container
-          if (Array.isArray(category.comments)) {
-            category.comments.forEach(comment => {
-              if (!comment) return;
-              
-              const commentEl = document.createElement('div');
-              commentEl.className = 'category-comment';
-              commentEl.textContent = comment;
-              commentsContainer.appendChild(commentEl);
-            });
-          }
-          
-          // Toggle comments visibility
-          showCommentsBtn.addEventListener('click', () => {
-            try {
-              const isExpanded = showCommentsBtn.getAttribute('data-expanded') === 'true';
-              if (isExpanded) {
-                commentsContainer.style.display = 'none';
-                showCommentsBtn.textContent = translations && translations[currentLanguage] && 
-                  translations[currentLanguage]['show-comments'] ? 
-                  translations[currentLanguage]['show-comments'] : 'Show Comments';
-                showCommentsBtn.setAttribute('data-expanded', 'false');
-              } else {
-                commentsContainer.style.display = 'block';
-                showCommentsBtn.textContent = translations && translations[currentLanguage] && 
-                  translations[currentLanguage]['hide-comments'] ? 
-                  translations[currentLanguage]['hide-comments'] : 'Hide Comments';
-                showCommentsBtn.setAttribute('data-expanded', 'true');
-              }
-            } catch (error) {
-              console.error('Error toggling comments visibility:', error);
-              debug("Toggle comments error", error.message);
-            }
-          });
-          
-          // Assemble the category card
-          categoryHeader.appendChild(categoryName);
-          categoryHeader.appendChild(categoryCount);
-          
-          categoryCard.appendChild(categoryHeader);
-          categoryCard.appendChild(categorySummary);
-          categoryCard.appendChild(sentimentDetails);
-          categoryCard.appendChild(sentimentBarContainer);
-          categoryCard.appendChild(sentimentLabel);
-          categoryCard.appendChild(showCommentsBtn);
-          categoryCard.appendChild(commentsContainer);
-          
-          categoriesContainer.appendChild(categoryCard);
-        } catch (cardError) {
-          console.error('Error creating category card:', cardError);
-          debug("Category card creation error", cardError.message);
-        }
-      });
-      
-      debug("Displayed categories", { count: categories.length });
-    } catch (error) {
-      console.error('Error displaying categories:', error);
-      debug("Display categories error", error.message);
-      
-      // Show error message in the UI
-      if (categoriesContainer) {
-        const errorMessage = document.createElement('div');
-        errorMessage.className = 'error-message';
-        errorMessage.textContent = currentLanguage === 'ar' 
-          ? 'حدث خطأ أثناء عرض الفئات. يرجى المحاولة مرة أخرى.'
-          : 'An error occurred while displaying categories. Please try again.';
-        categoriesContainer.innerHTML = '';
-        categoriesContainer.appendChild(errorMessage);
-      }
-    }
-  }
-  
-  // Check for stored API key in localStorage
-  if (apiKeyInput) {
-    try {
-      const storedApiKey = localStorage.getItem('claudeApiKey');
-      if (storedApiKey) {
-        apiKeyInput.value = storedApiKey;
-        debug("Loaded stored API key");
-      }
-      
-      // Save API key to localStorage when entered
-      apiKeyInput.addEventListener('change', () => {
-        if (apiKeyInput.value.trim()) {
-          localStorage.setItem('claudeApiKey', apiKeyInput.value.trim());
-          debug("Saved API key to localStorage");
-        }
-      });
-    } catch (storageError) {
-      console.error('Error accessing localStorage:', storageError);
-      debug("localStorage error", storageError.message);
-    }
-  }
-  
-  // Also allow adding comments by pressing Enter in the input field
-  if (commentInput) {
-    commentInput.addEventListener('keypress', (e) => {
-      try {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          if (addCommentBtn) {
-            addCommentBtn.click();
-          }
-        }
-      } catch (keypressError) {
-        console.error('Error handling keypress:', keypressError);
-        debug("Keypress error", keypressError.message);
-      }
-    });
-  }
-  
-  // Initialize language
-  initializeLanguage();
-  
-  // Update processing method display
-  updateProcessingMethod();
-  
-  debug("App initialization complete");
-});
