@@ -4,6 +4,9 @@ let comments = [];
 // Debug mode
 const DEBUG = true;
 
+// Current language
+let currentLanguage = 'en';
+
 // Wait for DOM to fully load before accessing elements
 document.addEventListener('DOMContentLoaded', function() {
   // DOM elements
@@ -26,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const categoryCountEl = document.getElementById('categoryCount');
   const avgSentimentEl = document.getElementById('avgSentiment');
   const debugLog = document.getElementById('debugLog');
+  const languageSelector = document.getElementById('languageSelector');
 
   // Debugging function
   function debug(message, data) {
@@ -45,6 +49,56 @@ document.addEventListener('DOMContentLoaded', function() {
       debugLog.scrollTop = debugLog.scrollHeight;
     }
   }
+  
+  // Language switching functions
+  function initializeLanguage() {
+    // Check for saved language preference
+    const savedLanguage = localStorage.getItem('preferredLanguage');
+    
+    if (savedLanguage) {
+      currentLanguage = savedLanguage;
+      languageSelector.value = currentLanguage;
+    }
+    
+    applyLanguage(currentLanguage);
+    debug("Initialized language", currentLanguage);
+  }
+  
+  // Apply the selected language
+  function applyLanguage(lang) {
+    debug("Applying language", lang);
+    
+    // Update document language
+    document.documentElement.lang = lang;
+    
+    // Apply RTL for Arabic
+    if (lang === 'ar') {
+      document.body.classList.add('rtl');
+    } else {
+      document.body.classList.remove('rtl');
+    }
+    
+    // Update all text elements with translations
+    const elements = document.querySelectorAll('[data-lang-key]');
+    elements.forEach(element => {
+      const key = element.getAttribute('data-lang-key');
+      
+      if (translations[lang] && translations[lang][key]) {
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+          // For input elements, update the placeholder
+          if (element.hasAttribute('placeholder')) {
+            element.placeholder = translations[lang][key];
+          }
+        } else {
+          // For other elements, update the text content
+          element.textContent = translations[lang][key];
+        }
+      }
+    });
+    
+    currentLanguage = lang;
+    localStorage.setItem('preferredLanguage', lang);
+  }
 
   // Processing method selection
   useSimulation.addEventListener('change', updateProcessingMethod);
@@ -57,6 +111,13 @@ document.addEventListener('DOMContentLoaded', function() {
       apiKeySection.style.display = 'none';
     }
   }
+  
+  // Language selection
+  languageSelector.addEventListener('change', function() {
+    const selectedLanguage = this.value;
+    applyLanguage(selectedLanguage);
+    debug("Language changed", selectedLanguage);
+  });
   
   // Tab functionality
   const tabs = document.querySelectorAll('.tab');
@@ -572,7 +633,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const categoryCount = document.createElement('div');
       categoryCount.className = 'category-count';
-      categoryCount.textContent = `${category.count} comments`;
+      const commentsText = translations[currentLanguage]['comments'] || 'comments';
+      categoryCount.textContent = `${category.count} ${commentsText}`;
       
       const categorySummary = document.createElement('div');
       categorySummary.className = 'category-summary';
@@ -599,7 +661,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const sentimentScoreEl = document.createElement('div');
       sentimentScoreEl.className = 'sentiment-score';
-      sentimentScoreEl.textContent = `Sentiment: ${sentimentScore}`;
+      const sentimentText = translations[currentLanguage]['sentiment'] || 'Sentiment:';
+      sentimentScoreEl.textContent = `${sentimentText} ${sentimentScore}`;
       
       sentimentDetails.appendChild(sentimentEmoji);
       sentimentDetails.appendChild(sentimentScoreEl);
@@ -631,10 +694,10 @@ document.addEventListener('DOMContentLoaded', function() {
       sentimentLabel.className = 'sentiment-label';
       
       const sentimentLabelNeg = document.createElement('div');
-      sentimentLabelNeg.textContent = 'Negative';
+      sentimentLabelNeg.textContent = translations[currentLanguage]['negative'] || 'Negative';
       
       const sentimentLabelPos = document.createElement('div');
-      sentimentLabelPos.textContent = 'Positive';
+      sentimentLabelPos.textContent = translations[currentLanguage]['positive'] || 'Positive';
       
       sentimentLabel.appendChild(sentimentLabelNeg);
       sentimentLabel.appendChild(sentimentLabelPos);
@@ -642,7 +705,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Create show comments button
       const showCommentsBtn = document.createElement('button');
       showCommentsBtn.className = 'show-comments-btn';
-      showCommentsBtn.textContent = 'Show Comments';
+      showCommentsBtn.textContent = translations[currentLanguage]['show-comments'] || 'Show Comments';
       showCommentsBtn.setAttribute('data-expanded', 'false');
       
       // Create comments container
@@ -662,11 +725,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const isExpanded = showCommentsBtn.getAttribute('data-expanded') === 'true';
         if (isExpanded) {
           commentsContainer.style.display = 'none';
-          showCommentsBtn.textContent = 'Show Comments';
+          showCommentsBtn.textContent = translations[currentLanguage]['show-comments'] || 'Show Comments';
           showCommentsBtn.setAttribute('data-expanded', 'false');
         } else {
           commentsContainer.style.display = 'block';
-          showCommentsBtn.textContent = 'Hide Comments';
+          showCommentsBtn.textContent = translations[currentLanguage]['hide-comments'] || 'Hide Comments';
           showCommentsBtn.setAttribute('data-expanded', 'true');
         }
       });
@@ -711,6 +774,9 @@ document.addEventListener('DOMContentLoaded', function() {
       addCommentBtn.click();
     }
   });
+  
+  // Initialize language
+  initializeLanguage();
   
   debug("App initialization complete");
 });
