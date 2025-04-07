@@ -49,6 +49,7 @@ body.rtl {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   margin-bottom: 20px;
   border-bottom: 1px solid var(--dark-primary);
+  position: relative;
 }
 
 .logo-container {
@@ -74,6 +75,27 @@ body.rtl {
   background: linear-gradient(45deg, var(--dark-primary), var(--dark-primary-hover));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.language-switcher {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+}
+
+.rtl .language-switcher {
+  right: auto;
+  left: 15px;
+}
+
+#languageSelector {
+  background-color: var(--dark-surface-lighter);
+  color: var(--dark-text);
+  border: 1px solid var(--dark-border);
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'SF Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .container {
@@ -485,25 +507,6 @@ button:hover {
 /* Debug logs should stay LTR for code readability */
 .rtl .debug-log {
   direction: ltr;
-}
-
-/* Language switcher styling */
-.lang-switch {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background-color: var(--dark-surface-lighter);
-  border: 1px solid var(--dark-border);
-  border-radius: 4px;
-  padding: 5px;
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--dark-text);
-}
-
-.rtl .lang-switch {
-  right: auto;
-  left: 15px;
 }
 
 /* Scrollbar styling for WebKit browsers */
