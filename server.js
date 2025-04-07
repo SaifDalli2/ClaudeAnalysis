@@ -19,20 +19,69 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Detect language of comments
+function detectLanguage(comments) {
+  // Simple detection - check if most comments have Arabic characters
+  const arabicPattern = /[\u0600-\u06FF]/;
+  let arabicCount = 0;
+  
+  for (const comment of comments) {
+    if (arabicPattern.test(comment)) {
+      arabicCount++;
+    }
+  }
+  
+  // If more than 50% of comments contain Arabic characters, treat as Arabic
+  return (arabicCount / comments.length > 0.5) ? 'ar' : 'en';
+}
+
 // API proxy endpoint
 app.post('/api/claude', async (req, res) => {
   try {
     // Get comments from request
     const { comments, apiKey } = req.body;
     
-    // Call Claude API
-    const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-3-sonnet-20240229',
-      max_tokens: 4000,
-      messages: [
-        {
-          role: 'user',
-          content: `Please categorize each of the following comments into exactly one category based on its primary topic or sentiment. Each comment must be assigned to exactly one category.
+    // Detect language of the comments
+    const language = detectLanguage(comments);
+    
+    // Create prompt based on detected language
+    let promptContent;
+    
+    if (language === 'ar') {
+      promptContent = `قم بتصنيف كل من التعليقات التالية إلى فئة واحدة بالضبط بناءً على موضوعها الرئيسي أو المشاعر. يجب تعيين كل تعليق إلى فئة واحدة بالضبط.
+
+التعليقات:
+${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
+
+لكل فئة:
+1. قدم اسم فئة وصفي
+2. اذكر أرقام التعليقات التي تنتمي إلى هذه الفئة
+3. اكتب ملخصًا موجزًا ودقيقًا يلتقط النقاط الرئيسية من جميع التعليقات في هذه الفئة
+4. حلل مشاعر التعليقات في هذه الفئة على مقياس من -1 (سلبي للغاية) إلى 1 (إيجابي للغاية)
+
+قم بإنشاء ملخصات موجزة ودقيقة تعكس مضمون معظم التعليقات في كل فئة بشكل جيد. يجب أن تبرز الملخصات النقاط المشتركة والموضوعات المتكررة.
+
+أعد النتائج بتنسيق JSON كما يلي:
+{
+  "categories": [
+    {
+      "name": "اسم الفئة",
+      "comments": [1, 5, 9], 
+      "summary": "ملخص التعليقات في هذه الفئة",
+      "sentiment": 0.7
+    },
+    {
+      "name": "فئة أخرى",
+      "comments": [2, 3, 6],
+      "summary": "ملخص التعليقات في هذه الفئة",
+      "sentiment": -0.4
+    }
+  ]
+}
+
+يجب أن يظهر كل تعليق في فئة واحدة بالضبط. يجب أن تتوافق أرقام التعليقات مع الأرقام التي حددتها أعلاه. يجب أن تكون درجة المشاعر رقمًا بين -1 و 1.`;
+    } else {
+      promptContent = `Please categorize each of the following comments into exactly one category based on its primary topic or sentiment. Each comment must be assigned to exactly one category.
 
 Comments:
 ${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
@@ -40,8 +89,10 @@ ${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
 For each category:
 1. Provide a descriptive category name
 2. List the comment numbers that belong to this category
-3. Write a concise summary that captures the key points from all comments in this category
+3. Write a concise and precise summary that captures the key points from all comments in this category
 4. Analyze the sentiment of the comments in this category on a scale from -1 (very negative) to 1 (very positive)
+
+Create summaries that are concise, precise, and truly reflective of most comments in each category. Summaries should highlight common points and recurring themes.
 
 Return the results in JSON format like this:
 {
@@ -61,7 +112,17 @@ Return the results in JSON format like this:
   ]
 }
 
-Each comment must appear in exactly one category. The comment numbers should correspond to the numbers I assigned above. The sentiment score should be a number between -1 and 1.`
+Each comment must appear in exactly one category. The comment numbers should correspond to the numbers I assigned above. The sentiment score should be a number between -1 and 1.`;
+    }
+    
+    // Call Claude API
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-3-sonnet-20240229',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: promptContent
         }
       ]
     }, {
