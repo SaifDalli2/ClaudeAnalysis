@@ -5,6 +5,77 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comment Categorization System</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- Add this at the very end of your HTML body, just before the closing </body> tag -->
+<script>
+  // Check if files are loading properly
+  console.log("HTML document loaded");
+  
+  // Check if translations.js loaded
+  if (typeof translations === 'undefined') {
+    console.error("ERROR: translations.js did not load properly!");
+    
+    // Create a fallback translations object
+    window.translations = {
+      en: {
+        "comments": "comments",
+        "show-comments": "Show Comments",
+        "hide-comments": "Hide Comments"
+      },
+      ar: {
+        "comments": "تعليقات",
+        "show-comments": "عرض التعليقات",
+        "hide-comments": "إخفاء التعليقات"
+      }
+    };
+    console.log("Created fallback translations object");
+  } else {
+    console.log("translations.js loaded successfully");
+  }
+  
+  // Check if key HTML elements exist
+  const criticalElements = [
+    'commentInput', 
+    'addCommentBtn', 
+    'commentsList', 
+    'processCommentsBtn',
+    'categoriesContainer',
+    'loader'
+  ];
+  
+  let missingElements = [];
+  
+  criticalElements.forEach(id => {
+    if (!document.getElementById(id)) {
+      missingElements.push(id);
+      console.error(`ERROR: HTML element with id "${id}" not found!`);
+    }
+  });
+  
+  if (missingElements.length > 0) {
+    const errorMessage = `Missing HTML elements: ${missingElements.join(', ')}`;
+    console.error(errorMessage);
+    
+    // Display visible error message on the page
+    const errorDiv = document.createElement('div');
+    errorDiv.style.color = 'red';
+    errorDiv.style.background = '#ffeeee';
+    errorDiv.style.padding = '10px';
+    errorDiv.style.margin = '10px 0';
+    errorDiv.style.border = '1px solid red';
+    errorDiv.textContent = errorMessage;
+    
+    document.body.insertBefore(errorDiv, document.body.firstChild);
+  } else {
+    console.log("All critical HTML elements found");
+  }
+  
+  // Check if app.js is properly loaded and executed
+  if (typeof comments === 'undefined') {
+    console.error("ERROR: app.js did not initialize properly!");
+  } else {
+    console.log("app.js initialized successfully");
+  }
+</script>
 </head>
 <body>
   <header class="header">
