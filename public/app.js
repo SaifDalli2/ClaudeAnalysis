@@ -315,7 +315,25 @@ async function processComments() {
     let result;
     
     if (useApi && apiKey) {
-      // Use actual Claude API
+    // Break comments into batches of 50 (or another appropriate number)
+    const batchSize = 50;
+    const batches = [];
+    
+    for (let i = 0; i < window.comments.length; i += batchSize) {
+      batches.push(window.comments.slice(i, i + batchSize));
+    }
+    
+    let allResults = { categories: [] };
+    
+    // Process each batch
+    for (let i = 0; i < batches.length; i++) {
+      const batchComments = batches[i];
+      
+      if (debugLog) {
+        debugLog.style.display = 'block';
+        debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing batch ${i+1} of ${batches.length} (${batchComments.length} comments)</div>`;
+      }
+      
       try {
         const response = await fetch('/api/claude', {
           method: 'POST',
@@ -323,7 +341,7 @@ async function processComments() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            comments: window.comments,
+            comments: batchComments,
             apiKey: apiKey
           })
         });
@@ -332,29 +350,24 @@ async function processComments() {
           throw new Error(`API returned status ${response.status}`);
         }
         
-        result = await response.json();
+        const batchResult = await response.json();
         
-        // Log debug info
-        if (debugLog) {
-          debugLog.style.display = 'block';
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] API response received successfully.</div>`;
-        }
+        // Merge batch results with previous results
+        allResults.categories = [...allResults.categories, ...batchResult.categories];
+        
       } catch (error) {
-        console.error('Error calling Claude API:', error);
-        
-        // Log error
+        console.error(`Error processing batch ${i+1}:`, error);
         if (debugLog) {
-          debugLog.style.display = 'block';
-          debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: ${error.message}</div>`;
+          debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Batch ${i+1} Error: ${error.message}</div>`;
         }
-        
-        // Fall back to simulation
-        result = simulateCategories();
       }
-    } else {
-      // Use simulation
-      result = simulateCategories();
-      
+    }
+    
+    result = allResults;
+  } else {
+    // Use simulation as before
+    result = simulateCategories();
+  
       // Log debug info
       if (debugLog) {
         debugLog.style.display = 'block';
