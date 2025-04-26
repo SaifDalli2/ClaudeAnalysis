@@ -335,32 +335,33 @@ async function processComments() {
       }
       
       try {
-        const response = await fetch('/api/claude', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            comments: batchComments,
-            apiKey: apiKey
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API returned status ${response.status}`);
-        }
-        
-        const batchResult = await response.json();
+  const response = await fetch('/api/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      comments: batchComments,
+      apiKey: apiKey
+    })
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API returned status ${response.status}: ${errorText}`);
+  }
+  
+  const batchResult = await response.json();
         
         // Merge batch results with previous results
         allResults.categories = [...allResults.categories, ...batchResult.categories];
         
       } catch (error) {
-        console.error(`Error processing batch ${i+1}:`, error);
-        if (debugLog) {
-          debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Batch ${i+1} Error: ${error.message}</div>`;
-        }
-      }
+  console.error(`Error processing batch:`, error);
+  if (debugLog) {
+    debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Batch Error: ${error.message}</div>`;
+  }
+}
     }
     
     result = allResults;
