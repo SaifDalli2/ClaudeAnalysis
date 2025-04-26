@@ -119,6 +119,7 @@ Each comment must appear in exactly one category. The comment numbers should cor
     }
     
     // Call Claude API
+    console.log('Sending request to Claude API...');
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-3-sonnet-20240229',
       max_tokens: 4000,
@@ -136,6 +137,8 @@ Each comment must appear in exactly one category. The comment numbers should cor
       }
     });
 
+
+    
     // Extract the response content
     const responseContent = response.data.content[0].text;
     
@@ -152,7 +155,22 @@ Each comment must appear in exactly one category. The comment numbers should cor
     
     res.json(jsonData);
   } catch (error) {
-    console.error('Error proxying to Claude API:', error.response?.data || error.message);
+    console.error('Error proxying to Claude API:');
+    
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received:', error.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Request setup error:', error.message);
+    }
+    
     res.status(500).json({
       error: 'Failed to process with Claude API',
       details: error.response?.data?.error || error.message
