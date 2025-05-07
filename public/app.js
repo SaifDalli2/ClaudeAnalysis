@@ -296,6 +296,8 @@ function setupActionButtons() {
 
 // Update the processComments function to implement two-step processing
 
+// Update the processComments function to implement two-step processing
+
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -587,54 +589,6 @@ async function processComments() {
         debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Simulation fallback also failed: ${simError.message}</div>`;
       }
     }
-  } finally {
-    // Hide loader
-    loader.style.display = 'none';
-  }
-}
-    }
-    
-    result = allResults;
-  } else {
-    // Use simulation as before
-    result = simulateCategories();
-  
-      // Log debug info
-      if (debugLog) {
-        debugLog.style.display = 'block';
-        debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Using simulated categorization results.</div>`;
-      }
-    }
-    
-    // Clear previous results
-    categoriesContainer.innerHTML = '';
-    
-    // Display results
-    displayResults(result);
-    
-    // Update stats
-    if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
-      overallStats.style.display = 'block';
-      totalCommentsEl.textContent = window.comments.length;
-      categoryCountEl.textContent = result.categories.length;
-      
-      // Calculate average sentiment
-      const avgSentiment = result.categories.reduce((sum, category) => {
-        return sum + (category.sentiment || 0);
-      }, 0) / result.categories.length;
-      
-      avgSentimentEl.textContent = avgSentiment.toFixed(1);
-    }
-  } catch (error) {
-    console.error('Error processing comments:', error);
-    
-    // Log error
-    if (debugLog) {
-      debugLog.style.display = 'block';
-      debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Processing Error: ${error.message}</div>`;
-    }
-    
-    alert('Error processing comments: ' + error.message);
   } finally {
     // Hide loader
     loader.style.display = 'none';
