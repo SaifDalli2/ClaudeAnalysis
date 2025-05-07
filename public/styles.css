@@ -14,22 +14,9 @@
   --dark-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-@font-face {
-  font-family: 'SF Arabic';
-  src: url("fa-regular-400.woff2") format('woff2');
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'SF Arabic';
-  src: url("fa-regular-400.woff2") format('woff2');
-  font-weight: bold;
-  font-style: normal;
-}
-
+/* Replace custom font with system fonts */
 body {
-  font-family: 'SF Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   line-height: 1.6;
   margin: 0;
   padding: 0;
@@ -78,7 +65,7 @@ body.rtl {
   padding: 5px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-family: 'SF Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .container {
@@ -127,7 +114,7 @@ button {
   transition: background-color 0.3s;
   margin-right: 10px;
   margin-bottom: 10px;
-  font-family: 'SF Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .rtl button {
@@ -518,6 +505,39 @@ button:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--dark-primary-hover); 
+}
+
+/* New styles for the issues and actions sections */
+.category-issues,
+.category-actions {
+  margin-top: 15px;
+  border-top: 1px solid var(--dark-border);
+  padding-top: 10px;
+}
+
+.category-issues h4,
+.category-actions h4 {
+  color: var(--dark-primary-hover);
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.category-issues ul,
+.category-actions ul {
+  padding-left: 20px;
+  margin: 5px 0;
+}
+
+.rtl .category-issues ul,
+.rtl .category-actions ul {
+  padding-left: 0;
+  padding-right: 20px;
+}
+
+.category-issues li,
+.category-actions li {
+  margin-bottom: 5px;
+  color: var(--dark-text);
 }
 
 /* For smaller screens */
