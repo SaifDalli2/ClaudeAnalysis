@@ -294,10 +294,7 @@ function setupActionButtons() {
   }
 }
 
-// Update the processComments function to implement two-step processing
-
-// Update the processComments function to implement two-step processing
-
+// Process comments with two-step approach
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -595,9 +592,7 @@ async function processComments() {
   }
 }
 
-// Simulate categorization results
-// Enhanced simulation function for the two-step process
-
+// Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
   const debugLog = document.getElementById('debugLog');
   
@@ -909,18 +904,60 @@ function simulateEnhancedCategories() {
   return { categories };
 }
 
-// Display categorization results
-function displayResults(result) {
-  const categoriesContainer = document.getElementById('categoriesContainer');
+// Original simulation function (fallback)
+function simulateCategories() {
+  // Create random categories based on the comments
+  const categories = [];
+  const sentiments = [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8];
   
-  if (!result || !result.categories || !Array.isArray(result.categories)) {
-    categoriesContainer.innerHTML = '<div class="error">Invalid result format</div>';
-    return;
+  // Create 2-4 categories
+  const numCategories = Math.max(2, Math.min(4, Math.ceil(window.comments.length / 3)));
+  
+  // Distribute comments among categories
+  const assignedComments = new Set();
+  
+  for (let i = 0; i < numCategories; i++) {
+    const categoryComments = [];
+    const categoryName = `Category ${i + 1}`;
+    
+    // Assign comments to this category
+    const targetCount = Math.floor(window.comments.length / numCategories);
+    
+    // For each category, find unassigned comments
+    for (let j = 0; j < window.comments.length && categoryComments.length < targetCount; j++) {
+      if (!assignedComments.has(j)) {
+        categoryComments.push(j + 1); // 1-based indexing for comments
+        assignedComments.add(j);
+      }
+    }
+    
+    // Random sentiment
+    const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+    
+    // Create simulated summary
+    const summary = `This is a simulated summary for ${categoryComments.length} comments in ${categoryName}.`;
+    
+    categories.push({
+      name: categoryName,
+      comments: categoryComments,
+      summary: summary,
+      sentiment: sentiment
+    });
   }
   
-  // Display each category
-  // Enhanced display function to show common issues and suggested actions
+  // Assign any remaining comments to random categories
+  for (let j = 0; j < window.comments.length; j++) {
+    if (!assignedComments.has(j)) {
+      const randomCategory = Math.floor(Math.random() * categories.length);
+      categories[randomCategory].comments.push(j + 1); // 1-based indexing
+      assignedComments.add(j);
+    }
+  }
+  
+  return { categories };
+}
 
+// Display categorization results
 function displayResults(result) {
   const categoriesContainer = document.getElementById('categoriesContainer');
   
