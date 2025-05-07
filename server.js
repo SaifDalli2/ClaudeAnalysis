@@ -121,7 +121,7 @@ Each comment must appear in exactly one category. The comment numbers should cor
     // Call Claude API
     console.log('Sending request to Claude API...');
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-3-sonnet-20240229',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 4000,
       messages: [
         {
