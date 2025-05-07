@@ -135,7 +135,7 @@ Make sure to assign each comment to exactly one of the predefined categories. Ch
     console.log('Sending categorization request to Claude API...');
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-3-5-haiku-latest', // Using your model from original code
-      max_tokens: 100000, // Increase token limit for large batches
+      max_tokens: 8192, // Increase token limit for large batches
       messages: [
         {
           role: 'user',
@@ -280,7 +280,7 @@ Make sure the summary is concise but comprehensive, and the suggested actions ar
     console.log('Sending summarization request to Claude API...');
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-3-5-haiku-latest', // Using your model from original code
-      max_tokens: 100000, // Increase token limit for large summaries
+      max_tokens: 8192, // Increase token limit for large summaries
       messages: [
         {
           role: 'user',
