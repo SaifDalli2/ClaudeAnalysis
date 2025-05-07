@@ -328,15 +328,15 @@ async function processComments() {
       }
       
       // Check if there are too many comments to process at once
-      if (window.comments.length > 1000) {
+      if (window.comments.length > 500) {
         if (debugLog) {
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing ${window.comments.length} comments in batches of 1000</div>`;
+          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing ${window.comments.length} comments in batches of 500</div>`;
         }
         
-        // Process in batches of 1000 comments
+        // Process in batches of 500 comments
         const batches = [];
-        for (let i = 0; i < window.comments.length; i += 1000) {
-          batches.push(window.comments.slice(i, i + 1000));
+        for (let i = 0; i < window.comments.length; i += 500) {
+          batches.push(window.comments.slice(i, i + 500));
         }
         
         let allCategorizedComments = [];
@@ -344,7 +344,7 @@ async function processComments() {
         // Step 1: Categorize all comments in batches
         for (let i = 0; i < batches.length; i++) {
           const batchComments = batches[i];
-          const batchStart = i * 1000 + 1;
+          const batchStart = i * 500 + 1;
           
           if (debugLog) {
             debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Categorizing batch ${i+1} of ${batches.length} (comments ${batchStart} to ${batchStart + batchComments.length - 1})</div>`;
