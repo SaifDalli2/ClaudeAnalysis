@@ -294,6 +294,8 @@ function setupActionButtons() {
   }
 }
 
+// Update the processComments function to handle topics and improved batch processing
+
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -453,8 +455,7 @@ async function processComments() {
         result = simulateEnhancedCategories();
         extractedTopics = simulateTopTopics();
       }
-     
-      else {
+    } else {
       // Use simulation
       if (debugLog) {
         debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Using simulation mode</div>`;
@@ -462,7 +463,7 @@ async function processComments() {
       
       result = simulateEnhancedCategories();
       extractedTopics = simulateTopTopics();
-    
+    }
     
     // Clear previous results
     categoriesContainer.innerHTML = '';
@@ -544,7 +545,7 @@ async function processComments() {
     // Hide loader
     loader.style.display = 'none';
   }
-    } 
+}
 
 // Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
