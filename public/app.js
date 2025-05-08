@@ -296,6 +296,8 @@ function setupActionButtons() {
 
 // Update the processComments function to handle topics and improved batch processing
 
+// In the processComments function, update the error handling for API mode:
+
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -331,6 +333,20 @@ async function processComments() {
       }
       
       try {
+        // Check server connectivity before trying to use API
+        try {
+          const pingResponse = await fetch('/', { 
+            method: 'HEAD',
+            timeout: 2000 
+          });
+          if (!pingResponse.ok) {
+            throw new Error('Server is not responding properly');
+          }
+        } catch (pingError) {
+          console.error('Server connectivity check failed:', pingError);
+          throw new Error('Cannot connect to server. Make sure the server is running and accessible. Using simulation mode instead.');
+        }
+        
         // Step 1: Categorize all comments
         if (debugLog) {
           debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting comment categorization...</div>`;
@@ -450,6 +466,9 @@ async function processComments() {
           debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: ${error.message}</div>`;
           debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Falling back to simulation mode...</div>`;
         }
+        
+        // Show user-friendly message about server issues
+        alert('Could not connect to the server for API processing. Using simulation mode instead. To use the API, please make sure the server is running.\n\nError: ' + error.message);
         
         // Fall back to simulation
         result = simulateEnhancedCategories();
