@@ -22,6 +22,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Helper function to delay between API calls to avoid rate limits
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // Detect language of comments
 function detectLanguage(comments) {
   // Simple detection - check if most comments have Arabic characters
@@ -53,14 +56,41 @@ app.post('/api/categorize', async (req, res) => {
 
     console.log(`Processing ${comments.length} comments for categorization...`);
     
-    // Detect language of the comments
-    const language = detectLanguage(comments);
+    // Process in smaller batches to avoid Claude's input token limits
+    const batchSize = 100; // Smaller batch size for more reliable processing
+    const batches = [];
     
-    // Create prompt based on detected language
-    let promptContent;
+    for (let i = 0; i < comments.length; i += batchSize) {
+      batches.push(comments.slice(i, i + batchSize));
+    }
     
-    if (language === 'ar') {
-      promptContent = `قم بتصنيف كل من التعليقات التالية إلى فئة واحدة بالضبط من الفئات المحددة مسبقًا أدناه.
+    console.log(`Split into ${batches.length} batches of ${batchSize} comments each`);
+    
+    // Process all batches
+    let allCategorizedComments = [];
+    let allExtractedTopics = new Set();
+    
+    for (let i = 0; i < batches.length; i++) {
+      const batchComments = batches[i];
+      const batchStartIndex = i * batchSize;
+      
+      console.log(`Processing batch ${i+1}/${batches.length}`);
+      
+      try {
+        // Wait between batches to avoid rate limits
+        if (i > 0) {
+          console.log('Waiting 10 seconds between batches to avoid rate limits...');
+          await delay(10000);
+        }
+        
+        // Detect language of the comments
+        const language = detectLanguage(batchComments);
+        
+        // Create prompt based on detected language
+        let promptContent;
+        
+        if (language === 'ar') {
+          promptContent = `قم بتصنيف كل من التعليقات التالية إلى فئة واحدة بالضبط من الفئات المحددة مسبقًا، واستخرج أيضًا الكيانات والموضوعات المهمة.
 
 الفئات المحددة مسبقًا:
 [مشكلات تقنية: تحديث التطبيق، تجميد/بطء التطبيق، مشكلات التطبيق، لا يعمل، تسجيل الدخول والوصول، الأمان]
@@ -68,12 +98,23 @@ app.post('/api/categorize', async (req, res) => {
 [مالية: احتيال، التسعير، طلب استرداد]
 
 التعليقات:
-${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
+${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-لكل تعليق، حدد:
+مطلوب منك القيام بمهمتين:
+
+المهمة 1: لكل تعليق، حدد:
 1. رقم التعليق
 2. الفئة الرئيسية (اختر واحدة فقط من الفئات المحددة مسبقًا)
 3. الموضوعات المحددة داخل التعليق (يمكن أن يكون هناك أكثر من موضوع واحد)
+
+المهمة 2: استخرج قائمة بجميع الكيانات المهمة المذكورة في التعليقات، مثل:
+- أسماء العلامات التجارية
+- المنتجات
+- الخدمات
+- الأماكن
+- المواقع الإلكترونية
+- التطبيقات
+- أي كيانات مميزة أخرى
 
 أعد النتائج بتنسيق JSON كما يلي:
 {
@@ -90,12 +131,26 @@ ${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
       "category": "ملاحظات العملاء: خدمة العملاء",
       "topics": ["خدمة العملاء", "تجربة سيئة"]
     }
+  ],
+  "extractedTopics": [
+    {
+      "topic": "اسم المنتج",
+      "type": "منتج",
+      "count": 5,
+      "commentIds": [1, 3, 5, 7, 9]
+    },
+    {
+      "topic": "اسم العلامة التجارية",
+      "type": "علامة تجارية",
+      "count": 3,
+      "commentIds": [2, 4, 8]
+    }
   ]
 }
 
 تأكد من تعيين كل تعليق إلى واحدة فقط من الفئات المحددة مسبقًا. اختر أكثر فئة مناسبة بناءً على المحتوى.`;
-    } else {
-      promptContent = `Categorize each of the following comments into exactly one of the predefined categories listed below.
+        } else {
+          promptContent = `Categorize each of the following comments into exactly one of the predefined categories and also extract important entities and topics.
 
 Predefined Categories:
 [Technical issues: App update, App Freeze/Slow, App issues, Doesn't work, Login and Access, Security]
@@ -103,12 +158,23 @@ Predefined Categories:
 [Monetary: Fraud, Pricing, Refund Request]
 
 Comments:
-${comments.map((comment, index) => `${index+1}. ${comment}`).join('\n')}
+${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-For each comment, identify:
+You have TWO tasks:
+
+Task 1: For each comment, identify:
 1. The comment number
 2. The main category (choose only one from the predefined categories)
 3. The specific topics mentioned in the comment (there can be more than one topic)
+
+Task 2: Extract a list of all significant entities mentioned in the comments, such as:
+- Brand names
+- Products
+- Services
+- Places
+- Websites
+- Applications
+- Any other distinctive entities
 
 Return the results in JSON format like this:
 {
@@ -125,38 +191,86 @@ Return the results in JSON format like this:
       "category": "Customer Feedback: Customer Service",
       "topics": ["Customer Service", "Bad experience"]
     }
+  ],
+  "extractedTopics": [
+    {
+      "topic": "Product Name",
+      "type": "product",
+      "count": 5,
+      "commentIds": [1, 3, 5, 7, 9]
+    },
+    {
+      "topic": "Brand Name",
+      "type": "brand",
+      "count": 3,
+      "commentIds": [2, 4, 8]
+    }
   ]
 }
 
 Make sure to assign each comment to exactly one of the predefined categories. Choose the most appropriate category based on the content.`;
+        }
+        
+        // Call Claude API
+        console.log(`Sending categorization request to Claude API for batch ${i+1}...`);
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+          model: 'claude-3-5-haiku-latest',
+          max_tokens: 8191,
+          messages: [
+            {
+              role: 'user',
+              content: promptContent
+            }
+          ]
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey || process.env.CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          timeout: 300000 // 5-minute timeout
+        });
+        
+        // Process the response
+        const batchResult = parseClaudeResponse(response);
+        console.log(`Batch ${i+1} processed successfully, got ${batchResult.categorizedComments?.length || 0} categorized comments`);
+        
+        // Add to our accumulated results
+        if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
+          allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
+        }
+        
+        // Collect extracted topics
+        if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
+          batchResult.extractedTopics.forEach(topicInfo => {
+            allExtractedTopics.add(JSON.stringify(topicInfo));
+          });
+        }
+        
+      } catch (error) {
+        console.error(`Error processing batch ${i+1}:`, error.message);
+        // Continue with next batch instead of failing completely
+      }
     }
     
-    // Call Claude API
-    console.log('Sending categorization request to Claude API...');
-    const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-3-5-haiku-latest', // Using your model from original code
-      max_tokens: 8191, // Increase token limit for large batches
-      messages: [
-        {
-          role: 'user',
-          content: promptContent
-        }
-      ]
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey || process.env.CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      timeout: 300000 // 5-minute timeout for large batches
-    });
+    // Merge all extracted topics
+    const mergedTopics = Array.from(allExtractedTopics).map(topicStr => JSON.parse(topicStr));
     
-    // Extract the response content
-    const jsonData = parseClaudeResponse(response);
+    // Sort topics by count (most mentioned first)
+    mergedTopics.sort((a, b) => (b.count || 0) - (a.count || 0));
     
-    res.json(jsonData);
+    // Return the combined results
+    const finalResult = {
+      categorizedComments: allCategorizedComments,
+      extractedTopics: mergedTopics
+    };
+    
+    console.log(`Categorization complete. Processed ${allCategorizedComments.length} comments out of ${comments.length} (${Math.round(allCategorizedComments.length/comments.length*100)}%)`);
+    
+    res.json(finalResult);
+    
   } catch (error) {
-    console.error('Error proxying categorization to Claude API:');
+    console.error('Error in /api/categorize endpoint:', error);
     
     if (error.response) {
       console.error('Response status:', error.response.status);
@@ -179,7 +293,7 @@ Make sure to assign each comment to exactly one of the predefined categories. Ch
 app.post('/api/summarize', async (req, res) => {
   try {
     // Get categorized comments from request
-    const { categorizedComments, apiKey } = req.body;
+    const { categorizedComments, extractedTopics, apiKey } = req.body;
     
     if (!categorizedComments || !Array.isArray(categorizedComments)) {
       return res.status(400).json({ 
@@ -204,6 +318,16 @@ app.post('/api/summarize', async (req, res) => {
     const sampleComments = categorizedComments.map(item => item.comment).slice(0, 10);
     const language = detectLanguage(sampleComments);
     
+    // Limit the number of comments to include in the prompt to avoid token limits
+    const limitedCommentsByCategory = {};
+    for (const category in commentsByCategory) {
+      // Take up to 50 comments per category for the prompt
+      limitedCommentsByCategory[category] = commentsByCategory[category].slice(0, 50);
+      if (commentsByCategory[category].length > 50) {
+        console.log(`Limited category ${category} from ${commentsByCategory[category].length} to 50 comments for summarization`);
+      }
+    }
+    
     // Create prompt based on detected language
     let promptContent;
     
@@ -211,9 +335,14 @@ app.post('/api/summarize', async (req, res) => {
       promptContent = `قم بتلخيص التعليقات في كل فئة وتقديم إجراءات مقترحة استنادًا إلى المشكلات المشتركة.
 
 التعليقات المصنفة حسب الفئة:
-${Object.entries(commentsByCategory).map(([category, comments]) => 
-  `# ${category}\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
+${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
+  `# ${category} (${commentsByCategory[category].length} تعليقات بالإجمال، يتم عرض ${comments.length} فقط للتلخيص)\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
 ).join('\n\n')}
+
+المواضيع الأكثر ذكرًا:
+${extractedTopics && Array.isArray(extractedTopics) ? 
+  extractedTopics.slice(0, 20).map(t => `- ${t.topic} (ذُكر ${t.count} مرات)`).join('\n') : 
+  'لا توجد مواضيع مستخرجة'}
 
 لكل فئة، قدم:
 1. ملخصًا موجزًا (3-5 جمل) يلتقط النقاط الرئيسية والمشاعر
@@ -231,6 +360,13 @@ ${Object.entries(commentsByCategory).map(([category, comments]) =>
       "suggestedActions": ["الإجراء المقترح 1", "الإجراء المقترح 2"],
       "sentiment": 0.2
     }
+  ],
+  "topTopics": [
+    {
+      "topic": "اسم الموضوع",
+      "commentCount": 15,
+      "summary": "ملخص موجز للتعليقات المتعلقة بهذا الموضوع"
+    }
   ]
 }
 
@@ -238,15 +374,22 @@ ${Object.entries(commentsByCategory).map(([category, comments]) =>
     } else {
       promptContent = `Summarize the comments in each category and provide suggested actions based on common issues.
 
-Categorized comments:
-${Object.entries(commentsByCategory).map(([category, comments]) => 
-  `# ${category}\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
+Categorized comments by category:
+${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
+  `# ${category} (${commentsByCategory[category].length} total comments, showing ${comments.length} for summarization)\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
 ).join('\n\n')}
+
+Most mentioned topics:
+${extractedTopics && Array.isArray(extractedTopics) ? 
+  extractedTopics.slice(0, 20).map(t => `- ${t.topic} (mentioned ${t.count} times)`).join('\n') : 
+  'No extracted topics available'}
 
 For each category, provide:
 1. A concise summary (3-5 sentences) that captures the key points and sentiment
 2. An analysis of common issues mentioned
 3. 2-3 suggested actions to address these issues
+
+Also provide a brief summary for the top 10 most mentioned topics.
 
 Return the results in JSON format like this:
 {
@@ -259,6 +402,13 @@ Return the results in JSON format like this:
       "suggestedActions": ["Suggested action 1", "Suggested action 2"],
       "sentiment": 0.2
     }
+  ],
+  "topTopics": [
+    {
+      "topic": "Topic Name",
+      "commentCount": 15,
+      "summary": "Brief summary of comments related to this topic"
+    }
   ]
 }
 
@@ -268,8 +418,8 @@ Make sure the summary is concise but comprehensive, and the suggested actions ar
     // Call Claude API
     console.log('Sending summarization request to Claude API...');
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-3-5-haiku-latest', // Using your model from original code
-      max_tokens: 8191, // Increase token limit for large summaries
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 8191,
       messages: [
         {
           role: 'user',
@@ -282,21 +432,19 @@ Make sure the summary is concise but comprehensive, and the suggested actions ar
         'x-api-key': apiKey || process.env.CLAUDE_API_KEY,
         'anthropic-version': '2023-06-01'
       },
-      timeout: 300000 // 5-minute timeout for large batches
+      timeout: 300000 // 5-minute timeout
     });
     
-    // Extract the response content
-    const responseContent = response.data.content[0].text;
+    // Parse the response
+    const summaryData = parseClaudeResponse(response);
     
-    // Try to extract JSON from the response
-    const jsonMatch = responseContent.match(/```json([\s\S]*?)```/) || 
-                      responseContent.match(/({[\s\S]*})/);
-    
-    let summaryData;
-    if (jsonMatch && jsonMatch[1]) {
-      summaryData = JSON.parse(jsonMatch[1].trim());
-    } else {
-      summaryData = JSON.parse(responseContent);
+    // Add actual comment counts for each category
+    if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
+      summaryData.summaries.forEach(summary => {
+        if (commentsByCategory[summary.category]) {
+          summary.commentCount = commentsByCategory[summary.category].length;
+        }
+      });
     }
     
     res.json(summaryData);
@@ -419,35 +567,20 @@ Each comment must appear in exactly one category. The comment numbers should cor
       }
     });
     
-    // Extract the response content
-    const responseContent = response.data.content[0].text;
-    
-    // Try to extract JSON from the response
-    const jsonMatch = responseContent.match(/```json([\s\S]*?)```/) || 
-                      responseContent.match(/({[\s\S]*})/);
-    
-    let jsonData;
-    if (jsonMatch && jsonMatch[1]) {
-      jsonData = JSON.parse(jsonMatch[1].trim());
-    } else {
-      jsonData = JSON.parse(responseContent);
-    }
+    // Parse the response
+    const jsonData = parseClaudeResponse(response);
     
     res.json(jsonData);
   } catch (error) {
     console.error('Error proxying to Claude API:');
     
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
       console.error('Response status:', error.response.status);
       console.error('Response headers:', error.response.headers);
       console.error('Response data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
-      // The request was made but no response was received
       console.error('No response received:', error.request);
     } else {
-      // Something happened in setting up the request that triggered an Error
       console.error('Request setup error:', error.message);
     }
     
@@ -484,7 +617,7 @@ function parseClaudeResponse(response) {
     jsonString = jsonString.replace(/\/\/.*$/gm, ''); // Remove single-line comments
     jsonString = jsonString.replace(/\/\*[\s\S]*?\*\//g, ''); // Remove multi-line comments
     
-    // Log for debugging
+    // Log for debugging (limit to avoid flooding logs)
     console.log('Clean JSON string (first 100 chars):', jsonString.substring(0, 100));
     
     try {
@@ -493,7 +626,7 @@ function parseClaudeResponse(response) {
       return jsonData;
     } catch (parseError) {
       console.error('JSON parse error:', parseError.message);
-      console.error('JSON string (first 1000 chars):', jsonString.substring(0, 1000));
+      console.error('JSON string (first 500 chars):', jsonString.substring(0, 500));
       
       // If parsing fails, try to manually fix common JSON issues
       jsonString = jsonString
@@ -515,12 +648,12 @@ function parseClaudeResponse(response) {
         
         // For categorization endpoint, return a minimal valid response
         if (jsonString.includes('categorizedComments')) {
-          return { categorizedComments: [] };
+          return { categorizedComments: [], extractedTopics: [] };
         }
         
         // For summarization endpoint
         if (jsonString.includes('summaries')) {
-          return { summaries: [] };
+          return { summaries: [], topTopics: [] };
         }
         
         // For the original endpoint
@@ -531,11 +664,11 @@ function parseClaudeResponse(response) {
     console.error('Error in parseClaudeResponse:', error);
     
     // Return a valid but empty response based on context clues in the error
-    const errorMsg = error.message.toLowerCase();
+    const errorMsg = error.message?.toLowerCase() || '';
     if (errorMsg.includes('categorized')) {
-      return { categorizedComments: [] };
+      return { categorizedComments: [], extractedTopics: [] };
     } else if (errorMsg.includes('summar')) {
-      return { summaries: [] };
+      return { summaries: [], topTopics: [] };
     } else {
       return { categories: [] };
     }
@@ -543,7 +676,6 @@ function parseClaudeResponse(response) {
 }
 
 // Catch-all route - serve the main HTML file for any unknown routes
-// This ensures that client-side routing works
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
