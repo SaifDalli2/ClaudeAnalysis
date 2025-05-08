@@ -558,3 +558,202 @@ button:hover {
     font-size: 20px;
   }
 }
+
+/* Add these styles to your existing styles.css file */
+
+/* Topics Section */
+.topics-section {
+  margin-bottom: 30px;
+  background: var(--dark-surface);
+  border-radius: 6px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.topics-title {
+  color: var(--dark-primary-hover);
+  margin-top: 0;
+}
+
+.topics-description {
+  color: var(--dark-text-secondary);
+  margin-bottom: 15px;
+}
+
+.topics-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.topic-button {
+  background-color: var(--dark-surface-lighter);
+  color: var(--dark-primary);
+  border: 1px solid var(--dark-primary);
+  border-radius: 20px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 5px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.topic-button:hover {
+  background-color: var(--dark-primary);
+  color: black;
+}
+
+.topic-comments {
+  background: var(--dark-surface-lighter);
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 20px;
+  border-left: 3px solid var(--dark-primary);
+  display: none;
+}
+
+.topic-comments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.topic-comments-header h3 {
+  margin: 0;
+  color: var(--dark-primary-hover);
+}
+
+.topic-close-btn {
+  background: transparent;
+  color: var(--dark-text);
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 5px;
+  margin: 0;
+}
+
+.topic-comments-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.topic-comment-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--dark-border);
+}
+
+.topic-summary {
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  background: rgba(226, 255, 102, 0.05);
+  border: 1px solid rgba(226, 255, 102, 0.1);
+}
+
+.no-topic-comments {
+  padding: 10px;
+  text-align: center;
+  color: var(--dark-text-secondary);
+}
+
+.rtl .topic-comments {
+  border-left: none;
+  border-right: 3px solid var(--dark-primary);
+}
+
+/* Category cards improvements */
+.category-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.category-issues h4,
+.category-actions h4 {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 15px;
+}
+
+.category-issues h4:after,
+.category-actions h4:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  width: 100%;
+  height: 2px;
+  background-color: var(--dark-primary);
+}
+
+.category-issues ul,
+.category-actions ul {
+  list-style-type: none;
+  padding-left: 5px;
+}
+
+.category-issues li,
+.category-actions li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 8px;
+}
+
+.category-issues li:before,
+.category-actions li:before {
+  content: '• ';
+  position: absolute;
+  left: 0;
+  color: var(--dark-primary);
+}
+
+.category-actions li:before {
+  content: '→ ';
+}
+
+.rtl .category-issues li,
+.rtl .category-actions li {
+  padding-left: 0;
+  padding-right: 20px;
+}
+
+.rtl .category-issues li:before,
+.rtl .category-actions li:before {
+  left: auto;
+  right: 0;
+}
+
+/* Progress indicator for batch processing */
+.processing-progress {
+  margin-top: 15px;
+  padding: 10px;
+  background: var(--dark-surface-lighter);
+  border-radius: 4px;
+  border: 1px solid var(--dark-border);
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background-color: var(--dark-surface);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: var(--dark-primary);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--dark-text-secondary);
+}
