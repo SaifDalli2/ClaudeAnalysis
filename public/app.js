@@ -294,7 +294,6 @@ function setupActionButtons() {
   }
 }
 
-// Process comments with two-step approach
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -320,107 +319,81 @@ async function processComments() {
     const apiKey = useApi ? document.getElementById('apiKeyInput').value : null;
     
     let result;
+    let extractedTopics = [];
     
     if (useApi && apiKey) {
       // Process with two-step approach using Claude API
       if (debugLog) {
         debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Using Claude API with two-step processing</div>`;
+        debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing ${window.comments.length} comments...</div>`;
       }
       
-      // Check if there are too many comments to process at once
-      if (window.comments.length > 500) {
+      try {
+        // Step 1: Categorize all comments
         if (debugLog) {
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing ${window.comments.length} comments in batches of 500</div>`;
+          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting comment categorization...</div>`;
         }
         
-        // Process in batches of 500 comments
-        const batches = [];
-        for (let i = 0; i < window.comments.length; i += 500) {
-          batches.push(window.comments.slice(i, i + 500));
+        const categorizationResponse = await fetch('/api/categorize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comments: window.comments,
+            apiKey: apiKey
+          })
+        });
+        
+        if (!categorizationResponse.ok) {
+          const errorText = await categorizationResponse.text();
+          throw new Error(`API returned status ${categorizationResponse.status}: ${errorText}`);
         }
         
-        let allCategorizedComments = [];
+        const categorizationResult = await categorizationResponse.json();
         
-        // Step 1: Categorize all comments in batches
-        for (let i = 0; i < batches.length; i++) {
-          const batchComments = batches[i];
-          const batchStart = i * 500 + 1;
+        if (debugLog) {
+          const successRate = Math.round((categorizationResult.categorizedComments?.length || 0) / window.comments.length * 100);
+          debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Categorization successful: ${categorizationResult.categorizedComments?.length || 0} of ${window.comments.length} comments (${successRate}%)</div>`;
           
-          if (debugLog) {
-            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Categorizing batch ${i+1} of ${batches.length} (comments ${batchStart} to ${batchStart + batchComments.length - 1})</div>`;
-          }
-          
-          try {
-            const response = await fetch('/api/categorize', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                comments: batchComments,
-                apiKey: apiKey
-              })
-            });
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`API returned status ${response.status}: ${errorText}`);
-            }
-            
-            const batchCategorized = await response.json();
-            
-            // Adjust comment IDs to match global index
-            batchCategorized.categorizedComments.forEach(item => {
-              item.id = item.id + batchStart - 1;
-            });
-            
-            allCategorizedComments = [...allCategorizedComments, ...batchCategorized.categorizedComments];
-            
-            if (debugLog) {
-              debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Batch ${i+1} categorization successful</div>`;
-            }
-          } catch (error) {
-            console.error(`Error categorizing batch ${i+1}:`, error);
-            if (debugLog) {
-              debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Batch ${i+1} Error: ${error.message}</div>`;
-            }
-            // Continue with next batch instead of stopping completely
+          if (categorizationResult.extractedTopics?.length) {
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Extracted ${categorizationResult.extractedTopics.length} topics</div>`;
           }
         }
         
-        if (allCategorizedComments.length === 0) {
-          throw new Error("Failed to categorize any comments. Falling back to simulation.");
-        }
+        // Store the extracted topics
+        extractedTopics = categorizationResult.extractedTopics || [];
         
-        // Step 2: Summarize all categorized comments
+        // Step 2: Summarize categorized comments
         if (debugLog) {
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${allCategorizedComments.length} categorized comments</div>`;
+          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
         }
         
         try {
-          const response = await fetch('/api/summarize', {
+          const summarizationResponse = await fetch('/api/summarize', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              categorizedComments: allCategorizedComments,
+              categorizedComments: categorizationResult.categorizedComments,
+              extractedTopics: extractedTopics,
               apiKey: apiKey
             })
           });
           
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API returned status ${response.status}: ${errorText}`);
+          if (!summarizationResponse.ok) {
+            const errorText = await summarizationResponse.text();
+            throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
           }
           
-          const summaryResult = await response.json();
+          const summaryResult = await summarizationResponse.json();
           
           // Convert summary format to match the expected format for display
           result = {
-            categories: summaryResult.summaries.map(summary => {
+            categories: (summaryResult.summaries || []).map(summary => {
               // Find all comments for this category
-              const categoryComments = allCategorizedComments
+              const categoryComments = categorizationResult.categorizedComments
                 .filter(item => item.category === summary.category)
                 .map(item => item.id);
               
@@ -432,7 +405,8 @@ async function processComments() {
                 commonIssues: summary.commonIssues,
                 suggestedActions: summary.suggestedActions
               };
-            })
+            }),
+            topTopics: summaryResult.topTopics || []
           };
           
           if (debugLog) {
@@ -447,7 +421,7 @@ async function processComments() {
           // Create a simplified result based on categorization only
           result = {
             categories: Object.entries(
-              allCategorizedComments.reduce((acc, item) => {
+              categorizationResult.categorizedComments.reduce((acc, item) => {
                 if (!acc[item.category]) {
                   acc[item.category] = {
                     name: item.category,
@@ -467,54 +441,28 @@ async function processComments() {
             }))
           };
         }
-      } else {
-        // For smaller sets, use the original single-step approach
+      } catch (error) {
+        console.error('Error during two-step processing:', error);
+        
         if (debugLog) {
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Processing ${window.comments.length} comments with original approach</div>`;
+          debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: ${error.message}</div>`;
+          debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Falling back to simulation mode...</div>`;
         }
         
-        try {
-          const response = await fetch('/api/claude', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              comments: window.comments,
-              apiKey: apiKey
-            })
-          });
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API returned status ${response.status}: ${errorText}`);
-          }
-          
-          result = await response.json();
-          
-          if (debugLog) {
-            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] API categorization successful!</div>`;
-          }
-        } catch (error) {
-          console.error('Error calling Claude API:', error);
-          
-          if (debugLog) {
-            debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: ${error.message}</div>`;
-            debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Falling back to simulation mode...</div>`;
-          }
-          
-          // Fall back to simulation
-          result = simulateCategories();
-        }
+        // Fall back to simulation
+        result = simulateEnhancedCategories();
+        extractedTopics = simulateTopTopics();
       }
-    } else {
+     
+      else {
       // Use simulation
       if (debugLog) {
         debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Using simulation mode</div>`;
       }
       
       result = simulateEnhancedCategories();
-    }
+      extractedTopics = simulateTopTopics();
+    
     
     // Clear previous results
     categoriesContainer.innerHTML = '';
@@ -524,6 +472,10 @@ async function processComments() {
       debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Displaying categorization results...</div>`;
     }
     
+    // Display top topics first
+    displayTopics(extractedTopics);
+    
+    // Then display categories
     displayResults(result);
     
     // Update stats
@@ -557,11 +509,13 @@ async function processComments() {
     // Try to fall back to simulation if there's an error
     try {
       result = simulateEnhancedCategories();
+      extractedTopics = simulateTopTopics();
       
       // Clear previous results
       categoriesContainer.innerHTML = '';
       
       // Display simulated results
+      displayTopics(extractedTopics);
       displayResults(result);
       
       // Update stats
@@ -590,7 +544,7 @@ async function processComments() {
     // Hide loader
     loader.style.display = 'none';
   }
-}
+    } 
 
 // Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
@@ -1076,6 +1030,334 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// Function to display top topics
+function displayTopics(topics) {
+  if (!topics || !Array.isArray(topics) || topics.length === 0) {
+    return;
+  }
+  
+  const topicsContainer = document.createElement('div');
+  topicsContainer.className = 'topics-section';
+  
+  // Create section title
+  const titleEl = document.createElement('h2');
+  titleEl.textContent = translations[currentLanguage]['top-topics'] || 'Top Topics Mentioned';
+  titleEl.className = 'topics-title';
+  topicsContainer.appendChild(titleEl);
+  
+  // Create description
+  const descEl = document.createElement('p');
+  descEl.textContent = translations[currentLanguage]['topics-description'] || 
+    'Click on a topic to see related comments.';
+  descEl.className = 'topics-description';
+  topicsContainer.appendChild(descEl);
+  
+  // Create topics cloud
+  const cloudEl = document.createElement('div');
+  cloudEl.className = 'topics-cloud';
+  
+  // Sort topics by count if not already sorted
+  const sortedTopics = [...topics].sort((a, b) => (b.count || 0) - (a.count || 0));
+  
+  // Limit to top 30 topics for display
+  const displayTopics = sortedTopics.slice(0, 30);
+  
+  // Create topic buttons
+  displayTopics.forEach(topic => {
+    const topicButton = document.createElement('button');
+    topicButton.textContent = `${topic.topic} (${topic.count || 0})`;
+    topicButton.className = 'topic-button';
+    
+    // Calculate size based on count (for visual emphasis)
+    const minFontSize = 14;
+    const maxFontSize = 24;
+    const maxCount = displayTopics[0].count || 1;
+    const fontSize = minFontSize + ((topic.count || 1) / maxCount) * (maxFontSize - minFontSize);
+    
+    topicButton.style.fontSize = `${fontSize}px`;
+    
+    // Add click handler to show related comments
+    topicButton.addEventListener('click', () => {
+      showCommentsForTopic(topic);
+    });
+    
+    cloudEl.appendChild(topicButton);
+  });
+  
+  topicsContainer.appendChild(cloudEl);
+  
+  // Create container for topic comments (initially empty)
+  const topicCommentsEl = document.createElement('div');
+  topicCommentsEl.className = 'topic-comments';
+  topicCommentsEl.id = 'topicComments';
+  topicsContainer.appendChild(topicCommentsEl);
+  
+  // Insert at the beginning of the categories container
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  categoriesContainer.insertBefore(topicsContainer, categoriesContainer.firstChild);
+}
+
+// Function to show comments for a specific topic
+function showCommentsForTopic(topic) {
+  const topicCommentsEl = document.getElementById('topicComments');
+  if (!topicCommentsEl) return;
+  
+  // Clear previous content
+  topicCommentsEl.innerHTML = '';
+  
+  // Create topic header
+  const headerEl = document.createElement('div');
+  headerEl.className = 'topic-comments-header';
+  
+  const titleEl = document.createElement('h3');
+  titleEl.textContent = `${topic.topic} (${topic.count || 0} comments)`;
+  headerEl.appendChild(titleEl);
+  
+  // Add a close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  closeBtn.className = 'topic-close-btn';
+  closeBtn.addEventListener('click', () => {
+    topicCommentsEl.innerHTML = '';
+    topicCommentsEl.style.display = 'none';
+  });
+  headerEl.appendChild(closeBtn);
+  
+  topicCommentsEl.appendChild(headerEl);
+  
+  // If we have topic summary, display it
+  if (topic.summary) {
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'topic-summary';
+    summaryEl.textContent = topic.summary;
+    topicCommentsEl.appendChild(summaryEl);
+  }
+  
+  // Create comments list
+  const commentsListEl = document.createElement('div');
+  commentsListEl.className = 'topic-comments-list';
+  
+  // If we have commentIds, use them
+  if (topic.commentIds && Array.isArray(topic.commentIds)) {
+    topic.commentIds.forEach(commentId => {
+      const index = commentId - 1; // Convert to 0-based index
+      
+      if (index >= 0 && index < window.comments.length) {
+        const commentText = window.comments[index];
+        
+        const commentEl = document.createElement('div');
+        commentEl.className = 'topic-comment-item';
+        commentEl.textContent = commentText;
+        commentsListEl.appendChild(commentEl);
+      }
+    });
+  } else {
+    // Otherwise do a simple text search
+    const keyword = topic.topic.toLowerCase();
+    
+    window.comments.forEach((comment, index) => {
+      if (comment.toLowerCase().includes(keyword)) {
+        const commentEl = document.createElement('div');
+        commentEl.className = 'topic-comment-item';
+        commentEl.textContent = comment;
+        commentsListEl.appendChild(commentEl);
+      }
+    });
+  }
+  
+  // If no comments found, show a message
+  if (commentsListEl.children.length === 0) {
+    const noCommentsEl = document.createElement('div');
+    noCommentsEl.className = 'no-topic-comments';
+    noCommentsEl.textContent = 'No comments found for this topic.';
+    commentsListEl.appendChild(noCommentsEl);
+  }
+  
+  topicCommentsEl.appendChild(commentsListEl);
+  topicCommentsEl.style.display = 'block';
+}
+
+// Simulate top topics for when the API is unavailable
+function simulateTopTopics() {
+  // Generate random topics based on common words
+  const topicTemplates = [
+    { word: "app", type: "application" },
+    { word: "website", type: "website" },
+    { word: "product", type: "product" },
+    { word: "service", type: "service" },
+    { word: "company", type: "organization" },
+    { word: "support", type: "service" },
+    { word: "price", type: "feature" },
+    { word: "quality", type: "feature" },
+    { word: "feature", type: "feature" },
+    { word: "design", type: "feature" },
+    { word: "interface", type: "feature" },
+    { word: "customer service", type: "service" },
+    { word: "payment", type: "process" },
+    { word: "delivery", type: "process" },
+    { word: "account", type: "feature" },
+    { word: "login", type: "feature" },
+    { word: "registration", type: "process" },
+    { word: "issue", type: "problem" },
+    { word: "error", type: "problem" },
+    { word: "bug", type: "problem" }
+  ];
+  
+  // Generate a random count of topics
+  const numTopics = Math.min(topicTemplates.length, Math.max(5, Math.ceil(window.comments.length / 50)));
+  
+  // Shuffle and pick topics
+  const shuffledTopics = [...topicTemplates].sort(() => Math.random() - 0.5);
+  const selectedTopics = shuffledTopics.slice(0, numTopics);
+  
+  // Create simulated topic data
+  return selectedTopics.map((template, index) => {
+    // Generate a random count proportional to the number of comments
+    const maxCount = Math.min(window.comments.length, 100);
+    const count = Math.max(2, Math.floor(Math.random() * maxCount));
+    
+    // Generate random comment IDs
+    const commentIds = [];
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * window.comments.length);
+      commentIds.push(randomIndex + 1); // 1-based indexing
+    }
+    
+    return {
+      topic: template.word,
+      type: template.type,
+      count: count,
+      commentIds: commentIds
+    };
+  });
+}
+
+// Add CSS for the new topic display
+function addStylesForTopics() {
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    .topics-section {
+      margin-bottom: 30px;
+      background: var(--dark-surface);
+      border-radius: 6px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .topics-title {
+      color: var(--dark-primary-hover);
+      margin-top: 0;
+    }
+    
+    .topics-description {
+      color: var(--dark-text-secondary);
+      margin-bottom: 15px;
+    }
+    
+    .topics-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .topic-button {
+      background-color: var(--dark-surface-lighter);
+      color: var(--dark-primary);
+      border: 1px solid var(--dark-primary);
+      border-radius: 20px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 5px;
+    }
+    
+    .topic-button:hover {
+      background-color: var(--dark-primary);
+      color: black;
+    }
+    
+    .topic-comments {
+      background: var(--dark-surface-lighter);
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 20px;
+      border-left: 3px solid var(--dark-primary);
+      display: none;
+    }
+    
+    .topic-comments-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .topic-comments-header h3 {
+      margin: 0;
+      color: var(--dark-primary-hover);
+    }
+    
+    .topic-close-btn {
+      background: transparent;
+      color: var(--dark-text);
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0 5px;
+      margin: 0;
+    }
+    
+    .topic-comments-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .topic-comment-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--dark-border);
+    }
+    
+    .topic-summary {
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      background: rgba(226, 255, 102, 0.05);
+      border: 1px solid rgba(226, 255, 102, 0.1);
+    }
+    
+    .no-topic-comments {
+      padding: 10px;
+      text-align: center;
+      color: var(--dark-text-secondary);
+    }
+    
+    .rtl .topic-comments {
+      border-left: none;
+      border-right: 3px solid var(--dark-primary);
+    }
+  `;
+  
+  document.head.appendChild(styleEl);
+}
+
+// Initialize the topic styles when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  addStylesForTopics();
+  
+  // Add translations for topics
+  if (translations.en) {
+    translations.en['top-topics'] = 'Top Topics Mentioned';
+    translations.en['topics-description'] = 'Click on a topic to see related comments.';
+  }
+  
+  if (translations.ar) {
+    translations.ar['top-topics'] = 'أكثر المواضيع ذكرًا';
+    translations.ar['topics-description'] = 'انقر على موضوع لعرض التعليقات المتعلقة به.';
+  }
+});
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
