@@ -20,7 +20,7 @@ async function checkServerAvailability() {
     });
     
     cloudEl.appendChild(topicButton);
-  });debugLog.style.display = 'block';
+  };debugLog.style.display = 'block';
     debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Checking Heroku server availability...</div>`;
   }
   
