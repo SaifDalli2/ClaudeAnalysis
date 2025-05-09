@@ -9,7 +9,7 @@ let currentLanguage = 'en';
 // Add this function at the top of your app.js, before any other code
 function getApiUrl(endpoint) {
   // Get the port from the server output
-  const SERVER_PORT = 23037; // The port reported by your npm start command
+  const SERVER_PORT = 35343; // The port reported by your npm start command
   
   // Try different base URLs in this order of preference
   const possibleUrls = [
