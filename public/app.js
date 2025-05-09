@@ -1,4 +1,4 @@
-const SERVER_URL = 'http://localhost:23037';
+const SERVER_URL = 'http://localhost:35343';
 
 // Define comments array in global scope
 window.comments = [];
