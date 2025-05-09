@@ -1,3 +1,5 @@
+const SERVER_URL = 'http://localhost:23037';
+
 // Define comments array in global scope
 window.comments = [];
 
@@ -368,7 +370,7 @@ async function processComments() {
         }
         
         try {
-          const categorizationResponse = await fetch('/api/categorize', {
+          const categorizationResponse = await fetch(`${SERVER_URL}/api/categorize`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -412,7 +414,7 @@ async function processComments() {
             debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
           }
           
-          const summarizationResponse = await fetch('/api/summarize', {
+          const summarizationResponse = await fetch(`${SERVER_URL}/api/summarize`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
