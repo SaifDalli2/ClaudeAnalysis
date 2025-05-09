@@ -15,7 +15,12 @@ async function checkServerAvailability() {
   const debugLog = document.getElementById('debugLog');
   
   if (debugLog) {
-    debugLog.style.display = 'block';
+    topicButton.addEventListener('click', () => {
+      showCommentsForTopic(topic);
+    });
+    
+    cloudEl.appendChild(topicButton);
+  });debugLog.style.display = 'block';
     debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Checking Heroku server availability...</div>`;
   }
   
@@ -128,6 +133,9 @@ function initApp() {
   
   // Setup process/clear buttons
   setupActionButtons();
+  
+  // Add diagnostic button
+  addDiagnosticButton();
 }
 
 // Initialize language
@@ -397,7 +405,7 @@ function setupActionButtons() {
   }
 }
 
-// Update this part of your processComments function
+// Process comments function
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -596,6 +604,69 @@ async function processComments() {
       extractedTopics = simulateTopTopics();
     }
     
+    // Process and display the results
+    if (debugLog) {
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Displaying results...</div>`;
+    }
+    
+    // Show overall stats
+    if (result && result.categories && result.categories.length > 0) {
+      // Calculate average sentiment
+      let totalSentiment = 0;
+      let sentimentCount = 0;
+      
+      result.categories.forEach(category => {
+        if (typeof category.sentiment === 'number') {
+          totalSentiment += category.sentiment;
+          sentimentCount++;
+        }
+      });
+      
+      const avgSentiment = sentimentCount > 0 ? (totalSentiment / sentimentCount).toFixed(1) : 0;
+      
+      // Update stats UI
+      if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
+        totalCommentsEl.textContent = window.comments.length;
+        categoryCountEl.textContent = result.categories.length;
+        avgSentimentEl.textContent = avgSentiment;
+        
+        // Show stats
+        overallStats.style.display = 'block';
+      }
+      
+      // Clear previous categories
+      categoriesContainer.innerHTML = '';
+      
+      // Display topic cloud if available
+      if (extractedTopics && extractedTopics.length) {
+        displayTopics(extractedTopics);
+      }
+      
+      // Display categories
+      displayResults(result);
+    } else {
+      categoriesContainer.innerHTML = '<div class="error">No categories found</div>';
+    }
+    
+    // Hide loader
+    loader.style.display = 'none';
+    
+  } catch (error) {
+    console.error('Error processing comments:', error);
+    
+    // Log error in debug log
+    if (debugLog) {
+      debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Error: ${error.message}</div>`;
+    }
+    
+    // Show error
+    categoriesContainer.innerHTML = `<div class="error">Error processing comments: ${error.message}</div>`;
+    
+    // Hide loader
+    loader.style.display = 'none';
+  }
+}
+
 // Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
   const debugLog = document.getElementById('debugLog');
