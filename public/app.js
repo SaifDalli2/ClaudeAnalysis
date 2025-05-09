@@ -1,3 +1,4 @@
+// Set the server URL to connect to your Heroku instance
 const SERVER_URL = 'https://comment-analyzer-e15255a314d2.herokuapp.com';
 
 // Define comments array in global scope
@@ -5,114 +6,6 @@ window.comments = [];
 
 // Current language - default to English
 let currentLanguage = 'en';
-
-// Add this function at the top of your app.js, before any other code
-function getApiUrl(endpoint) {
-  // Get the port from the server output
-  const SERVER_PORT = 35343; // The port reported by your npm start command
-  
-  // Try different base URLs in this order of preference
-  const possibleUrls = [
-    `/api/${endpoint}`,                                  // Same-origin (relative URL)
-    `http://localhost:${SERVER_PORT}/api/${endpoint}`,   // Explicit localhost with server port
-    `http://127.0.0.1:${SERVER_PORT}/api/${endpoint}`    // Alternative IP format
-  ];
-  
-  // Return the first URL by default, client code will try others if this fails
-  return possibleUrls;
-}
-
-// Modify the processComments function - just update these sections:
-
-// Replace the categorization fetch with:
-const apiUrls = getApiUrl('categorize');
-let categorizationResponse = null;
-let fetchError = null;
-
-// Try each possible URL until one works
-for (const url of apiUrls) {
-  try {
-    if (debugLog) {
-      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
-    }
-    
-    const categorizationResponse = await fetch(`${HEROKU_URL}/api/categorize`, {
-
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        comments: window.comments,
-        apiKey: apiKey
-      }),
-      timeout: 30000 // 30 seconds timeout
-    });
-    
-    // If we got here, the fetch worked
-    if (debugLog) {
-      debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Connected successfully to: ${url}</div>`;
-    }
-    break;
-  } catch (error) {
-    console.error(`Failed to connect to ${url}:`, error);
-    fetchError = error;
-    // Continue to next URL
-  }
-}
-
-// Check if all connection attempts failed
-if (!categorizationResponse) {
-  throw new Error(`Failed to connect to server: ${fetchError?.message || 'Unknown error'}`);
-}
-
-// Then check response as usual
-if (!categorizationResponse.ok) {
-  const errorText = await categorizationResponse.text();
-  throw new Error(`API returned status ${categorizationResponse.status}: ${errorText}`);
-}
-
-// Similarly for the summarization endpoint, use the same pattern:
-const summaryUrls = getApiUrl('summarize');
-let summarizationResponse = null;
-
-for (const url of summaryUrls) {
-  try {
-    if (debugLog) {
-      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
-    }
-    
-    const summarizationResponse = await fetch(`${HEROKU_URL}/api/summarize`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        categorizedComments: categorizationResult.categorizedComments,
-        extractedTopics: extractedTopics,
-        apiKey: apiKey
-      }),
-      timeout: 30000 // 30 seconds timeout
-    });
-    
-    // If we got here, the fetch worked
-    break;
-  } catch (error) {
-    console.error(`Failed to connect to ${url}:`, error);
-    // Continue to next URL
-  }
-}
-
-// Check if all connection attempts failed
-if (!summarizationResponse) {
-  throw new Error('Failed to connect to server for summary generation');
-}
-
-// Then check response as usual
-if (!summarizationResponse.ok) {
-  const errorText = await summarizationResponse.text();
-  throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
-}
 
 // Initialize the app
 function initApp() {
@@ -404,10 +297,7 @@ function setupActionButtons() {
   }
 }
 
-// Update the processComments function to handle topics and improved batch processing
-
-// In the processComments function, update the error handling for API mode:
-// Update the function to better handle server availability
+// The main function to process comments
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -443,138 +333,101 @@ async function processComments() {
       }
       
       try {
-        // Improved server connectivity check
-        try {
-          if (debugLog) {
-            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Checking server connectivity...</div>`;
-          }
-          
-          const pingResponse = await fetch('/api/ping', { 
-            method: 'HEAD',
-            timeout: 3000 
-          }).catch(() => {
-            // Also try the root URL if /api/ping fails
-            return fetch('/', { 
-              method: 'HEAD',
-              timeout: 3000 
-            });
-          });
-          
-          if (!pingResponse || !pingResponse.ok) {
-            throw new Error('Server is not responding properly');
-          }
-          
-          if (debugLog) {
-            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Server is available</div>`;
-          }
-        } catch (pingError) {
-          console.error('Server connectivity check failed:', pingError);
-          throw new Error('Cannot connect to server. Make sure the server is running. Using simulation mode instead.');
-        }
-        
         // Step 1: Categorize all comments
         if (debugLog) {
           debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting comment categorization...</div>`;
         }
         
-        try {
-          const categorizationResponse = await fetch(`${SERVER_URL}/api/categorize`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              comments: window.comments,
-              apiKey: apiKey
-            }),
-            // Add timeout to prevent long waiting times
-            timeout: 60000 // 60 seconds timeout
-          });
+        const categorizationResponse = await fetch(`${SERVER_URL}/api/categorize`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comments: window.comments,
+            apiKey: apiKey
+          }),
+          // Add timeout to prevent long waiting times
+          timeout: 60000 // 60 seconds timeout
+        });
+        
+        if (!categorizationResponse.ok) {
+          const errorText = await categorizationResponse.text();
+          const statusCode = categorizationResponse.status;
           
-          if (!categorizationResponse.ok) {
-            const errorText = await categorizationResponse.text();
-            const statusCode = categorizationResponse.status;
-            
-            // Check specifically for 503 Service Unavailable
-            if (statusCode === 503) {
-              throw new Error(`Server unavailable (503). The server is likely not running. Please start the server using 'npm start' or use simulation mode.`);
-            } else {
-              throw new Error(`API returned status ${statusCode}: ${errorText}`);
-            }
+          // Check specifically for 503 Service Unavailable
+          if (statusCode === 503) {
+            throw new Error(`Server unavailable (503). The server is likely not running. Please start the server using 'npm start' or use simulation mode.`);
+          } else {
+            throw new Error(`API returned status ${statusCode}: ${errorText}`);
           }
-          
-          const categorizationResult = await categorizationResponse.json();
-          
-          if (debugLog) {
-            const successRate = Math.round((categorizationResult.categorizedComments?.length || 0) / window.comments.length * 100);
-            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Categorization successful: ${categorizationResult.categorizedComments?.length || 0} of ${window.comments.length} comments (${successRate}%)</div>`;
-            
-            if (categorizationResult.extractedTopics?.length) {
-              debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Extracted ${categorizationResult.extractedTopics.length} topics</div>`;
-            }
-          }
-          
-          // Store the extracted topics
-          extractedTopics = categorizationResult.extractedTopics || [];
-          
-          // Step 2: Summarize categorized comments
-          if (debugLog) {
-            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
-          }
-          
-          const summarizationResponse = await fetch(`${SERVER_URL}/api/summarize`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              categorizedComments: categorizationResult.categorizedComments,
-              extractedTopics: extractedTopics,
-              apiKey: apiKey
-            }),
-            // Add timeout to prevent long waiting times
-            timeout: 60000 // 60 seconds timeout
-          });
-          
-          if (!summarizationResponse.ok) {
-            const errorText = await summarizationResponse.text();
-            throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
-          }
-          
-          const summaryResult = await summarizationResponse.json();
-          
-          // Convert summary format to match the expected format for display
-          result = {
-            categories: (summaryResult.summaries || []).map(summary => {
-              // Find all comments for this category
-              const categoryComments = categorizationResult.categorizedComments
-                .filter(item => item.category === summary.category)
-                .map(item => item.id);
-              
-              return {
-                name: summary.category,
-                comments: categoryComments,
-                summary: summary.summary,
-                sentiment: summary.sentiment || 0,
-                commonIssues: summary.commonIssues,
-                suggestedActions: summary.suggestedActions
-              };
-            }),
-            topTopics: summaryResult.topTopics || []
-          };
-          
-          if (debugLog) {
-            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Summary generation successful</div>`;
-          }
-        } catch (apiError) {
-          // This catch block handles API call errors
-          console.error('API call error:', apiError);
-          if (debugLog) {
-            debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: ${apiError.message}</div>`;
-          }
-          throw apiError; // Re-throw to be caught by the outer catch block
         }
-      } catch (error) {
+        
+        const categorizationResult = await categorizationResponse.json();
+        
+        if (debugLog) {
+          const successRate = Math.round((categorizationResult.categorizedComments?.length || 0) / window.comments.length * 100);
+          debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Categorization successful: ${categorizationResult.categorizedComments?.length || 0} of ${window.comments.length} comments (${successRate}%)</div>`;
+          
+          if (categorizationResult.extractedTopics?.length) {
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Extracted ${categorizationResult.extractedTopics.length} topics</div>`;
+          }
+        }
+        
+        // Store the extracted topics
+        extractedTopics = categorizationResult.extractedTopics || [];
+        
+        // Step 2: Summarize categorized comments
+        if (debugLog) {
+          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
+        }
+        
+        const summarizationResponse = await fetch(`${SERVER_URL}/api/summarize`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            categorizedComments: categorizationResult.categorizedComments,
+            extractedTopics: extractedTopics,
+            apiKey: apiKey
+          }),
+          // Add timeout to prevent long waiting times
+          timeout: 60000 // 60 seconds timeout
+        });
+        
+        if (!summarizationResponse.ok) {
+          const errorText = await summarizationResponse.text();
+          throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
+        }
+        
+        const summaryResult = await summarizationResponse.json();
+        
+        // Convert summary format to match the expected format for display
+        result = {
+          categories: (summaryResult.summaries || []).map(summary => {
+            // Find all comments for this category
+            const categoryComments = categorizationResult.categorizedComments
+              .filter(item => item.category === summary.category)
+              .map(item => item.id);
+            
+            return {
+              name: summary.category,
+              comments: categoryComments,
+              summary: summary.summary,
+              sentiment: summary.sentiment || 0,
+              commonIssues: summary.commonIssues,
+              suggestedActions: summary.suggestedActions
+            };
+          }),
+          topTopics: summaryResult.topTopics || []
+        };
+        
+        if (debugLog) {
+          debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Summary generation successful</div>`;
+        }
+      } 
+        catch (error) {
         console.error('Error during two-step processing:', error);
         
         if (debugLog) {
@@ -992,6 +845,7 @@ function simulateEnhancedCategories() {
   
   return { categories };
 }
+
 
 // Original simulation function (fallback)
 function simulateCategories() {
