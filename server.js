@@ -9,12 +9,28 @@ const PORT = process.env.PORT || 3000;
 
 // Expanded CORS configuration to ensure browser can connect
 app.use(cors({
-  origin: '*', // Allow all origins during development
-  methods: ['GET', 'POST'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'x-api-key'], // Allowed headers
-  credentials: true, // Allow credentials
-  optionsSuccessStatus: 200 // For legacy browser support
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization'],
+  credentials: true,
+  maxAge: 86400, // Cache preflight requests for 24 hours
+  optionsSuccessStatus: 200
 }));
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // Log incoming requests
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} (From: ${req.ip})`);
+  next();
+});
 
 // Add this to explicitly enable CORS for specific routes
 app.options('*', cors()); // Enable pre-flight for all routes
