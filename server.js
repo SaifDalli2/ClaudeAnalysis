@@ -7,6 +7,24 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Expanded CORS configuration to ensure browser can connect
+app.use(cors({
+  origin: '*', // Allow all origins during development
+  methods: ['GET', 'POST'], // Allowed HTTP methods
+  allowedHeaders: ['Content-Type', 'x-api-key'], // Allowed headers
+  credentials: true, // Allow credentials
+  optionsSuccessStatus: 200 // For legacy browser support
+}));
+
+// Add this to explicitly enable CORS for specific routes
+app.options('*', cors()); // Enable pre-flight for all routes
+
+// Add this right after the CORS setup to log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // Middleware
 app.use(cors());
 
@@ -705,6 +723,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at: http://localhost:${PORT}`);
 });
