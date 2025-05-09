@@ -397,7 +397,7 @@ function setupActionButtons() {
   }
 }
 
-// The main function to process comments
+// Update this part of your processComments function
 async function processComments() {
   const loader = document.getElementById('loader');
   const categoriesContainer = document.getElementById('categoriesContainer');
@@ -433,101 +433,145 @@ async function processComments() {
       }
       
       try {
+        // Check server availability before proceeding
+        const isServerAvailable = await checkServerAvailability();
+        
+        if (!isServerAvailable) {
+          throw new Error("Heroku server is not available. Please try again later or use simulation mode.");
+        }
+        
         // Step 1: Categorize all comments
         if (debugLog) {
           debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting comment categorization...</div>`;
         }
         
-        const categorizationResponse = await fetch(`${SERVER_URL}/api/categorize`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            comments: window.comments,
-            apiKey: apiKey
-          }),
-          // Add timeout to prevent long waiting times
-          timeout: 60000 // 60 seconds timeout
-        });
-        
-        if (!categorizationResponse.ok) {
-          const errorText = await categorizationResponse.text();
-          const statusCode = categorizationResponse.status;
-          
-          // Check specifically for 503 Service Unavailable
-          if (statusCode === 503) {
-            throw new Error(`Server unavailable (503). The server is likely not running. Please start the server using 'npm start' or use simulation mode.`);
-          } else {
-            throw new Error(`API returned status ${statusCode}: ${errorText}`);
+        // Add a try-catch specifically for the fetch operation 
+        try {
+          const categorizeUrl = `${SERVER_URL}/api/categorize`;
+          if (debugLog) {
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Sending request to: ${categorizeUrl}</div>`;
           }
-        }
-        
-        const categorizationResult = await categorizationResponse.json();
-        
-        if (debugLog) {
-          const successRate = Math.round((categorizationResult.categorizedComments?.length || 0) / window.comments.length * 100);
-          debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Categorization successful: ${categorizationResult.categorizedComments?.length || 0} of ${window.comments.length} comments (${successRate}%)</div>`;
           
-          if (categorizationResult.extractedTopics?.length) {
-            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Extracted ${categorizationResult.extractedTopics.length} topics</div>`;
-          }
-        }
-        
-        // Store the extracted topics
-        extractedTopics = categorizationResult.extractedTopics || [];
-        
-        // Step 2: Summarize categorized comments
-        if (debugLog) {
-          debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
-        }
-        
-        const summarizationResponse = await fetch(`${SERVER_URL}/api/summarize`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            categorizedComments: categorizationResult.categorizedComments,
-            extractedTopics: extractedTopics,
-            apiKey: apiKey
-          }),
-          // Add timeout to prevent long waiting times
-          timeout: 60000 // 60 seconds timeout
-        });
-        
-        if (!summarizationResponse.ok) {
-          const errorText = await summarizationResponse.text();
-          throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
-        }
-        
-        const summaryResult = await summarizationResponse.json();
-        
-        // Convert summary format to match the expected format for display
-        result = {
-          categories: (summaryResult.summaries || []).map(summary => {
-            // Find all comments for this category
-            const categoryComments = categorizationResult.categorizedComments
-              .filter(item => item.category === summary.category)
-              .map(item => item.id);
+          const categorizationResponse = await fetch(categorizeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              comments: window.comments,
+              apiKey: apiKey
+            }),
+            timeout: 120000 // 2 minutes timeout - Heroku can be slow to wake up
+          });
+          
+          if (!categorizationResponse.ok) {
+            const errorText = await categorizationResponse.text();
+            const statusCode = categorizationResponse.status;
             
-            return {
-              name: summary.category,
-              comments: categoryComments,
-              summary: summary.summary,
-              sentiment: summary.sentiment || 0,
-              commonIssues: summary.commonIssues,
-              suggestedActions: summary.suggestedActions
-            };
-          }),
-          topTopics: summaryResult.topTopics || []
-        };
-        
-        if (debugLog) {
-          debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Summary generation successful</div>`;
+            // Log more details about the error response
+            if (debugLog) {
+              debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] API Error: Status ${statusCode}</div>`;
+              debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Response: ${errorText}</div>`;
+            }
+            
+            // Check specifically for 503 Service Unavailable
+            if (statusCode === 503) {
+              throw new Error(`Server unavailable (503). The server is likely not running or is in sleep mode. Please try again in a moment or use simulation mode.`);
+            } else {
+              throw new Error(`API returned status ${statusCode}: ${errorText}`);
+            }
+          }
+          
+          const categorizationResult = await categorizationResponse.json();
+          
+          if (debugLog) {
+            const successRate = Math.round((categorizationResult.categorizedComments?.length || 0) / window.comments.length * 100);
+            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Categorization successful: ${categorizationResult.categorizedComments?.length || 0} of ${window.comments.length} comments (${successRate}%)</div>`;
+            
+            if (categorizationResult.extractedTopics?.length) {
+              debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Extracted ${categorizationResult.extractedTopics.length} topics</div>`;
+            }
+          }
+          
+          // Store the extracted topics
+          extractedTopics = categorizationResult.extractedTopics || [];
+          
+          // Step 2: Summarize categorized comments
+          if (debugLog) {
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Summarizing ${categorizationResult.categorizedComments?.length || 0} categorized comments...</div>`;
+          }
+          
+          const summarizeUrl = `${SERVER_URL}/api/summarize`;
+          if (debugLog) {
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Sending request to: ${summarizeUrl}</div>`;
+          }
+          
+          const summarizationResponse = await fetch(summarizeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              categorizedComments: categorizationResult.categorizedComments,
+              extractedTopics: extractedTopics,
+              apiKey: apiKey
+            }),
+            timeout: 120000 // 2 minutes timeout
+          });
+          
+          if (!summarizationResponse.ok) {
+            const errorText = await summarizationResponse.text();
+            throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
+          }
+          
+          const summaryResult = await summarizationResponse.json();
+          
+          // Convert summary format to match the expected format for display
+          result = {
+            categories: (summaryResult.summaries || []).map(summary => {
+              // Find all comments for this category
+              const categoryComments = categorizationResult.categorizedComments
+                .filter(item => item.category === summary.category)
+                .map(item => item.id);
+              
+              return {
+                name: summary.category,
+                comments: categoryComments,
+                summary: summary.summary,
+                sentiment: summary.sentiment || 0,
+                commonIssues: summary.commonIssues,
+                suggestedActions: summary.suggestedActions
+              };
+            }),
+            topTopics: summaryResult.topTopics || []
+          };
+          
+          if (debugLog) {
+            debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Summary generation successful</div>`;
+          }
+        } catch (fetchError) {
+          console.error('Fetch operation failed:', fetchError);
+          if (debugLog) {
+            debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Fetch Error: ${fetchError.message}</div>`;
+            
+            // If we have a fetch related error, provide more context
+            if (fetchError.message.includes('Failed to fetch') || 
+                fetchError.message.includes('NetworkError') ||
+                fetchError.message.includes('network error')) {
+              debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] This appears to be a network or CORS issue.</div>`;
+              debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Common causes:</div>`;
+              debugLog.innerHTML += `<div>- Heroku server is in sleep mode</div>`;
+              debugLog.innerHTML += `<div>- CORS is not properly configured</div>`;
+              debugLog.innerHTML += `<div>- Network connectivity issues</div>`;
+              debugLog.innerHTML += `<div>- Browser extension blocking requests</div>`;
+            }
+          }
+          throw fetchError;
         }
-      } 
-        catch (error) {
+        
+      } catch (error) {
         console.error('Error during two-step processing:', error);
         
         if (debugLog) {
@@ -551,89 +595,6 @@ async function processComments() {
       result = simulateEnhancedCategories();
       extractedTopics = simulateTopTopics();
     }
-    
-    // Clear previous results
-    categoriesContainer.innerHTML = '';
-    
-    // Display results
-    if (debugLog) {
-      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Displaying categorization results...</div>`;
-    }
-    
-    // Display top topics first
-    displayTopics(extractedTopics);
-    
-    // Then display categories
-    displayResults(result);
-    
-    // Update stats
-    if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
-      overallStats.style.display = 'block';
-      totalCommentsEl.textContent = window.comments.length;
-      categoryCountEl.textContent = result.categories.length;
-      
-      // Calculate average sentiment
-      const avgSentiment = result.categories.reduce((sum, category) => {
-        return sum + (category.sentiment || 0);
-      }, 0) / result.categories.length;
-      
-      avgSentimentEl.textContent = avgSentiment.toFixed(1);
-    }
-    
-    // Log completion
-    if (debugLog) {
-      debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Comment processing completed successfully!</div>`;
-    }
-  } catch (error) {
-    console.error('Error processing comments:', error);
-    
-    // Log error
-    if (debugLog) {
-      debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Processing Error: ${error.message}</div>`;
-    }
-    
-    alert('Error processing comments: ' + error.message);
-    
-    // Try to fall back to simulation if there's an error
-    try {
-      result = simulateEnhancedCategories();
-      extractedTopics = simulateTopTopics();
-      
-      // Clear previous results
-      categoriesContainer.innerHTML = '';
-      
-      // Display simulated results
-      displayTopics(extractedTopics);
-      displayResults(result);
-      
-      // Update stats
-      if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
-        overallStats.style.display = 'block';
-        totalCommentsEl.textContent = window.comments.length;
-        categoryCountEl.textContent = result.categories.length;
-        
-        const avgSentiment = result.categories.reduce((sum, category) => {
-          return sum + (category.sentiment || 0);
-        }, 0) / result.categories.length;
-        
-        avgSentimentEl.textContent = avgSentiment.toFixed(1);
-      }
-      
-      if (debugLog) {
-        debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Fallback to simulation was successful</div>`;
-      }
-    } catch (simError) {
-      console.error('Error in simulation fallback:', simError);
-      if (debugLog) {
-        debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Simulation fallback also failed: ${simError.message}</div>`;
-      }
-    }
-  } finally {
-    // Hide loader
-    loader.style.display = 'none';
-  }
-}
-
 // Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
   const debugLog = document.getElementById('debugLog');
