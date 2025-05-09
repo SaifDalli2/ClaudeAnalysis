@@ -38,7 +38,7 @@ function showCommentsForTopic(topic) {
   closeBtn.addEventListener('click', () => {
     topicCommentsEl.innerHTML = '';
     topicCommentsEl.style.display = 'none';
-  }
+  })
   
   // If no comments found, show a message
   if (commentsListEl.children.length === 0) {
