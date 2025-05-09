@@ -64,6 +64,14 @@ app.post('/api/categorize', async (req, res) => {
     // Get comments from request
     const { comments, apiKey } = req.body;
     
+    // Validate API key - make this check earlier to fail fast
+    if (useApi && (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '')) {
+      return res.status(400).json({ 
+        error: 'Invalid API key', 
+        details: 'A valid Claude API key must be provided when using API mode' 
+      });
+    }
+    
     if (!comments || !Array.isArray(comments) || comments.length === 0) {
       return res.status(400).json({ 
         error: 'Invalid request', 
@@ -94,10 +102,10 @@ app.post('/api/categorize', async (req, res) => {
       console.log(`Processing batch ${i+1}/${batches.length}`);
       
       try {
-        // Wait between batches to avoid rate limits
+        // Wait between batches to avoid rate limits - longer delay
         if (i > 0) {
-          console.log('Waiting 10 seconds between batches to avoid rate limits...');
-          await delay(10000);
+          console.log('Waiting 15 seconds between batches to avoid rate limits...');
+          await delay(15000); // Increased from 10s to 15s
         }
         
         // Detect language of the comments
