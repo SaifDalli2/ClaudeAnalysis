@@ -13,7 +13,7 @@ async function checkServerAvailability() {
   
   if (debugLog) {
     debugLog.style.display = 'block';
-    debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}
+    debugLog.innerHTML += '<div>[' + new Date().toLocaleTimeString() + '] Checking Heroku server availability...</div>';
 
 // Function to show comments for a specific topic
 function showCommentsForTopic(topic) {
