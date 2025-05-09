@@ -1,4 +1,4 @@
-const SERVER_URL = 'http://localhost:35343';
+const SERVER_URL = 'https://comment-analyzer-e15255a314d2.herokuapp.com';
 
 // Define comments array in global scope
 window.comments = [];
@@ -36,7 +36,8 @@ for (const url of apiUrls) {
       debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
     }
     
-    categorizationResponse = await fetch(url, {
+    const categorizationResponse = await fetch(`${HEROKU_URL}/api/categorize`, {
+
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ for (const url of summaryUrls) {
       debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
     }
     
-    summarizationResponse = await fetch(url, {
+    const summarizationResponse = await fetch(`${HEROKU_URL}/api/summarize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
