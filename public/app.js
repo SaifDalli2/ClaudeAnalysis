@@ -6,6 +6,113 @@ window.comments = [];
 // Current language - default to English
 let currentLanguage = 'en';
 
+// Add this function at the top of your app.js, before any other code
+function getApiUrl(endpoint) {
+  // Get the port from the server output
+  const SERVER_PORT = 23037; // The port reported by your npm start command
+  
+  // Try different base URLs in this order of preference
+  const possibleUrls = [
+    `/api/${endpoint}`,                                  // Same-origin (relative URL)
+    `http://localhost:${SERVER_PORT}/api/${endpoint}`,   // Explicit localhost with server port
+    `http://127.0.0.1:${SERVER_PORT}/api/${endpoint}`    // Alternative IP format
+  ];
+  
+  // Return the first URL by default, client code will try others if this fails
+  return possibleUrls;
+}
+
+// Modify the processComments function - just update these sections:
+
+// Replace the categorization fetch with:
+const apiUrls = getApiUrl('categorize');
+let categorizationResponse = null;
+let fetchError = null;
+
+// Try each possible URL until one works
+for (const url of apiUrls) {
+  try {
+    if (debugLog) {
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
+    }
+    
+    categorizationResponse = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        comments: window.comments,
+        apiKey: apiKey
+      }),
+      timeout: 30000 // 30 seconds timeout
+    });
+    
+    // If we got here, the fetch worked
+    if (debugLog) {
+      debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Connected successfully to: ${url}</div>`;
+    }
+    break;
+  } catch (error) {
+    console.error(`Failed to connect to ${url}:`, error);
+    fetchError = error;
+    // Continue to next URL
+  }
+}
+
+// Check if all connection attempts failed
+if (!categorizationResponse) {
+  throw new Error(`Failed to connect to server: ${fetchError?.message || 'Unknown error'}`);
+}
+
+// Then check response as usual
+if (!categorizationResponse.ok) {
+  const errorText = await categorizationResponse.text();
+  throw new Error(`API returned status ${categorizationResponse.status}: ${errorText}`);
+}
+
+// Similarly for the summarization endpoint, use the same pattern:
+const summaryUrls = getApiUrl('summarize');
+let summarizationResponse = null;
+
+for (const url of summaryUrls) {
+  try {
+    if (debugLog) {
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to connect to: ${url}</div>`;
+    }
+    
+    summarizationResponse = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        categorizedComments: categorizationResult.categorizedComments,
+        extractedTopics: extractedTopics,
+        apiKey: apiKey
+      }),
+      timeout: 30000 // 30 seconds timeout
+    });
+    
+    // If we got here, the fetch worked
+    break;
+  } catch (error) {
+    console.error(`Failed to connect to ${url}:`, error);
+    // Continue to next URL
+  }
+}
+
+// Check if all connection attempts failed
+if (!summarizationResponse) {
+  throw new Error('Failed to connect to server for summary generation');
+}
+
+// Then check response as usual
+if (!summarizationResponse.ok) {
+  const errorText = await summarizationResponse.text();
+  throw new Error(`API returned status ${summarizationResponse.status}: ${errorText}`);
+}
+
 // Initialize the app
 function initApp() {
   console.log("App initialized successfully");
