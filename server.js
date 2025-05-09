@@ -22,6 +22,23 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Simple ping endpoint to check server availability
+app.get('/api/ping', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// You can also add a health check endpoint that returns server status
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'up',
+    timestamp: new Date().toISOString(),
+    serverInfo: {
+      nodeVersion: process.version,
+      memoryUsage: process.memoryUsage()
+    }
+  });
+});
+
 // Helper function to delay between API calls to avoid rate limits
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
