@@ -595,6 +595,7 @@ async function processComments() {
       result = simulateEnhancedCategories();
       extractedTopics = simulateTopTopics();
     }
+    
 // Simulate categorization results using enhanced approach
 function simulateEnhancedCategories() {
   const debugLog = document.getElementById('debugLog');
