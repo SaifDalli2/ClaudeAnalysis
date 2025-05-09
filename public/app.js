@@ -7,6 +7,106 @@ window.comments = [];
 // Current language - default to English
 let currentLanguage = 'en';
 
+// Add this function at the top of your app.js (after the SERVER_URL constant)
+// This will help diagnose Heroku connection issues
+
+// Function to check if the Heroku server is available
+async function checkServerAvailability() {
+  const debugLog = document.getElementById('debugLog');
+  
+  if (debugLog) {
+    debugLog.style.display = 'block';
+    debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Checking Heroku server availability...</div>`;
+  }
+  
+  try {
+    // Try to connect to the ping endpoint
+    const pingResponse = await fetch(`${SERVER_URL}/api/ping`, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+    
+    if (pingResponse.ok) {
+      if (debugLog) {
+        debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Heroku server is available! ✅</div>`;
+      }
+      return true;
+    } else {
+      if (debugLog) {
+        debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Heroku server returned status: ${pingResponse.status} ❌</div>`;
+      }
+      return false;
+    }
+  } catch (error) {
+    if (debugLog) {
+      debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Error connecting to Heroku: ${error.message} ❌</div>`;
+      
+      // Additional diagnostic information
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Server URL: ${SERVER_URL}</div>`;
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Trying to access Heroku server directly...</div>`;
+    }
+    
+    // Try a simpler fetch that might work better for CORS issues
+    try {
+      const directFetch = await fetch(SERVER_URL, {
+        method: 'GET',
+        mode: 'no-cors' // This might help with CORS issues
+      });
+      
+      if (debugLog) {
+        debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Direct connection with no-cors: ${directFetch.type}</div>`;
+      }
+    } catch (directError) {
+      if (debugLog) {
+        debugLog.innerHTML += `<div style="color: red">[${new Date().toLocaleTimeString()}] Direct connection also failed: ${directError.message}</div>`;
+      }
+    }
+    
+    return false;
+  }
+}
+
+// Add a button to the UI to run this diagnostic
+function addDiagnosticButton() {
+  const inputSection = document.querySelector('.input-section');
+  const debugLog = document.getElementById('debugLog');
+  
+  if (inputSection && debugLog) {
+    const diagnosticBtn = document.createElement('button');
+    diagnosticBtn.textContent = 'Run Server Diagnostics';
+    diagnosticBtn.style.backgroundColor = '#4a4a5e'; // Different color to distinguish it
+    diagnosticBtn.style.color = '#fff';
+    diagnosticBtn.style.marginTop = '10px';
+    
+    diagnosticBtn.addEventListener('click', async () => {
+      debugLog.style.display = 'block';
+      debugLog.innerHTML = ''; // Clear previous logs
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting server diagnostics...</div>`;
+      
+      const isAvailable = await checkServerAvailability();
+      
+      if (isAvailable) {
+        debugLog.innerHTML += `<div style="color: green">[${new Date().toLocaleTimeString()}] Server connection successful! You can use API mode.</div>`;
+      } else {
+        debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Server connection failed. Please use Simulation mode for now.</div>`;
+        debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Common causes of this error:</div>`;
+        debugLog.innerHTML += `<div>- Heroku server is in sleep mode (first request may take up to 30 seconds to wake it)</div>`;
+        debugLog.innerHTML += `<div>- Server URL is incorrect (currently using: ${SERVER_URL})</div>`;
+        debugLog.innerHTML += `<div>- CORS settings on the server need adjustment</div>`;
+        debugLog.innerHTML += `<div>- Heroku app is not running or has crashed</div>`;
+      }
+    });
+    
+    // Insert the button right before the debug log
+    inputSection.insertBefore(diagnosticBtn, debugLog);
+  }
+}
+
 // Initialize the app
 function initApp() {
   console.log("App initialized successfully");
