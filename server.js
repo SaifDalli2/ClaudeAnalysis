@@ -65,7 +65,7 @@ app.post('/api/categorize', async (req, res) => {
     const { comments, apiKey } = req.body;
     
     // Validate API key - make this check earlier to fail fast
-    if (useApi && (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '')) {
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
       return res.status(400).json({ 
         error: 'Invalid API key', 
         details: 'A valid Claude API key must be provided when using API mode' 
