@@ -7,21 +7,283 @@ window.comments = [];
 // Current language - default to English
 let currentLanguage = 'en';
 
-// Add this function at the top of your app.js (after the SERVER_URL constant)
-// This will help diagnose Heroku connection issues
-
 // Function to check if the Heroku server is available
 async function checkServerAvailability() {
   const debugLog = document.getElementById('debugLog');
   
   if (debugLog) {
-    topicButton.addEventListener('click', () => {
-      showCommentsForTopic(topic);
-    });
+    debugLog.style.display = 'block';
+    debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}
+
+// Function to show comments for a specific topic
+function showCommentsForTopic(topic) {
+  const topicCommentsEl = document.getElementById('topicComments');
+  if (!topicCommentsEl) return;
+  
+  // Clear previous content
+  topicCommentsEl.innerHTML = '';
+  
+  // Create topic header
+  const headerEl = document.createElement('div');
+  headerEl.className = 'topic-comments-header';
+  
+  const titleEl = document.createElement('h3');
+  titleEl.textContent = `${topic.topic} (${topic.count || 0} comments)`;
+  headerEl.appendChild(titleEl);
+  
+  // Add a close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  closeBtn.className = 'topic-close-btn';
+  closeBtn.addEventListener('click', () => {
+    topicCommentsEl.innerHTML = '';
+    topicCommentsEl.style.display = 'none';
+  }
+  
+  // If no comments found, show a message
+  if (commentsListEl.children.length === 0) {
+    const noCommentsEl = document.createElement('div');
+    noCommentsEl.className = 'no-topic-comments';
+    noCommentsEl.textContent = 'No comments found for this topic.';
+    commentsListEl.appendChild(noCommentsEl);
+  }
+  
+  topicCommentsEl.appendChild(commentsListEl);
+  topicCommentsEl.style.display = 'block';
+}
+
+// Simulate top topics for when the API is unavailable
+function simulateTopTopics() {
+  // Generate random topics based on common words
+  const topicTemplates = [
+    { word: "app", type: "application" },
+    { word: "website", type: "website" },
+    { word: "product", type: "product" },
+    { word: "service", type: "service" },
+    { word: "company", type: "organization" },
+    { word: "support", type: "service" },
+    { word: "price", type: "feature" },
+    { word: "quality", type: "feature" },
+    { word: "feature", type: "feature" },
+    { word: "design", type: "feature" },
+    { word: "interface", type: "feature" },
+    { word: "customer service", type: "service" },
+    { word: "payment", type: "process" },
+    { word: "delivery", type: "process" },
+    { word: "account", type: "feature" },
+    { word: "login", type: "feature" },
+    { word: "registration", type: "process" },
+    { word: "issue", type: "problem" },
+    { word: "error", type: "problem" },
+    { word: "bug", type: "problem" }
+  ];
+  
+  // Generate a random count of topics
+  const numTopics = Math.min(topicTemplates.length, Math.max(5, Math.ceil(window.comments.length / 50)));
+  
+  // Shuffle and pick topics
+  const shuffledTopics = [...topicTemplates].sort(() => Math.random() - 0.5);
+  const selectedTopics = shuffledTopics.slice(0, numTopics);
+  
+  // Create simulated topic data
+  return selectedTopics.map((template, index) => {
+    // Generate a random count proportional to the number of comments
+    const maxCount = Math.min(window.comments.length, 100);
+    const count = Math.max(2, Math.floor(Math.random() * maxCount));
     
-    cloudEl.appendChild(topicButton);
-  };debugLog.style.display = 'block';
-    debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Checking Heroku server availability...</div>`;
+    // Generate random comment IDs
+    const commentIds = [];
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * window.comments.length);
+      commentIds.push(randomIndex + 1); // 1-based indexing
+    }
+  `;
+  
+  document.head.appendChild(styleEl);
+}
+
+// Initialize the topic styles when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  addStylesForTopics();
+  
+  // Add translations for topics
+  if (translations.en) {
+    translations.en['top-topics'] = 'Top Topics Mentioned';
+    translations.en['topics-description'] = 'Click on a topic to see related comments.';
+  }
+  
+  if (translations.ar) {
+    translations.ar['top-topics'] = 'أكثر المواضيع ذكرًا';
+    translations.ar['topics-description'] = 'انقر على موضوع لعرض التعليقات المتعلقة به.';
+  }
+});
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    initApp();
+  } catch(e) {
+    console.error("Error initializing app:", e);
+  }
+});
+    
+    .topic-comments-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .topic-comments-header h3 {
+      margin: 0;
+      color: var(--dark-primary-hover);
+    }
+    
+    .topic-close-btn {
+      background: transparent;
+      color: var(--dark-text);
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0 5px;
+      margin: 0;
+    }
+    
+    .topic-comments-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .topic-comment-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--dark-border);
+    }
+    
+    .topic-summary {
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      background: rgba(226, 255, 102, 0.05);
+      border: 1px solid rgba(226, 255, 102, 0.1);
+    }
+    
+    .no-topic-comments {
+      padding: 10px;
+      text-align: center;
+      color: var(--dark-text-secondary);
+    }
+    
+    .rtl .topic-comments {
+      border-left: none;
+      border-right: 3px solid var(--dark-primary);
+    }
+    
+    return {
+      topic: template.word,
+      type: template.type,
+      count: count,
+      commentIds: commentIds
+    };
+  });
+}
+
+// Add CSS for the new topic display
+function addStylesForTopics() {
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    .topics-section {
+      margin-bottom: 30px;
+      background: var(--dark-surface);
+      border-radius: 6px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .topics-title {
+      color: var(--dark-primary-hover);
+      margin-top: 0;
+    }
+    
+    .topics-description {
+      color: var(--dark-text-secondary);
+      margin-bottom: 15px;
+    }
+    
+    .topics-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .topic-button {
+      background-color: var(--dark-surface-lighter);
+      color: var(--dark-primary);
+      border: 1px solid var(--dark-primary);
+      border-radius: 20px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 5px;
+    }
+    
+    .topic-button:hover {
+      background-color: var(--dark-primary);
+      color: black;
+    }
+    
+    .topic-comments {
+      background: var(--dark-surface-lighter);
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 20px;
+      border-left: 3px solid var(--dark-primary);
+      display: none;
+    });
+  headerEl.appendChild(closeBtn);
+  
+  topicCommentsEl.appendChild(headerEl);
+  
+  // If we have topic summary, display it
+  if (topic.summary) {
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'topic-summary';
+    summaryEl.textContent = topic.summary;
+    topicCommentsEl.appendChild(summaryEl);
+  }
+  
+  // Create comments list
+  const commentsListEl = document.createElement('div');
+  commentsListEl.className = 'topic-comments-list';
+  
+  // If we have commentIds, use them
+  if (topic.commentIds && Array.isArray(topic.commentIds)) {
+    topic.commentIds.forEach(commentId => {
+      const index = commentId - 1; // Convert to 0-based index
+      
+      if (index >= 0 && index < window.comments.length) {
+        const commentText = window.comments[index];
+        
+        const commentEl = document.createElement('div');
+        commentEl.className = 'topic-comment-item';
+        commentEl.textContent = commentText;
+        commentsListEl.appendChild(commentEl);
+      }
+    });
+  } else {
+    // Otherwise do a simple text search
+    const keyword = topic.topic.toLowerCase();
+    
+    window.comments.forEach((comment, index) => {
+      if (comment.toLowerCase().includes(keyword)) {
+        const commentEl = document.createElement('div');
+        commentEl.className = 'topic-comment-item';
+        commentEl.textContent = comment;
+        commentsListEl.appendChild(commentEl);
+      }
+    });
+  }] Checking Heroku server availability...</div>`;
   }
   
   try {
@@ -32,7 +294,337 @@ async function checkServerAvailability() {
       cache: 'no-cache',
       headers: {
         'Content-Type': 'application/json'
-      },
+      };
+  
+  // Create random distribution of comments among categories
+  const categories = [];
+  const assignedComments = new Set();
+  
+  // Determine how many categories to use based on comment count
+  const numCategories = Math.min(
+    predefinedCategories.length,
+    Math.max(3, Math.ceil(window.comments.length / 10))
+  );
+  
+  // Randomly select categories
+  const selectedCategories = [];
+  const shuffledCategories = [...predefinedCategories].sort(() => Math.random() - 0.5);
+  
+  for (let i = 0; i < numCategories; i++) {
+    selectedCategories.push(shuffledCategories[i]);
+  }
+  
+  // Distribute comments among categories
+  for (let i = 0; i < selectedCategories.length; i++) {
+    const categoryTemplate = selectedCategories[i];
+    const categoryComments = [];
+    
+    // Assign approximately equal number of comments to each category
+    const targetCount = Math.floor(window.comments.length / selectedCategories.length);
+    
+    // For each category, find unassigned comments
+    for (let j = 0; j < window.comments.length && categoryComments.length < targetCount; j++) {
+      if (!assignedComments.has(j)) {
+        categoryComments.push(j + 1); // 1-based indexing for comments
+        assignedComments.add(j);
+      }
+    }
+    
+    // Skip categories with no comments
+    if (categoryComments.length === 0) continue;
+    
+    // Random sentiment within the category's range
+    const sentRange = categoryTemplate.sentimentRange;
+    const sentiment = sentRange[0] + Math.random() * (sentRange[1] - sentRange[0]);
+    
+    // Select random topics from possible topics
+    const numTopics = Math.min(
+      categoryTemplate.possibleTopics.length, 
+      Math.max(1, Math.floor(Math.random() * 3) + 1)
+    );
+    
+    const selectedTopics = [];
+    const shuffledTopics = [...categoryTemplate.possibleTopics].sort(() => Math.random() - 0.5);
+    
+    for (let j = 0; j < numTopics; j++) {
+      selectedTopics.push(shuffledTopics[j]);
+    }
+    
+    // Create simulated summary based on topics
+    let summary = `Users reported issues related to ${selectedTopics.join(', ')}. `;
+    
+    if (categoryComments.length > 1) {
+      summary += `Across ${categoryComments.length} comments, common themes include ${categoryTemplate.commonIssues.slice(0, 2).join(' and ')}.`;
+    } else {
+      summary += `The comment mentioned ${categoryTemplate.commonIssues[0]}.`;
+    }
+    
+    // Add to results
+    categories.push({
+      name: categoryTemplate.name,
+      comments: categoryComments,
+      summary: summary,
+      sentiment: parseFloat(sentiment.toFixed(2)),
+      commonIssues: categoryTemplate.commonIssues,
+      suggestedActions: categoryTemplate.suggestedActions
+    });
+  }
+  
+  // Assign any remaining comments to random categories
+  for (let j = 0; j < window.comments.length; j++) {
+    if (!assignedComments.has(j)) {
+      const randomCategoryIndex = Math.floor(Math.random() * categories.length);
+      categories[randomCategoryIndex].comments.push(j + 1); // 1-based indexing
+      assignedComments.add(j);
+    }
+  }
+  
+  if (debugLog) {
+    debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Created ${categories.length} simulated categories</div>`;
+  }
+  
+  return { categories };
+}
+
+// Display categorization results
+function displayResults(result) {
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  
+  if (!result || !result.categories || !Array.isArray(result.categories)) {
+    categoriesContainer.innerHTML = '<div class="error">Invalid result format</div>';
+    return;
+  }
+  
+  // Display each category
+  result.categories.forEach(category => {
+    const categoryEl = document.createElement('div');
+    categoryEl.className = 'category-card';
+    
+    // Get sentiment class
+    const sentimentClass = category.sentiment > 0.3
+      ? 'sentiment-positive'
+      : category.sentiment < -0.3
+        ? 'sentiment-negative'
+        : 'sentiment-neutral';
+    
+    // Get sentiment emoji
+    const sentimentEmoji = category.sentiment > 0.3
+      ? '😃'
+      : category.sentiment < -0.3
+        ? '😞'
+        : '😐';
+    
+    // Calculate sentiment percentage for the progress bar (convert -1 to 1 range to 0 to 100%)
+    const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
+    
+    // Create common issues and suggested actions HTML if available
+    let issuesAndActionsHtml = '';
+    if (category.commonIssues && category.commonIssues.length > 0) {
+      issuesAndActionsHtml += `
+        <div class="category-issues">
+          <h4>Common Issues:</h4>
+          <ul>
+            ${category.commonIssues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    
+    // Add click handler for show/hide comments button
+    const showHideBtn = categoryEl.querySelector('.show-comments-btn');
+    const commentsDiv = categoryEl.querySelector('.category-comments');
+    
+    showHideBtn.addEventListener('click', function() {
+      const action = this.getAttribute('data-action');
+      if (action === 'show') {
+        commentsDiv.style.display = 'block';
+        this.textContent = translations[currentLanguage]['hide-comments'] || 'Hide Comments';
+        this.setAttribute('data-action', 'hide');
+      } else {
+        commentsDiv.style.display = 'none';
+        this.textContent = translations[currentLanguage]['show-comments'] || 'Show Comments';
+        this.setAttribute('data-action', 'show');
+      }
+    });
+    
+    categoriesContainer.appendChild(categoryEl);
+  });
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Function to display top topics
+function displayTopics(topics) {
+  if (!topics || !Array.isArray(topics) || topics.length === 0) {
+    return;
+  }
+  
+  const topicsContainer = document.createElement('div');
+  topicsContainer.className = 'topics-section';
+  
+  // Create section title
+  const titleEl = document.createElement('h2');
+  titleEl.textContent = translations[currentLanguage]['top-topics'] || 'Top Topics Mentioned';
+  titleEl.className = 'topics-title';
+  topicsContainer.appendChild(titleEl);
+  
+  // Create description
+  const descEl = document.createElement('p');
+  descEl.textContent = translations[currentLanguage]['topics-description'] || 
+    'Click on a topic to see related comments.';
+  descEl.className = 'topics-description';
+  topicsContainer.appendChild(descEl);
+  
+  // Create topics cloud
+  const cloudEl = document.createElement('div');
+  cloudEl.className = 'topics-cloud';
+  
+  // Sort topics by count if not already sorted
+  const sortedTopics = [...topics].sort((a, b) => (b.count || 0) - (a.count || 0));
+  
+  // Limit to top 30 topics for display
+  const displayTopics = sortedTopics.slice(0, 30);
+  
+  // Create topic buttons
+  displayTopics.forEach(topic => {
+    const topicButton = document.createElement('button');
+    topicButton.textContent = `${topic.topic} (${topic.count || 0})`;
+    topicButton.className = 'topic-button';
+    
+    // Calculate size based on count (for visual emphasis)
+    const minFontSize = 14;
+    const maxFontSize = 24;
+    const maxCount = displayTopics[0].count || 1;
+    const fontSize = minFontSize + ((topic.count || 1) / maxCount) * (maxFontSize - minFontSize);
+    
+    topicButton.style.fontSize = `${fontSize}px`;
+    
+    // Add click handler to show related comments
+    topicButton.addEventListener('click', () => {
+      showCommentsForTopic(topic);
+    });
+    
+    cloudEl.appendChild(topicButton);
+  });
+  
+  topicsContainer.appendChild(cloudEl);
+  
+  // Create container for topic comments (initially empty)
+  const topicCommentsEl = document.createElement('div');
+  topicCommentsEl.className = 'topic-comments';
+  topicCommentsEl.id = 'topicComments';
+  topicsContainer.appendChild(topicCommentsEl);
+  
+  // Insert at the beginning of the categories container
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  categoriesContainer.insertBefore(topicsContainer, categoriesContainer.firstChild);
+}
+    }
+    
+    if (category.suggestedActions && category.suggestedActions.length > 0) {
+      issuesAndActionsHtml += `
+        <div class="category-actions">
+          <h4>Suggested Actions:</h4>
+          <ul>
+            ${category.suggestedActions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+    
+    // Create HTML structure for the category
+    categoryEl.innerHTML = `
+      <div class="category-header">
+        <div class="category-name">${escapeHtml(category.name)}</div>
+        <div class="category-count">${category.comments.length} ${translations[currentLanguage]['comments'] || 'comments'}</div>
+      </div>
+      <div class="category-summary">${escapeHtml(category.summary)}</div>
+      <div class="sentiment-details">
+        <span class="sentiment-emoji">${sentimentEmoji}</span>
+        <div style="flex-grow: 1;">
+          <div class="sentiment-label">
+            <span>${translations[currentLanguage]['sentiment'] || 'Sentiment'}</span>
+            <span>${category.sentiment.toFixed(1)}</span>
+          </div>
+          <div class="sentiment-bar-container">
+            <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
+          </div>
+          <div class="sentiment-label">
+            <span>${translations[currentLanguage]['negative'] || 'Negative'}</span>
+            <span>${translations[currentLanguage]['positive'] || 'Positive'}</span>
+          </div>
+        </div>
+      </div>
+      ${issuesAndActionsHtml}
+      <button class="show-comments-btn" data-action="show">${translations[currentLanguage]['show-comments'] || 'Show Comments'}</button>
+      <div class="category-comments">
+        ${category.comments.map(commentIndex => {
+          // Convert to 0-based index and ensure it's within bounds
+          const index = commentIndex - 1; 
+          const comment = index >= 0 && index < window.comments.length 
+            ? window.comments[index] 
+            : `[Comment #${commentIndex} not found]`;
+          return `<div class="category-comment">${escapeHtml(comment)}</div>`;
+        }).join('')}
+      </div>
+    `;
+
+// Original simulation function (fallback)
+function simulateCategories() {
+  // Create random categories based on the comments
+  const categories = [];
+  const sentiments = [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8];
+  
+  // Create 2-4 categories
+  const numCategories = Math.max(2, Math.min(4, Math.ceil(window.comments.length / 3)));
+  
+  // Distribute comments among categories
+  const assignedComments = new Set();
+  
+  for (let i = 0; i < numCategories; i++) {
+    const categoryComments = [];
+    const categoryName = `Category ${i + 1}`;
+    
+    // Assign comments to this category
+    const targetCount = Math.floor(window.comments.length / numCategories);
+    
+    // For each category, find unassigned comments
+    for (let j = 0; j < window.comments.length && categoryComments.length < targetCount; j++) {
+      if (!assignedComments.has(j)) {
+        categoryComments.push(j + 1); // 1-based indexing for comments
+        assignedComments.add(j);
+      }
+    }
+    
+    // Random sentiment
+    const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+    
+    // Create simulated summary
+    const summary = `This is a simulated summary for ${categoryComments.length} comments in ${categoryName}.`;
+    
+    categories.push({
+      name: categoryName,
+      comments: categoryComments,
+      summary: summary,
+      sentiment: sentiment
+    });
+  }
+  
+  // Assign any remaining comments to random categories
+  for (let j = 0; j < window.comments.length; j++) {
+    if (!assignedComments.has(j)) {
+      const randomCategory = Math.floor(Math.random() * categories.length);
+      categories[randomCategory].comments.push(j + 1); // 1-based indexing
+      assignedComments.add(j);
+    }
+  }
+  
+  return { categories };
+},
       timeout: 5000
     });
     
