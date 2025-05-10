@@ -2,8 +2,36 @@
  * Enhanced API service with robust retry logic and error handling
  * Can be used to update the existing api-service.js file
  */
-import { SERVER_URL, API_ENDPOINTS, TIMEOUTS, RETRY } from './config.js';
+import { SERVER_URL, API_ENDPOINTS, TIMEOUTS } from './config.js';
 import { addLogEntry, delay } from './utils.js';
+
+// Default retry configuration if not provided in config.js
+const DEFAULT_RETRY = {
+  MAX_ATTEMPTS: 3,
+  BASE_DELAY: 2000,
+  BACKOFF_FACTOR: 1.5,
+  JITTER: 500,
+  STATUS_CODES: [429, 503, 504]
+};
+
+// Import RETRY from config.js if available, otherwise use default
+let RETRY;
+try {
+  // Dynamic import to handle potential missing export
+  import('./config.js').then(config => {
+    RETRY = config.RETRY || DEFAULT_RETRY;
+    console.log("Using retry configuration from config.js");
+  }).catch(() => {
+    RETRY = DEFAULT_RETRY;
+    console.log("Using default retry configuration");
+  });
+} catch (e) {
+  RETRY = DEFAULT_RETRY;
+  console.log("Using default retry configuration due to import error");
+}
+
+// Initialize RETRY immediately (will be replaced if dynamic import succeeds)
+RETRY = DEFAULT_RETRY;
 
 /**
  * Calculates backoff delay with jitter for retry attempts
@@ -77,14 +105,18 @@ export async function wakeupServer() {
   
   try {
     // Send wake-up ping with increased timeout
-    const response = await fetchWithRetry(`${SERVER_URL}${API_ENDPOINTS.PING}?wakeup=true`, {
+    const wakeupUrl = `${SERVER_URL}${API_ENDPOINTS.PING}?wakeup=true`;
+    addLogEntry(`Sending wake-up request to: ${wakeupUrl}`, 'info');
+
+    // First try with regular fetch
+    const response = await fetchWithRetry(wakeupUrl, {
       method: 'GET',
       mode: 'cors',
       cache: 'no-cache',
       headers: {
         'Content-Type': 'application/json'
       },
-      timeout: TIMEOUTS.WAKEUP
+      timeout: TIMEOUTS.WAKEUP || 60000
     });
     
     if (response.ok) {
@@ -96,7 +128,22 @@ export async function wakeupServer() {
     }
   } catch (error) {
     addLogEntry(`Server wake-up error: ${error.message} ❌`, 'error');
-    return false;
+    
+    // Try with no-cors mode as a last resort
+    try {
+      addLogEntry('Attempting no-cors mode as fallback...', 'info');
+      await fetch(`${SERVER_URL}/api/ping`, { 
+        method: 'GET',
+        mode: 'no-cors' 
+      });
+      addLogEntry('Sent no-cors request - cannot determine if successful', 'warning');
+      // Wait a bit to give server time to wake up
+      await delay(5000);
+      return false;
+    } catch(e) {
+      addLogEntry('No-cors wake-up attempt also failed', 'error');
+      return false;
+    }
   }
 }
 
@@ -192,12 +239,20 @@ export async function categorizeComments(comments, apiKey) {
         comments: comments,
         apiKey: apiKey
       }),
-      timeout: TIMEOUTS.EXTENDED
+      timeout: TIMEOUTS.EXTENDED || 120000
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API returned status ${response.status}: ${errorText}`);
+      // Get error details if available
+      let errorText;
+      try {
+        const errorData = await response.json();
+        errorText = errorData.details || errorData.error || `Status ${response.status}`;
+      } catch {
+        errorText = await response.text() || `Status ${response.status}`;
+      }
+      
+      throw new Error(errorText);
     }
     
     const result = await response.json();
@@ -249,12 +304,20 @@ export async function summarizeComments(categorizedComments, extractedTopics, ap
         extractedTopics: extractedTopics,
         apiKey: apiKey
       }),
-      timeout: TIMEOUTS.EXTENDED
+      timeout: TIMEOUTS.EXTENDED || 120000
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API returned status ${response.status}: ${errorText}`);
+      // Get error details if available
+      let errorText;
+      try {
+        const errorData = await response.json();
+        errorText = errorData.details || errorData.error || `Status ${response.status}`;
+      } catch {
+        errorText = await response.text() || `Status ${response.status}`;
+      }
+      
+      throw new Error(errorText);
     }
     
     const result = await response.json();
@@ -275,41 +338,50 @@ export async function summarizeComments(categorizedComments, extractedTopics, ap
  */
 export async function processCommentsWithAPI(comments, apiKey) {
   // First, wake up the server
-  await wakeupServer();
+  const serverAwake = await wakeupServer();
   
-  // Step 1: Categorize all comments
-  const categorizationResult = await categorizeComments(comments, apiKey);
+  if (!serverAwake) {
+    addLogEntry('Server did not respond to wake-up attempt, proceeding anyway...', 'warning');
+  }
   
-  // Store the extracted topics
-  const extractedTopics = categorizationResult.extractedTopics || [];
-  
-  // Step 2: Summarize categorized comments
-  const summaryResult = await summarizeComments(
-    categorizationResult.categorizedComments,
-    extractedTopics,
-    apiKey
-  );
-  
-  // Convert summary format to match the expected format for display
-  const processedResult = {
-    categories: (summaryResult.summaries || []).map(summary => {
-      // Find all comments for this category
-      const categoryComments = categorizationResult.categorizedComments
-        .filter(item => item.category === summary.category)
-        .map(item => item.id);
-      
-      return {
-        name: summary.category,
-        comments: categoryComments,
-        summary: summary.summary,
-        sentiment: summary.sentiment || 0,
-        commonIssues: summary.commonIssues,
-        suggestedActions: summary.suggestedActions
-      };
-    }),
-    topTopics: summaryResult.topTopics || [],
-    extractedTopics: extractedTopics
-  };
-  
-  return processedResult;
+  try {
+    // Step 1: Categorize all comments
+    const categorizationResult = await categorizeComments(comments, apiKey);
+    
+    // Store the extracted topics
+    const extractedTopics = categorizationResult.extractedTopics || [];
+    
+    // Step 2: Summarize categorized comments
+    const summaryResult = await summarizeComments(
+      categorizationResult.categorizedComments,
+      extractedTopics,
+      apiKey
+    );
+    
+    // Convert summary format to match the expected format for display
+    const processedResult = {
+      categories: (summaryResult.summaries || []).map(summary => {
+        // Find all comments for this category
+        const categoryComments = categorizationResult.categorizedComments
+          .filter(item => item.category === summary.category)
+          .map(item => item.id);
+        
+        return {
+          name: summary.category,
+          comments: categoryComments,
+          summary: summary.summary,
+          sentiment: summary.sentiment || 0,
+          commonIssues: summary.commonIssues,
+          suggestedActions: summary.suggestedActions
+        };
+      }),
+      topTopics: summaryResult.topTopics || [],
+      extractedTopics: extractedTopics
+    };
+    
+    return processedResult;
+  } catch (error) {
+    addLogEntry(`API processing error: ${error.message}`, 'error');
+    throw error; 
+  }
 }
