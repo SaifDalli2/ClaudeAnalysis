@@ -85,6 +85,114 @@ function detectLanguage(comments) {
   return (arabicCount / comments.length > 0.5) ? 'ar' : 'en';
 }
 
+
+// Add these improvements to the server.js file
+
+// Improved ping endpoint with wake-up capabilities
+app.get('/api/ping', (req, res) => {
+  // Log the ping request
+  console.log(`Received ping request from ${req.ip}`);
+  
+  // If this is a wake-up request, add a small delay to ensure 
+  // the server is fully initialized before responding
+  if (req.query.wakeup === 'true') {
+    console.log('Processing wake-up ping request...');
+    
+    // Add a small delay to ensure the server is fully initialized
+    setTimeout(() => {
+      console.log('Server is now awake and ready to process requests');
+      res.status(200).send('OK - Server Awake');
+    }, 500);
+  } else {
+    // Regular ping request
+    res.status(200).send('OK');
+  }
+});
+
+// Add a more robust error handler for API requests
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  
+  // Check for specific error types
+  if (err.name === 'TimeoutError') {
+    return res.status(408).json({
+      error: 'Request Timeout',
+      details: 'The request took too long to process. Please try again with fewer comments.'
+    });
+  }
+  
+  if (err.code === 'ECONNRESET' || err.code === 'ECONNABORTED') {
+    return res.status(503).json({
+      error: 'Connection Error',
+      details: 'The connection to the server was interrupted. Please try again later.'
+    });
+  }
+  
+  // Default error response
+  res.status(500).json({
+    error: 'Internal Server Error',
+    details: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message
+  });
+});
+
+// Add server status monitoring
+let serverStatus = {
+  startTime: new Date(),
+  totalRequests: 0,
+  activeRequests: 0,
+  lastError: null
+};
+
+// Middleware to track request stats
+app.use((req, res, next) => {
+  serverStatus.totalRequests++;
+  serverStatus.activeRequests++;
+  
+  // Track when the request finishes
+  res.on('finish', () => {
+    serverStatus.activeRequests--;
+  });
+  
+  next();
+});
+
+// Add a detailed health check endpoint
+app.get('/api/health', (req, res) => {
+  const uptime = Math.floor((new Date() - serverStatus.startTime) / 1000);
+  
+  res.json({
+    status: 'up',
+    uptime: uptime,
+    timestamp: new Date().toISOString(),
+    stats: {
+      totalRequests: serverStatus.totalRequests,
+      activeRequests: serverStatus.activeRequests,
+      lastError: serverStatus.lastError
+    },
+    serverInfo: {
+      nodeVersion: process.version,
+      memoryUsage: process.memoryUsage()
+    }
+  });
+});
+
+// Add an improved error catch to the error handler
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  serverStatus.lastError = {
+    time: new Date().toISOString(),
+    message: err.message,
+    stack: err.stack
+  };
+  
+  // Only exit in extreme cases
+  if (err.message.includes('FATAL') || err.code === 'EADDRINUSE') {
+    console.error('Fatal error, shutting down server.');
+    process.exit(1);
+  }
+});
+
+
 // NEW ENDPOINT: Step 1 - Categorize comments
 app.post('/api/categorize', async (req, res) => {
   try {

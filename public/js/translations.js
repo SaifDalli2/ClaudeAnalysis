@@ -1,5 +1,5 @@
 // Language translations
-const translations = {
+window.translations = {
   en: {
     // App header
     "app-title": "Comment Categorization System",
@@ -48,10 +48,18 @@ const translations = {
     // Category display
     "show-comments": "Show Comments",
     "hide-comments": "Hide Comments",
-    "sentiment": "Sentiment:",
+    "sentiment": "Sentiment",
     "negative": "Negative",
     "positive": "Positive",
-    "comments": "comments"
+    "comments": "comments",
+    
+    // Topics
+    "top-topics": "Top Topics Mentioned",
+    "topics-description": "Click on a topic to see related comments.",
+    
+    // Error messages
+    "no-comments": "Please add some comments first.",
+    "select-csv": "Please select a CSV file first."
   },
   ar: {
     // App header
@@ -101,9 +109,19 @@ const translations = {
     // Category display
     "show-comments": "عرض التعليقات",
     "hide-comments": "إخفاء التعليقات",
-    "sentiment": "المشاعر:",
+    "sentiment": "المشاعر",
     "negative": "سلبي",
     "positive": "إيجابي",
-    "comments": "تعليقات"
+    "comments": "تعليقات",
+    
+    // Topics
+    "top-topics": "أكثر المواضيع ذكرًا",
+    "topics-description": "انقر على موضوع لعرض التعليقات المتعلقة به.",
+    
+    // Error messages
+    "no-comments": "الرجاء إضافة بعض التعليقات أولا.",
+    "select-csv": "الرجاء تحديد ملف CSV أولا."
   }
 };
+
+console.log("Translations loaded globally");
