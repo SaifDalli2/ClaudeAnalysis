@@ -7,7 +7,8 @@ import {
   processCSVContent, 
   addLogEntry,
   clearLogs,
-  getTranslation
+  getTranslation,
+  formatFileSize  // Added this import
 } from './utils.js';
 import { displayTopics } from './topic-visualizer.js';
 
