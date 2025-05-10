@@ -10,6 +10,14 @@
   <script src="js/translations.js"></script>
 </head>
 <body>
+  <!-- Add this at the top of your <body> section -->
+<div id="loading-status" style="display: none; padding: 10px; margin: 10px 0; background: #e2f7ff; border: 1px solid #a9d4e6; border-radius: 4px;">
+  <p>Loading application resources... <span id="loading-progress">0%</span></p>
+  <div style="height: 4px; width: 100%; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
+    <div id="loading-bar" style="height: 100%; width: 0%; background: #4db6ac; transition: width 0.3s;"></div>
+  </div>
+  <p id="loading-message">Initializing...</p>
+</div>
   <header class="header">
     <div class="logo-container">
       <img src="img/logo.png" alt="Comment Categorizer Logo" class="logo-image">
@@ -225,5 +233,430 @@
       }
     });
   </script>
+
+  <script>
+(function() {
+  // Show loading status
+  const loadingStatus = document.getElementById('loading-status');
+  const loadingBar = document.getElementById('loading-bar');
+  const loadingProgress = document.getElementById('loading-progress');
+  const loadingMessage = document.getElementById('loading-message');
+  
+  // Only show loading indicator if we need to
+  if (window.serverStatus === 'sleeping' || window.serverStatus === 'unavailable') {
+    loadingStatus.style.display = 'block';
+  }
+  
+  // Critical resources to verify and load
+  const resources = [
+    { name: 'translations.js', path: '/translations.js', type: 'script', optional: true },
+    { name: 'config.js', path: '/js/config.js', type: 'module', optional: false },
+    { name: 'utils.js', path: '/js/utils.js', type: 'module', optional: false },
+    { name: 'api-service.js', path: '/js/api-service.js', type: 'module', optional: false },
+    { name: 'simulation.js', path: '/js/simulation.js', type: 'module', optional: false },
+    { name: 'topic-visualizer.js', path: '/js/topic-visualizer.js', type: 'module', optional: false },
+    { name: 'ui-handlers.js', path: '/js/ui-handlers.js', type: 'module', optional: false },
+    { name: 'app.js', path: '/js/app.js', type: 'module', optional: false }
+  ];
+  
+  // Counter for loaded resources
+  let loadedCount = 0;
+  const totalResources = resources.length;
+  
+  // Function to update loading progress
+  function updateProgress(status) {
+    loadedCount++;
+    const percentage = Math.round((loadedCount / totalResources) * 100);
+    loadingProgress.textContent = `${percentage}%`;
+    loadingBar.style.width = `${percentage}%`;
+    loadingMessage.textContent = status || 'Loading resources...';
+    
+    // Hide loading status when complete
+    if (loadedCount >= totalResources) {
+      setTimeout(() => {
+        loadingStatus.style.display = 'none';
+      }, 500);
+    }
+  }
+  
+  // Function to verify a resource exists by making a HEAD request
+  async function verifyResource(resource) {
+    try {
+      const response = await fetch(resource.path, { method: 'HEAD' });
+      return response.ok;
+    } catch (error) {
+      console.warn(`Error verifying ${resource.name}:`, error);
+      return false;
+    }
+  }
+  
+  // Function to load a script
+  function loadScript(resource) {
+    return new Promise(async (resolve) => {
+      // First verify the resource exists
+      const exists = await verifyResource(resource);
+      
+      if (!exists) {
+        console.warn(`Resource ${resource.name} does not exist or is not accessible at ${resource.path}`);
+        if (resource.optional) {
+          updateProgress(`Optional resource ${resource.name} not found, skipping...`);
+          resolve(false);
+          return;
+        }
+      }
+      
+      const script = document.createElement('script');
+      script.src = resource.path;
+      
+      if (resource.type === 'module') {
+        script.type = 'module';
+      }
+      
+      script.onload = () => {
+        console.log(`Successfully loaded ${resource.name}`);
+        updateProgress(`Loaded ${resource.name}`);
+        resolve(true);
+      };
+      
+      script.onerror = () => {
+        console.error(`Failed to load ${resource.name}`);
+        if (resource.optional) {
+          updateProgress(`Optional resource ${resource.name} failed to load, continuing...`);
+          resolve(false);
+        } else {
+          updateProgress(`Critical resource ${resource.name} failed to load!`);
+          resolve(false);
+        }
+      };
+      
+      document.head.appendChild(script);
+    });
+  }
+  
+  // Function to initialize the application
+  async function initializeApp() {
+    // Start with optional resources
+    for (const resource of resources.filter(r => r.optional)) {
+      await loadScript(resource);
+    }
+    
+    // Then load critical resources
+    for (const resource of resources.filter(r => !r.optional)) {
+      await loadScript(resource);
+    }
+    
+    // Verify that everything loaded
+    const criticalResourcesLoaded = resources.filter(r => !r.optional).every(r => {
+      // Check if modules have been loaded by looking for specific globals
+      if (r.name === 'app.js') {
+        return typeof window.initApp === 'function' || typeof window.comments !== 'undefined';
+      }
+      return true;
+    });
+    
+    if (!criticalResourcesLoaded) {
+      console.error("Some critical resources failed to load. Entering fallback mode.");
+      updateProgress("Some critical resources failed to load. Using fallback mode.");
+      
+      // Select simulation mode
+      const simulationRadio = document.getElementById('useSimulation');
+      if (simulationRadio) {
+        simulationRadio.checked = true;
+        const event = new Event('change');
+        simulationRadio.dispatchEvent(event);
+      }
+    } else {
+      updateProgress("Application loaded successfully!");
+    }
+  }
+  
+  // Start the initialization process
+  initializeApp();
+})();
+</script>
+<!-- Add this right before the end of your body tag -->
+<script>
+// Fallback initialization if modules fail to load
+(function() {
+  // Wait a reasonable time for the modules to load
+  setTimeout(() => {
+    // Check if the application has been initialized
+    if (typeof window.comments === 'undefined') {
+      console.warn("Application did not initialize properly. Using fallback initialization.");
+      
+      // Initialize comments array
+      window.comments = [];
+      
+      // Set up basic functionality
+      setupBasicFunctionality();
+    }
+  }, 5000);  // Wait 5 seconds
+  
+  function setupBasicFunctionality() {
+    console.log("Setting up basic functionality");
+    
+    // Helper function to safely get element
+    function getElement(id) {
+      return document.getElementById(id);
+    }
+    
+    // Select simulation mode by default
+    const useSimulation = getElement('useSimulation');
+    if (useSimulation) {
+      useSimulation.checked = true;
+    }
+    
+    // Hide API key section
+    const apiKeySection = getElement('apiKeySection');
+    if (apiKeySection) {
+      apiKeySection.style.display = 'none';
+    }
+    
+    // Set up add comment functionality
+    const addCommentBtn = getElement('addCommentBtn');
+    const commentInput = getElement('commentInput');
+    const commentsList = getElement('commentsList');
+    
+    if (addCommentBtn && commentInput && commentsList) {
+      addCommentBtn.addEventListener('click', function() {
+        const text = commentInput.value.trim();
+        if (text) {
+          window.comments.push(text);
+          
+          // Add to list
+          const item = document.createElement('div');
+          item.className = 'comment-item';
+          item.textContent = text;
+          commentsList.appendChild(item);
+          
+          // Clear input
+          commentInput.value = '';
+        }
+      });
+    }
+    
+    // Set up clear comments functionality
+    const clearCommentsBtn = getElement('clearCommentsBtn');
+    if (clearCommentsBtn && commentsList) {
+      clearCommentsBtn.addEventListener('click', function() {
+        window.comments = [];
+        commentsList.innerHTML = '';
+        
+        // Clear results
+        const categoriesContainer = getElement('categoriesContainer');
+        if (categoriesContainer) {
+          categoriesContainer.innerHTML = '';
+        }
+        
+        const overallStats = getElement('overallStats');
+        if (overallStats) {
+          overallStats.style.display = 'none';
+        }
+      });
+    }
+    
+    // Set up basic categorization
+    const processCommentsBtn = getElement('processCommentsBtn');
+    const loader = getElement('loader');
+    const categoriesContainer = getElement('categoriesContainer');
+    
+    if (processCommentsBtn && loader && categoriesContainer) {
+      processCommentsBtn.addEventListener('click', function() {
+        if (window.comments.length === 0) {
+          alert('Please add some comments first.');
+          return;
+        }
+        
+        // Show loader
+        loader.style.display = 'block';
+        
+        // Simulate processing (quick timeout to show loader)
+        setTimeout(() => {
+          // Create simple categories for demonstration
+          const categories = [];
+          const sentiments = [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8];
+          
+          // Create 2-4 categories
+          const numCategories = Math.max(2, Math.min(4, Math.ceil(window.comments.length / 3)));
+          
+          // Distribute comments among categories
+          const assignedComments = new Set();
+          
+          for (let i = 0; i < numCategories; i++) {
+            const categoryComments = [];
+            const categoryName = `Category ${i + 1}`;
+            
+            // Assign comments to this category
+            const targetCount = Math.floor(window.comments.length / numCategories);
+            
+            // For each category, find unassigned comments
+            for (let j = 0; j < window.comments.length && categoryComments.length < targetCount; j++) {
+              if (!assignedComments.has(j)) {
+                categoryComments.push(j + 1); // 1-based indexing for comments
+                assignedComments.add(j);
+              }
+            }
+            
+            // Random sentiment
+            const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+            
+            // Create simulated summary
+            const summary = `This is a simulated summary for ${categoryComments.length} comments in ${categoryName}.`;
+            
+            categories.push({
+              name: categoryName,
+              comments: categoryComments,
+              summary: summary,
+              sentiment: sentiment
+            });
+          }
+          
+          // Assign any remaining comments to random categories
+          for (let j = 0; j < window.comments.length; j++) {
+            if (!assignedComments.has(j)) {
+              const randomCategory = Math.floor(Math.random() * categories.length);
+              categories[randomCategory].comments.push(j + 1); // 1-based indexing
+              assignedComments.add(j);
+            }
+          }
+          
+          // Display categories
+          categoriesContainer.innerHTML = '';
+          
+          categories.forEach(category => {
+            const categoryEl = document.createElement('div');
+            categoryEl.className = 'category-card';
+            
+            // Get sentiment class
+            const sentimentClass = category.sentiment > 0.3
+              ? 'sentiment-positive'
+              : category.sentiment < -0.3
+                ? 'sentiment-negative'
+                : 'sentiment-neutral';
+            
+            // Get sentiment emoji
+            const sentimentEmoji = category.sentiment > 0.3
+              ? '😃'
+              : category.sentiment < -0.3
+                ? '😞'
+                : '😐';
+            
+            // Calculate sentiment percentage for the progress bar (convert -1 to 1 range to 0 to 100%)
+            const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
+            
+            // Create HTML structure for the category
+            categoryEl.innerHTML = `
+              <div class="category-header">
+                <div class="category-name">${category.name}</div>
+                <div class="category-count">${category.comments.length} comments</div>
+              </div>
+              <div class="category-summary">${category.summary}</div>
+              <div class="sentiment-details">
+                <span class="sentiment-emoji">${sentimentEmoji}</span>
+                <div style="flex-grow: 1;">
+                  <div class="sentiment-label">
+                    <span>Sentiment:</span>
+                    <span>${category.sentiment.toFixed(1)}</span>
+                  </div>
+                  <div class="sentiment-bar-container">
+                    <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
+                  </div>
+                  <div class="sentiment-label">
+                    <span>Negative</span>
+                    <span>Positive</span>
+                  </div>
+                </div>
+              </div>
+              <button class="show-comments-btn" data-action="show">Show Comments</button>
+              <div class="category-comments">
+                ${category.comments.map(commentIndex => {
+                  // Convert to 0-based index and ensure it's within bounds
+                  const index = commentIndex - 1; 
+                  const comment = index >= 0 && index < window.comments.length 
+                    ? window.comments[index] 
+                    : `[Comment #${commentIndex} not found]`;
+                  return `<div class="category-comment">${comment}</div>`;
+                }).join('')}
+              </div>
+            `;
+            
+            // Add to container
+            categoriesContainer.appendChild(categoryEl);
+            
+            // Add click handler for show/hide comments button
+            const showHideBtn = categoryEl.querySelector('.show-comments-btn');
+            const commentsDiv = categoryEl.querySelector('.category-comments');
+            
+            showHideBtn.addEventListener('click', function() {
+              const action = this.getAttribute('data-action');
+              if (action === 'show') {
+                commentsDiv.style.display = 'block';
+                this.textContent = 'Hide Comments';
+                this.setAttribute('data-action', 'hide');
+              } else {
+                commentsDiv.style.display = 'none';
+                this.textContent = 'Show Comments';
+                this.setAttribute('data-action', 'show');
+              }
+            });
+          });
+          
+          // Show overall stats
+          const overallStats = getElement('overallStats');
+          const totalCommentsEl = getElement('totalComments');
+          const categoryCountEl = getElement('categoryCount');
+          const avgSentimentEl = getElement('avgSentiment');
+          
+          if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
+            let totalSentiment = 0;
+            categories.forEach(cat => totalSentiment += cat.sentiment);
+            const avgSentiment = categories.length > 0 ? (totalSentiment / categories.length).toFixed(1) : 0;
+            
+            totalCommentsEl.textContent = window.comments.length;
+            categoryCountEl.textContent = categories.length;
+            avgSentimentEl.textContent = avgSentiment;
+            
+            overallStats.style.display = 'block';
+          }
+          
+          // Hide loader
+          loader.style.display = 'none';
+        }, 1000);
+      });
+    }
+    
+    // Set up tabs
+    const tabs = document.querySelectorAll('.tab');
+    if (tabs.length) {
+      tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+          // Remove active class from all tabs
+          tabs.forEach(t => t.classList.remove('active'));
+          
+          // Add active class to clicked tab
+          this.classList.add('active');
+          
+          // Hide all tab content
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+          });
+          
+          // Show related tab content
+          const tabId = this.getAttribute('data-tab');
+          document.getElementById(tabId).classList.add('active');
+        });
+      });
+    }
+    
+    // Show success message
+    const debugLog = getElement('debugLog');
+    if (debugLog) {
+      debugLog.style.display = 'block';
+      debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Using fallback functionality due to module loading issues</div>`;
+      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Simulation mode enabled - all processing will be done locally</div>`;
+    }
+  }
+})();
+</script>
 </body>
 </html>
