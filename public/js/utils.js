@@ -40,7 +40,14 @@ export function initializeLanguage() {
  * @param {string} lang - Language code to apply
  */
 export function applyLanguage(lang) {
-  if (!window.translations || !window.translations[lang]) {
+  // Ensure translations are available
+  if (!window.translations) {
+    console.error("Translations not loaded yet. Retrying in 500ms...");
+    setTimeout(() => applyLanguage(lang), 500);
+    return;
+  }
+  
+  if (!window.translations[lang]) {
     console.error(`Language '${lang}' not found in translations`);
     return;
   }
