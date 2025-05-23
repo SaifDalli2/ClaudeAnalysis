@@ -249,6 +249,161 @@ The correct category names are:
 * Monetary: Refund Request
 `;
 
+// Add this test endpoint to your server.js to validate the parsing works before processing large batches
+
+app.post('/api/test-categorize', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+      return res.status(400).json({ 
+        error: 'Invalid API key', 
+        details: 'A valid Claude API key must be provided' 
+      });
+    }
+    
+    // Test with a small set of mixed language comments
+    const testComments = [
+      "التطبيق لا يعمل بشكل صحيح",
+      "خدمة العملاء ممتازة", 
+      "الرسوم مرتفعة جداً",
+      "App is very slow",
+      "Great customer service"
+    ];
+    
+    console.log('Running categorization test with 5 sample comments...');
+    
+    // Detect language
+    const language = detectLanguage(testComments);
+    console.log(`Detected language: ${language}`);
+    
+    // Create test prompt
+    let promptContent;
+    
+    if (language === 'ar') {
+      promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no Arabic text outside JSON values.
+
+Categorize each comment into exactly one category from this list:
+- مشكلات تقنية: تحديث التطبيق
+- مشكلات تقنية: تجميد/بطء التطبيق  
+- مشكلات تقنية: مشكلات التطبيق
+- مشكلات تقنية: لا يعمل
+- مشكلات تقنية: تسجيل الدخول والوصول
+- مشكلات تقنية: الأمان
+- ملاحظات العملاء: معقد
+- ملاحظات العملاء: خدمة العملاء
+- ملاحظات العملاء: التصميم
+- ملاحظات العملاء: مسيء
+- ملاحظات العملاء: شكرًا
+- مالية: احتيال
+- مالية: التسعير
+- مالية: طلب استرداد
+
+Comments to categorize:
+${testComments.map((comment, index) => `${index + 1}. ${comment}`).join('\n')}
+
+Return ONLY this JSON structure (no other text):
+{
+  "categorizedComments": [
+    {
+      "id": 1,
+      "comment": "comment text here",
+      "category": "exact category name from list above",
+      "topics": ["topic1", "topic2"]
+    }
+  ],
+  "extractedTopics": []
+}`;
+    } else {
+      promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no conversational text.
+
+Categorize each comment into exactly one category from this list:
+- Technical issues: App update
+- Technical issues: App Freeze/Slow
+- Technical issues: App issues
+- Technical issues: Doesn't work
+- Technical issues: Login and Access
+- Technical issues: Security
+- Customer Feedback: Complicated
+- Customer Feedback: Customer Service
+- Customer Feedback: Design
+- Customer Feedback: Offensive
+- Customer Feedback: Thank you
+- Monetary: Fraud
+- Monetary: Pricing
+- Monetary: Refund Request
+
+Comments to categorize:
+${testComments.map((comment, index) => `${index + 1}. ${comment}`).join('\n')}
+
+Return ONLY this JSON structure (no other text):
+{
+  "categorizedComments": [
+    {
+      "id": 1,
+      "comment": "comment text here", 
+      "category": "exact category name from list above",
+      "topics": ["topic1", "topic2"]
+    }
+  ],
+  "extractedTopics": []
+}`;
+    }
+    
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 2000,
+      system: "You are a JSON-only categorization tool. Return only valid JSON with no explanations or conversational text. Do not start responses with explanatory text in any language.",
+      messages: [
+        {
+          role: 'user',
+          content: promptContent
+        }
+      ]
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      timeout: 30000
+    });
+    
+    // Test the parser
+    const testResult = parseClaudeResponseImproved(response, 0);
+    const successCount = testResult.categorizedComments?.length || 0;
+    const successRate = (successCount / testComments.length) * 100;
+    
+    console.log(`Test completed: ${successCount}/${testComments.length} comments categorized (${successRate}%)`);
+    
+    const testSummary = {
+      status: successRate >= 80 ? 'PASS' : successRate >= 50 ? 'WARNING' : 'FAIL',
+      successRate: successRate,
+      successCount: successCount,
+      totalComments: testComments.length,
+      detectedLanguage: language,
+      categorizedComments: testResult.categorizedComments,
+      recommendation: successRate >= 80 
+        ? 'System is working well. You can proceed with larger batches.' 
+        : successRate >= 50 
+          ? 'Partial success. Consider smaller batch sizes or reviewing the prompts.'
+          : 'System has issues. Check API key, prompts, and parsing logic before processing large batches.'
+    };
+    
+    res.json(testSummary);
+    
+  } catch (error) {
+    console.error('Test categorization error:', error);
+    
+    res.status(500).json({
+      status: 'ERROR',
+      error: 'Test failed',
+      details: error.response?.data?.error || error.message,
+      recommendation: 'Check your API key and internet connection. Review server logs for more details.'
+    });
+  }
+});
+
 // NEW ENDPOINT: Step 1 - Categorize comments
 // NEW ENDPOINT: Step 1 - Categorize comments - FIXED VERSION
 app.post('/api/categorize', async (req, res) => {
@@ -396,7 +551,7 @@ Return ONLY this JSON structure (no other text):
         });
         
         // Process the response with improved parser
-        const batchResult = parseClaudeResponseImproved(response);
+        const batchResult = parseClaudeResponseImproved(response, i);
         console.log(`Batch ${i+1} processed successfully, got ${batchResult.categorizedComments?.length || 0} categorized comments`);
         
         // Add to accumulated results
@@ -455,11 +610,13 @@ Return ONLY this JSON structure (no other text):
 });
 
 // Improved response parser
-function parseClaudeResponseImproved(response) {
+// Replace your parseClaudeResponseImproved function with this enhanced version:
+
+function parseClaudeResponseImproved(response, batchIndex = 0) {
   try {
     const responseContent = response.data.content[0].text;
     
-    console.log('Raw Claude response (first 200 chars):', responseContent.substring(0, 200));
+    console.log(`Raw Claude response for batch ${batchIndex + 1} (first 200 chars):`, responseContent.substring(0, 200));
     
     // Check for conversational responses and reject them immediately
     const conversationalStarters = [
@@ -472,7 +629,15 @@ function parseClaudeResponseImproved(response) {
     );
     
     if (isConversational) {
-      console.log('Detected conversational response, returning empty result');
+      console.log(`Batch ${batchIndex + 1}: Detected conversational response, returning empty result`);
+      
+      // If this is the first batch, provide more detailed diagnostics
+      if (batchIndex === 0) {
+        console.error('FIRST BATCH DIAGNOSTIC: Claude returned conversational response instead of JSON');
+        console.error('Response starts with:', responseContent.substring(0, 100));
+        console.error('This suggests the prompt is not forcing JSON-only responses effectively');
+      }
+      
       return { categorizedComments: [], extractedTopics: [] };
     }
     
@@ -483,6 +648,7 @@ function parseClaudeResponseImproved(response) {
     const jsonBlockMatch = responseContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
     if (jsonBlockMatch) {
       jsonString = jsonBlockMatch[1];
+      console.log(`Batch ${batchIndex + 1}: Found JSON in code block`);
     } else {
       // Find the first complete JSON object
       const firstBrace = responseContent.indexOf('{');
@@ -500,33 +666,121 @@ function parseClaudeResponseImproved(response) {
         }
         
         jsonString = responseContent.substring(firstBrace, endIndex + 1);
+        console.log(`Batch ${batchIndex + 1}: Extracted JSON from position ${firstBrace} to ${endIndex}`);
+      } else {
+        console.error(`Batch ${batchIndex + 1}: No JSON braces found in response`);
+        
+        // If this is the first batch, provide detailed diagnostics
+        if (batchIndex === 0) {
+          console.error('FIRST BATCH DIAGNOSTIC: No JSON structure found in response');
+          console.error('Full response:', responseContent);
+        }
+        
+        return { categorizedComments: [], extractedTopics: [] };
       }
     }
     
     // Clean the JSON string more thoroughly
+    const originalJsonLength = jsonString.length;
     jsonString = cleanJsonStringThoroughly(jsonString);
     
-    console.log('Cleaned JSON string (first 100 chars):', jsonString.substring(0, 100));
+    console.log(`Batch ${batchIndex + 1}: Cleaned JSON string (${originalJsonLength} -> ${jsonString.length} chars)`);
+    console.log(`Batch ${batchIndex + 1}: Cleaned JSON (first 100 chars):`, jsonString.substring(0, 100));
     
     try {
-      return JSON.parse(jsonString);
+      const parsedData = JSON.parse(jsonString);
+      console.log(`Batch ${batchIndex + 1}: Successfully parsed JSON on first attempt`);
+      return parsedData;
     } catch (parseError) {
-      console.error('JSON parse error:', parseError.message);
+      console.error(`Batch ${batchIndex + 1}: JSON parse error:`, parseError.message);
+      
+      // If this is the first batch, provide more detailed diagnostics
+      if (batchIndex === 0) {
+        console.error('FIRST BATCH DIAGNOSTIC: JSON parse failed');
+        console.error('Parse error:', parseError.message);
+        console.error('JSON string (first 500 chars):', jsonString.substring(0, 500));
+        console.error('JSON string (last 100 chars):', jsonString.substring(Math.max(0, jsonString.length - 100)));
+      }
       
       // Try one more aggressive fix
       const ultraCleanJson = ultraCleanJsonString(jsonString);
       
       try {
-        return JSON.parse(ultraCleanJson);
+        const finalParsedData = JSON.parse(ultraCleanJson);
+        console.log(`Batch ${batchIndex + 1}: Successfully parsed JSON after ultra cleaning`);
+        return finalParsedData;
       } catch (finalError) {
-        console.error('Final JSON parse failed:', finalError.message);
+        console.error(`Batch ${batchIndex + 1}: Final JSON parse failed:`, finalError.message);
+        
+        // If this is the first batch, provide comprehensive diagnostics
+        if (batchIndex === 0) {
+          console.error('FIRST BATCH DIAGNOSTIC: All JSON parsing attempts failed');
+          console.error('Original error:', parseError.message);
+          console.error('Final error:', finalError.message);
+          console.error('Ultra cleaned JSON (first 300 chars):', ultraCleanJson.substring(0, 300));
+          
+          // Try to identify specific parsing issues
+          if (ultraCleanJson.includes('ت') || ultraCleanJson.includes('م') || ultraCleanJson.includes('ل')) {
+            console.error('DIAGNOSIS: Arabic characters detected in JSON structure - encoding issue');
+          }
+          if (ultraCleanJson.includes('"category":') && !ultraCleanJson.includes('"categorizedComments":')) {
+            console.error('DIAGNOSIS: Found category field but missing categorizedComments array structure');
+          }
+          if (ultraCleanJson.match(/:\s*[^"{\[]/)) {
+            console.error('DIAGNOSIS: Unquoted values detected in JSON');
+          }
+        }
+        
         return { categorizedComments: [], extractedTopics: [] };
       }
     }
     
   } catch (error) {
-    console.error('Error in parseClaudeResponseImproved:', error);
+    console.error(`Batch ${batchIndex + 1}: Error in parseClaudeResponseImproved:`, error);
+    
+    // If this is the first batch, provide error context
+    if (batchIndex === 0) {
+      console.error('FIRST BATCH DIAGNOSTIC: Parser function threw an error');
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    
     return { categorizedComments: [], extractedTopics: [] };
+  }
+}
+
+// Enhanced ultra clean function with better diagnostics
+function ultraCleanJsonString(jsonString) {
+  try {
+    console.log('Attempting ultra-aggressive JSON cleaning...');
+    
+    // If we can't parse it, try to construct a minimal valid structure
+    const commentMatches = [...jsonString.matchAll(/"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"/g)];
+    
+    console.log(`Found ${commentMatches.length} comment patterns in ultra clean attempt`);
+    
+    if (commentMatches.length > 0) {
+      const categorizedComments = commentMatches.map(match => ({
+        id: parseInt(match[1]),
+        comment: match[2],
+        category: match[3],
+        topics: []
+      }));
+      
+      const result = JSON.stringify({
+        categorizedComments,
+        extractedTopics: []
+      });
+      
+      console.log(`Ultra clean constructed JSON with ${categorizedComments.length} comments`);
+      return result;
+    }
+    
+    console.log('Ultra clean: No comment patterns found, returning empty structure');
+    return '{"categorizedComments": [], "extractedTopics": []}';
+  } catch (error) {
+    console.error('Ultra clean function error:', error.message);
+    return '{"categorizedComments": [], "extractedTopics": []}';
   }
 }
 
@@ -1304,7 +1558,7 @@ Return ONLY this JSON structure (no other text):
     });
     
     // Process the response with improved parser
-    const batchResult = parseClaudeResponseImproved(response);
+    const batchResult = parseClaudeResponseImproved(response, i);
     const validResults = batchResult.categorizedComments?.length || 0;
     
     console.log(`Batch ${i+1} processed successfully, got ${validResults} categorized comments`);
