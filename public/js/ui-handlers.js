@@ -1,6 +1,6 @@
 /**
  * Enhanced UI handler functions for real-time progress display
- * Updated to show results as they complete and remove simulation mode
+ * Fixed to remove circular dependencies and duplicate exports
  */
 import { 
   getCurrentLanguage, 
@@ -465,6 +465,150 @@ export function displayProcessingResults(result, comments, isPartial = false) {
 }
 
 /**
+ * Setup tabs functionality
+ */
+export function setupTabs() {
+  const tabs = document.querySelectorAll('.tab');
+  const tabContents = document.querySelectorAll('.tab-content');
+  
+  tabs.forEach(tab => {
+    tab.addEventListener('click', function() {
+      // Remove active class from all tabs and content
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      // Add active class to clicked tab
+      this.classList.add('active');
+      
+      // Show corresponding content
+      const targetTab = this.getAttribute('data-tab');
+      const targetContent = document.getElementById(targetTab);
+      if (targetContent) {
+        targetContent.classList.add('active');
+      }
+    });
+  });
+}
+
+/**
+ * Setup comment entry functionality
+ */
+export function setupCommentEntry(addCommentHandler) {
+  const commentInput = document.getElementById('commentInput');
+  const addCommentBtn = document.getElementById('addCommentBtn');
+  
+  if (addCommentBtn && commentInput && addCommentHandler) {
+    addCommentBtn.addEventListener('click', addCommentHandler);
+    
+    // Allow Enter key to add comment
+    commentInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        addCommentHandler();
+      }
+    });
+  }
+}
+
+/**
+ * Create add comment handler
+ */
+export function createAddCommentHandler(commentsArray) {
+  return function() {
+    const commentInput = document.getElementById('commentInput');
+    const commentsList = document.getElementById('commentsList');
+    
+    if (!commentInput || !commentsList) return;
+    
+    const commentText = commentInput.value.trim();
+    if (commentText) {
+      // Add to array
+      commentsArray.push(commentText);
+      
+      // Add to UI list
+      const commentItem = document.createElement('div');
+      commentItem.className = 'comment-item';
+      commentItem.textContent = commentText;
+      commentsList.appendChild(commentItem);
+      
+      // Clear input
+      commentInput.value = '';
+      
+      // Update comment count if function exists
+      if (window.updateCommentCount) {
+        window.updateCommentCount();
+      }
+    }
+  };
+}
+
+/**
+ * Setup CSV upload functionality
+ */
+export function setupCSVUpload(commentsArray) {
+  const csvFileInput = document.getElementById('csvFileInput');
+  const loadCsvBtn = document.getElementById('loadCsvBtn');
+  const fileInfo = document.getElementById('fileInfo');
+  
+  if (csvFileInput && loadCsvBtn && fileInfo) {
+    csvFileInput.addEventListener('change', function() {
+      const file = this.files[0];
+      if (file) {
+        fileInfo.innerHTML = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+      } else {
+        fileInfo.innerHTML = '';
+      }
+    });
+    
+    loadCsvBtn.addEventListener('click', function() {
+      const file = csvFileInput.files[0];
+      if (!file) {
+        alert(getTranslation('select-csv', 'Please select a CSV file first.'));
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const csvContent = e.target.result;
+          const extractedComments = processCSVContent(csvContent);
+          
+          if (extractedComments.length > 0) {
+            // Add to comments array
+            commentsArray.push(...extractedComments);
+            
+            // Update UI
+            const commentsList = document.getElementById('commentsList');
+            if (commentsList) {
+              extractedComments.forEach(comment => {
+                const commentItem = document.createElement('div');
+                commentItem.className = 'comment-item';
+                commentItem.textContent = comment;
+                commentsList.appendChild(commentItem);
+              });
+            }
+            
+            fileInfo.innerHTML += `<br>Loaded ${extractedComments.length} comments`;
+            
+            // Update comment count if function exists
+            if (window.updateCommentCount) {
+              window.updateCommentCount();
+            }
+          } else {
+            alert('No valid comments found in the CSV file.');
+          }
+        } catch (error) {
+          console.error('Error processing CSV:', error);
+          alert('Error processing CSV file: ' + error.message);
+        }
+      };
+      
+      reader.readAsText(file);
+    });
+  }
+}
+
+/**
  * Setup action buttons with enhanced processing
  */
 export function setupActionButtons(commentsArray, processFunction) {
@@ -482,7 +626,7 @@ export function setupActionButtons(commentsArray, processFunction) {
       const useSimulation = document.getElementById('useSimulation').checked;
       
       try {
-        await enhancedProcessComments(commentsArray, useSimulation);
+        await processFunction(commentsArray, useSimulation);
       } catch (error) {
         console.error('Processing failed:', error);
       }
@@ -523,17 +667,187 @@ export function setupActionButtons(commentsArray, processFunction) {
   }
 }
 
-// Export all the other existing functions
-export {
-  setupTabs,
-  setupCommentEntry,
-  createAddCommentHandler,
-  setupCSVUpload,
-  addDiagnosticButton,
-  displayResults,
-  updateOverallStats,
-  toggleLoader
-} from './ui-handlers.js';
+/**
+ * Add diagnostic button
+ */
+export function addDiagnosticButton(checkServerFunction) {
+  const inputSection = document.querySelector('.input-section');
+  if (inputSection && checkServerFunction) {
+    const diagnosticBtn = document.createElement('button');
+    diagnosticBtn.textContent = 'Test API Connection';
+    diagnosticBtn.id = 'diagnosticBtn';
+    diagnosticBtn.addEventListener('click', async function() {
+      addLogEntry('Testing API connection...', 'info');
+      try {
+        const isAvailable = await checkServerFunction();
+        if (isAvailable) {
+          addLogEntry('API connection test successful! ✅', 'success');
+        } else {
+          addLogEntry('API connection test failed ❌', 'error');
+        }
+      } catch (error) {
+        addLogEntry(`API connection test error: ${error.message} ❌`, 'error');
+      }
+    });
+    
+    // Insert before the debug log
+    const debugLog = document.getElementById('debugLog');
+    if (debugLog) {
+      inputSection.insertBefore(diagnosticBtn, debugLog);
+    }
+  }
+}
+
+/**
+ * Display categorization results
+ */
+export function displayResults(result, comments) {
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  
+  if (!result || !result.categories || !Array.isArray(result.categories)) {
+    categoriesContainer.innerHTML = '<div class="error">No categories to display</div>';
+    return;
+  }
+  
+  // Clear existing results (but keep partial results header if it exists)
+  const existingHeader = categoriesContainer.querySelector('.partial-results-header');
+  if (!existingHeader) {
+    categoriesContainer.innerHTML = '';
+  } else {
+    // Remove everything except the header
+    const children = Array.from(categoriesContainer.children);
+    children.forEach(child => {
+      if (!child.classList.contains('partial-results-header')) {
+        child.remove();
+      }
+    });
+  }
+  
+  result.categories.forEach(category => {
+    const categoryCard = document.createElement('div');
+    categoryCard.className = 'category-card';
+    
+    // Get sentiment class and emoji
+    const sentimentClass = category.sentiment > 0.3
+      ? 'sentiment-positive'
+      : category.sentiment < -0.3
+        ? 'sentiment-negative'
+        : 'sentiment-neutral';
+    
+    const sentimentEmoji = category.sentiment > 0.3
+      ? '😃'
+      : category.sentiment < -0.3
+        ? '😞'
+        : '😐';
+    
+    // Calculate sentiment percentage for the progress bar
+    const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
+    
+    // Create category HTML
+    categoryCard.innerHTML = `
+      <div class="category-header">
+        <div class="category-name">${escapeHtml(category.name)}</div>
+        <div class="category-count">${category.comments.length} ${getTranslation('comments', 'comments')}</div>
+      </div>
+      <div class="category-summary">${escapeHtml(category.summary)}</div>
+      <div class="sentiment-details">
+        <span class="sentiment-emoji">${sentimentEmoji}</span>
+        <div style="flex-grow: 1;">
+          <div class="sentiment-label">
+            <span>${getTranslation('sentiment', 'Sentiment')}:</span>
+            <span>${category.sentiment.toFixed(1)}</span>
+          </div>
+          <div class="sentiment-bar-container">
+            <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
+          </div>
+          <div class="sentiment-label">
+            <span>${getTranslation('negative', 'Negative')}</span>
+            <span>${getTranslation('positive', 'Positive')}</span>
+          </div>
+        </div>
+      </div>
+      ${category.commonIssues ? `
+        <div class="category-issues">
+          <h4>Common Issues:</h4>
+          <ul>
+            ${category.commonIssues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      ${category.suggestedActions ? `
+        <div class="category-actions">
+          <h4>Suggested Actions:</h4>
+          <ul>
+            ${category.suggestedActions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      <button class="show-comments-btn" data-action="show">${getTranslation('show-comments', 'Show Comments')}</button>
+      <div class="category-comments">
+        ${category.comments.map(commentIndex => {
+          const index = commentIndex - 1;
+          const comment = index >= 0 && index < comments.length 
+            ? comments[index] 
+            : `[Comment #${commentIndex} not found]`;
+          return `<div class="category-comment">${escapeHtml(comment)}</div>`;
+        }).join('')}
+      </div>
+    `;
+    
+    // Add click handler for show/hide comments
+    const showHideBtn = categoryCard.querySelector('.show-comments-btn');
+    const commentsDiv = categoryCard.querySelector('.category-comments');
+    
+    showHideBtn.addEventListener('click', function() {
+      const action = this.getAttribute('data-action');
+      if (action === 'show') {
+        commentsDiv.style.display = 'block';
+        this.textContent = getTranslation('hide-comments', 'Hide Comments');
+        this.setAttribute('data-action', 'hide');
+      } else {
+        commentsDiv.style.display = 'none';
+        this.textContent = getTranslation('show-comments', 'Show Comments');
+        this.setAttribute('data-action', 'show');
+      }
+    });
+    
+    categoriesContainer.appendChild(categoryCard);
+  });
+}
+
+/**
+ * Update overall statistics
+ */
+export function updateOverallStats(result, comments) {
+  const overallStats = document.getElementById('overallStats');
+  const totalCommentsEl = document.getElementById('totalComments');
+  const categoryCountEl = document.getElementById('categoryCount');
+  const avgSentimentEl = document.getElementById('avgSentiment');
+  
+  if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl && result.categories) {
+    let totalSentiment = 0;
+    result.categories.forEach(cat => totalSentiment += (cat.sentiment || 0));
+    const avgSentiment = result.categories.length > 0 
+      ? (totalSentiment / result.categories.length).toFixed(1) 
+      : 0;
+    
+    totalCommentsEl.textContent = comments.length;
+    categoryCountEl.textContent = result.categories.length;
+    avgSentimentEl.textContent = avgSentiment;
+    
+    overallStats.style.display = 'block';
+  }
+}
+
+/**
+ * Toggle loader display
+ */
+export function toggleLoader(show) {
+  const loader = document.getElementById('loader');
+  if (loader) {
+    loader.style.display = show ? 'block' : 'none';
+  }
+}
 
 // Global progress update function
 window.updateProgressDisplay = function(percentage, message, details = {}) {

@@ -1,6 +1,6 @@
 /**
- * Updated main application file with enhanced real-time processing
- * Replace your existing app.js with this version
+ * Fixed main application file with enhanced real-time processing
+ * All duplicates and circular dependencies removed
  */
 
 import { DEFAULT_LANGUAGE } from './config.js';
@@ -23,7 +23,7 @@ import {
   setupCSVUpload,
   setupActionButtons,
   addDiagnosticButton,
-  enhancedProcessComments  // Import the enhanced version
+  enhancedProcessComments  // Import the enhanced version from ui-handlers
 } from './ui-handlers.js';
 import {
   initializeTopicVisualizer
@@ -31,35 +31,6 @@ import {
 
 // Define comments array in global scope for accessibility
 window.comments = [];
-
-/**
- * Enhanced process comments function that uses the new real-time approach
- */
-async function processComments() {
-  clearLogs();
-  addLogEntry('Starting enhanced comment processing...');
-  
-  try {
-    // Check which processing method is selected
-    const useSimulation = document.getElementById('useSimulation').checked;
-    
-    if (!useSimulation) {
-      // Check if API key is provided
-      const apiKey = document.getElementById('apiKeyInput').value;
-      if (!apiKey || apiKey.trim() === '') {
-        alert('Please provide a Claude API key for API processing, or switch to Simulation mode.');
-        return;
-      }
-    }
-    
-    // Use the enhanced processing function
-    await enhancedProcessComments(window.comments, useSimulation);
-    
-  } catch (error) {
-    console.error('Error in processComments:', error);
-    addLogEntry(`Processing failed: ${error.message}`, 'error');
-  }
-}
 
 /**
  * Initialize language settings
@@ -141,7 +112,7 @@ function setupProgressMonitoring() {
 }
 
 /**
- * Enhanced initialization function
+ * Main initialization function
  */
 function initApp() {
   console.log("Enhanced app initialization started");
@@ -171,7 +142,7 @@ function initApp() {
     setupCSVUpload(window.comments);
     
     // Setup process/clear buttons with enhanced processing
-    setupActionButtons(window.comments, processComments);
+    setupActionButtons(window.comments, enhancedProcessComments);
     
     // Add diagnostic button
     addDiagnosticButton(checkServerAvailability);
@@ -253,38 +224,6 @@ function updateApiStatus(status, type) {
 }
 
 /**
- * Enhanced comment validation
- */
-function validateComments(comments) {
-  if (!comments || !Array.isArray(comments)) {
-    throw new Error('Comments must be provided as an array');
-  }
-  
-  if (comments.length === 0) {
-    throw new Error('At least one comment is required');
-  }
-  
-  if (comments.length > 1000) {
-    throw new Error('Maximum 1000 comments allowed per batch');
-  }
-  
-  // Check for valid comment content
-  const validComments = comments.filter(comment => 
-    comment && typeof comment === 'string' && comment.trim().length > 0
-  );
-  
-  if (validComments.length === 0) {
-    throw new Error('No valid comments found');
-  }
-  
-  if (validComments.length < comments.length) {
-    addLogEntry(`Filtered out ${comments.length - validComments.length} invalid comments`, 'warning');
-  }
-  
-  return validComments;
-}
-
-/**
  * Enhanced progress tracking with user notifications
  */
 function setupProgressNotifications() {
@@ -312,50 +251,12 @@ function showProcessingNotification(message, type = 'info') {
   }
 }
 
-/**
- * Enhanced comment processing with notifications and validation
- */
-async function enhancedProcessComments() {
-  try {
-    // Validate comments before processing
-    const validComments = validateComments(window.comments);
-    
-    addLogEntry(`Starting processing of ${validComments.length} valid comments`, 'info');
-    
-    // Show notification for large batches
-    if (validComments.length > 100) {
-      showProcessingNotification(`Starting to process ${validComments.length} comments. This may take several minutes.`);
-    }
-    
-    // Get processing method
-    const useSimulation = document.getElementById('useSimulation')?.checked || false;
-    
-    // Process comments with the enhanced function
-    const result = await enhancedProcessComments(validComments, useSimulation);
-    
-    // Show completion notification
-    if (result && result.categories) {
-      const categorizedCount = result.categories.reduce((sum, cat) => sum + cat.comments.length, 0);
-      showProcessingNotification(`Processing complete! Categorized ${categorizedCount} comments into ${result.categories.length} categories.`);
-    }
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Enhanced processing error:', error);
-    addLogEntry(`Processing failed: ${error.message}`, 'error');
-    showProcessingNotification(`Processing failed: ${error.message}`, 'error');
-    throw error;
-  }
-}
-
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   setupProgressNotifications();
 });
 
-// Export enhanced processing function for external use
-window.enhancedProcessComments = enhancedProcessComments;
-window.validateComments = validateComments;
+// Export functions for external use
+window.initApp = initApp;
 window.showProcessingNotification = showProcessingNotification;

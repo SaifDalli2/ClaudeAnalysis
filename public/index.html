@@ -10,14 +10,15 @@
   <script src="js/translations.js"></script>
 </head>
 <body>
-  <!-- Add this at the top of your <body> section -->
-<div id="loading-status" style="display: none; padding: 10px; margin: 10px 0; background: #e2f7ff; border: 1px solid #a9d4e6; border-radius: 4px;">
-  <p>Loading application resources... <span id="loading-progress">0%</span></p>
-  <div style="height: 4px; width: 100%; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
-    <div id="loading-bar" style="height: 100%; width: 0%; background: #4db6ac; transition: width 0.3s;"></div>
+  <!-- Loading status indicator -->
+  <div id="loading-status" style="display: none; padding: 10px; margin: 10px 0; background: #e2f7ff; border: 1px solid #a9d4e6; border-radius: 4px;">
+    <p>Loading application resources... <span id="loading-progress">0%</span></p>
+    <div style="height: 4px; width: 100%; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
+      <div id="loading-bar" style="height: 100%; width: 0%; background: #4db6ac; transition: width 0.3s;"></div>
+    </div>
+    <p id="loading-message">Initializing...</p>
   </div>
-  <p id="loading-message">Initializing...</p>
-</div>
+
   <header class="header">
     <div class="logo-container">
       <img src="img/logo.png" alt="Comment Categorizer Logo" class="logo-image">
@@ -35,37 +36,37 @@
       <h1 data-lang-key="app-title">Comment Categorization System</h1>
       <p data-lang-key="app-description">Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
       
-<div class="api-key-section">
-  <h3 data-lang-key="processing-method">Processing Method</h3>
-  <div class="radio-group">
-    <div class="radio-option">
-      <input type="radio" id="useApi" name="processingMethod" value="api" checked>
-      <label for="useApi" data-lang-key="use-api">Use Claude API (Recommended)</label>
-    </div>
-    <!-- Simulation option hidden by CSS -->
-    <div class="radio-option" style="display: none;">
-      <input type="radio" id="useSimulation" name="processingMethod" value="simulation">
-      <label for="useSimulation" data-lang-key="use-simulation">Use Simulation</label>
-    </div>
-  </div>
-  
-  <div id="apiKeySection" style="margin-top: 15px;">
-    <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
-    <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
-    <p style="font-size: 12px; margin-top: 5px;" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
-    
-    <div class="deploy-instructions">
-      <strong data-lang-key="note">Real-time Processing:</strong>
-      <p>This system processes comments in batches with live progress updates:</p>
-      <ul>
-        <li>Comments are processed in batches of 50</li>
-        <li>Results appear in real-time as each batch completes</li>
-        <li>Processing continues even if some batches timeout</li>
-        <li>You can see partial results while processing continues</li>
-      </ul>
-    </div>
-  </div>
-</div>
+      <div class="api-key-section">
+        <h3 data-lang-key="processing-method">Processing Method</h3>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" id="useApi" name="processingMethod" value="api" checked>
+            <label for="useApi" data-lang-key="use-api">Use Claude API (Recommended)</label>
+          </div>
+          <!-- Simulation option hidden by CSS -->
+          <div class="radio-option" style="display: none;">
+            <input type="radio" id="useSimulation" name="processingMethod" value="simulation">
+            <label for="useSimulation" data-lang-key="use-simulation">Use Simulation</label>
+          </div>
+        </div>
+        
+        <div id="apiKeySection" style="margin-top: 15px;">
+          <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
+          <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
+          <p style="font-size: 12px; margin-top: 5px;" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
+          
+          <div class="deploy-instructions">
+            <strong data-lang-key="note">Real-time Processing:</strong>
+            <p>This system processes comments in batches with live progress updates:</p>
+            <ul>
+              <li>Comments are processed in batches of 50</li>
+              <li>Results appear in real-time as each batch completes</li>
+              <li>Processing continues even if some batches timeout</li>
+              <li>You can see partial results while processing continues</li>
+            </ul>
+          </div>
+        </div>
+      </div>
       
       <div class="tabs">
         <div class="tab active" data-tab="manual-entry" data-lang-key="manual-entry">Manual Entry</div>
@@ -92,64 +93,61 @@
       <div class="comment-list" id="commentsList"></div>
       <button id="clearCommentsBtn" data-lang-key="clear-comments">Clear All Comments</button>
       <button id="processCommentsBtn" data-lang-key="process-comments">Process Comments</button>
-      <!-- Add this HTML snippet after the processCommentsBtn in your index.html -->
 
-<!-- Progress Indicator (add after the process button) -->
-<div id="processingProgress" class="processing-progress">
-  <div class="progress-header">
-    <div class="progress-title">Processing Comments...</div>
-    <div class="progress-percentage" id="progressPercentage">0%</div>
-  </div>
-  
-  <div class="progress-bar-container">
-    <div class="progress-bar" id="progressBar"></div>
-  </div>
-  
-  <div class="progress-details">
-    <div class="progress-stat">
-      <span>Batches:</span>
-      <span id="batchProgress">0/0</span>
-    </div>
-    <div class="progress-stat">
-      <span>Elapsed:</span>
-      <span id="elapsedTime">0 min</span>
-    </div>
-    <div class="progress-stat">
-      <span>Comments:</span>
-      <span id="commentProgress">0/0</span>
-    </div>
-    <div class="progress-stat">
-      <span>Success Rate:</span>
-      <span id="successRate">0%</span>
-    </div>
-  </div>
-  
-  <div class="progress-message" id="progressMessage">Starting job...</div>
-  
-  <button class="cancel-job-btn" id="cancelJobBtn">Cancel Processing</button>
-</div>
-<div id="systemStatus" class="system-status">
-  <h4>System Status</h4>
-  <div class="status-grid">
-    <div class="status-item">
-      <span class="status-label">API Server:</span>
-      <span id="apiStatus" class="status-value status-checking">Checking...</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">Comments Loaded:</span>
-      <span id="commentCount" class="status-value">0</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">Last Processed:</span>
-      <span id="lastProcessed" class="status-value">Never</span>
-    </div>
-  </div>
-</div>
+      <!-- Progress Indicator -->
+      <div id="processingProgress" class="processing-progress">
+        <div class="progress-header">
+          <div class="progress-title">Processing Comments...</div>
+          <div class="progress-percentage" id="progressPercentage">0%</div>
+        </div>
+        
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="progress-details">
+          <div class="progress-stat">
+            <span>Batches:</span>
+            <span id="batchProgress">0/0</span>
+          </div>
+          <div class="progress-stat">
+            <span>Elapsed:</span>
+            <span id="elapsedTime">0 min</span>
+          </div>
+          <div class="progress-stat">
+            <span>Comments:</span>
+            <span id="commentProgress">0/0</span>
+          </div>
+          <div class="progress-stat">
+            <span>Success Rate:</span>
+            <span id="successRate">0%</span>
+          </div>
+        </div>
+        
+        <div class="progress-message" id="progressMessage">Starting job...</div>
+        <button class="cancel-job-btn" id="cancelJobBtn">Cancel Processing</button>
+      </div>
 
-<!-- Update your existing loader to be hidden when progress indicator is shown -->
-<div class="loader" id="loader"></div>
+      <!-- System Status -->
+      <div id="systemStatus" class="system-status">
+        <h4>System Status</h4>
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="status-label">API Server:</span>
+            <span id="apiStatus" class="status-value status-checking">Checking...</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Comments Loaded:</span>
+            <span id="commentCount" class="status-value">0</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Last Processed:</span>
+            <span id="lastProcessed" class="status-value">Never</span>
+          </div>
+        </div>
+      </div>
+
       <div class="loader" id="loader"></div>
-      
       <div class="debug-log" id="debugLog"></div>
     </div>
     
@@ -179,219 +177,44 @@
     </div>
   </div>
 
-<style>
-.system-status {
-  background: rgba(226, 255, 102, 0.05);
-  padding: 15px;
-  border-radius: 6px;
-  margin: 15px 0;
-  border: 1px solid rgba(226, 255, 102, 0.2);
-}
-
-.system-status h4 {
-  margin-top: 0;
-  color: var(--dark-primary-hover);
-  font-size: 16px;
-}
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.status-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: var(--dark-surface-lighter);
-  border-radius: 4px;
-  border: 1px solid var(--dark-border);
-}
-
-.status-label {
-  color: var(--dark-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.status-value {
-  color: var(--dark-text);
-  font-weight: bold;
-  font-size: 13px;
-}
-
-.status-available {
-  color: var(--dark-success) !important;
-}
-
-.status-unavailable {
-  color: var(--dark-error) !important;
-}
-
-.status-checking {
-  color: var(--dark-warning) !important;
-}
-
-.status-error {
-  color: var(--dark-error) !important;
-}
-
-/* Enhanced button styles */
-.process-button-enhanced {
-  background: linear-gradient(135deg, var(--dark-primary), var(--dark-primary-hover));
-  color: black;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  margin-right: 10px;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 8px rgba(226, 255, 102, 0.3);
-}
-
-.process-button-enhanced:hover {
-  background: linear-gradient(135deg, var(--dark-primary-hover), var(--dark-primary));
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(226, 255, 102, 0.4);
-}
-
-.process-button-enhanced:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Real-time results styling */
-.results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.results-status {
-  background: var(--dark-surface-lighter);
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--dark-border);
-  font-size: 14px;
-  color: var(--dark-text-secondary);
-}
-
-.results-status.partial {
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.05));
-  border-color: var(--dark-warning);
-  color: var(--dark-warning);
-}
-
-.results-status.complete {
-  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
-  border-color: var(--dark-success);
-  color: var(--dark-success);
-}
-
-/* Enhanced loader with progress indication */
-.enhanced-loader {
-  display: none;
-  text-align: center;
-  padding: 20px;
-  background: var(--dark-surface-lighter);
-  border-radius: 6px;
-  border: 1px solid var(--dark-border);
-  margin: 20px 0;
-}
-
-.enhanced-loader .loader-text {
-  margin-top: 10px;
-  color: var(--dark-text-secondary);
-  font-size: 14px;
-}
-
-.enhanced-loader .loader-progress {
-  width: 100%;
-  height: 4px;
-  background: var(--dark-surface);
-  border-radius: 2px;
-  margin-top: 10px;
-  overflow: hidden;
-}
-
-.enhanced-loader .loader-progress-bar {
-  height: 100%;
-  background: var(--dark-primary);
-  width: 0%;
-  transition: width 0.3s ease;
-}
-</style>
-
-  <!-- Load modular JavaScript files - order matters -->
-  <script type="module" src="js/config.js"></script>
-  <script type="module" src="js/utils.js"></script>
-  <script type="module" src="js/api-service.js"></script>
-  <script type="module" src="js/simulation.js"></script>
-  <script type="module" src="js/topic-visualizer.js"></script>
-  <script type="module" src="js/ui-handlers.js"></script>
-  <script type="module" src="js/app.js"></script>
-  
-  <script>
-// Enhanced comment counter
-function updateCommentCount() {
-  const count = window.comments ? window.comments.length : 0;
-  const commentCountEl = document.getElementById('commentCount');
-  if (commentCountEl) {
-    commentCountEl.textContent = count;
-  }
-}
-
-// Update last processed timestamp
-function updateLastProcessed() {
-  const lastProcessedEl = document.getElementById('lastProcessed');
-  if (lastProcessedEl) {
-    lastProcessedEl.textContent = new Date().toLocaleTimeString();
-  }
-}
-
-// Enhanced comment addition with counter update
-document.addEventListener('DOMContentLoaded', function() {
-  // Override the original add comment function
-  const originalAddComment = window.addComment;
-  window.addComment = function() {
-    if (originalAddComment) {
-      originalAddComment();
-    }
-    updateCommentCount();
-  };
-  
-  // Update counter on page load
-  updateCommentCount();
-  
-  // Enhanced process button
-  const processBtn = document.getElementById('processCommentsBtn');
-  if (processBtn) {
-    processBtn.className += ' process-button-enhanced';
+  <!-- SINGLE MODULE IMPORT - This replaces all the individual script imports -->
+  <script type="module">
+    // Import the organized module structure
+    import { initializeApp } from './js/module-index.js';
     
-    // Add enhanced click handler
-    processBtn.addEventListener('click', function() {
-      updateLastProcessed();
-    });
-  }
-});
+    // The initializeApp function will handle all initialization
+    // It's called automatically when the DOM is ready
+  </script>
 
-// Auto-update comment count when comments are added
-setInterval(updateCommentCount, 1000);
-</script>
+  <!-- Enhanced comment counter and utilities -->
+  <script>
+    // Enhanced comment counter
+    function updateCommentCount() {
+      const count = window.comments ? window.comments.length : 0;
+      const commentCountEl = document.getElementById('commentCount');
+      if (commentCountEl) {
+        commentCountEl.textContent = count;
+      }
+    }
+
+    // Update last processed timestamp
+    function updateLastProcessed() {
+      const lastProcessedEl = document.getElementById('lastProcessed');
+      if (lastProcessedEl) {
+        lastProcessedEl.textContent = new Date().toLocaleTimeString();
+      }
+    }
+
+    // Make functions globally available
+    window.updateCommentCount = updateCommentCount;
+    window.updateLastProcessed = updateLastProcessed;
+
+    // Auto-update comment count
+    setInterval(updateCommentCount, 1000);
+  </script>
 
   <!-- Fallback error handling script -->
   <script>
-    // Check if files are loading properly
     console.log("HTML document loaded");
     
     // Check if translations.js loaded
@@ -425,46 +248,6 @@ setInterval(updateCommentCount, 1000);
           "topics-description": "انقر على موضوع لعرض التعليقات المتعلقة به."
         }
       };
-      console.log("Created fallback translations object");
-    } else {
-      console.log("translations.js loaded successfully");
-    }
-    
-    // Check if key HTML elements exist
-    const criticalElements = [
-      'commentInput', 
-      'addCommentBtn', 
-      'commentsList', 
-      'processCommentsBtn',
-      'categoriesContainer',
-      'loader'
-    ];
-    
-    let missingElements = [];
-    
-    criticalElements.forEach(id => {
-      if (!document.getElementById(id)) {
-        missingElements.push(id);
-        console.error(`ERROR: HTML element with id "${id}" not found!`);
-      }
-    });
-    
-    if (missingElements.length > 0) {
-      const errorMessage = `Missing HTML elements: ${missingElements.join(', ')}`;
-      console.error(errorMessage);
-      
-      // Display visible error message on the page
-      const errorDiv = document.createElement('div');
-      errorDiv.style.color = 'red';
-      errorDiv.style.background = '#ffeeee';
-      errorDiv.style.padding = '10px';
-      errorDiv.style.margin = '10px 0';
-      errorDiv.style.border = '1px solid red';
-      errorDiv.textContent = errorMessage;
-      
-      document.body.insertBefore(errorDiv, document.body.firstChild);
-    } else {
-      console.log("All critical HTML elements found");
     }
     
     // Handle module loading errors
@@ -472,449 +255,19 @@ setInterval(updateCommentCount, 1000);
       if (event.message && (event.message.includes('module') || (event.filename && event.filename.includes('.js')))) {
         console.error('Module loading error:', event);
         
-        // Display a more user-friendly error
+        // Show a simplified error message
         const errorDiv = document.createElement('div');
-        errorDiv.style.color = 'red';
-        errorDiv.style.background = '#ffeeee';
-        errorDiv.style.padding = '10px';
-        errorDiv.style.margin = '10px 0';
-        errorDiv.style.border = '1px solid red';
+        errorDiv.style.cssText = 'color: red; background: #ffeeee; padding: 10px; margin: 10px 0; border: 1px solid red;';
         errorDiv.innerHTML = `
-          <strong>JavaScript Module Error:</strong> 
-          <div>There was a problem loading one of the JavaScript modules.</div>
-          <div>Error: ${event.message}</div>
-          <div>File: ${event.filename}</div>
-          <div>Make sure you're using a modern browser and server that supports ES modules.</div>
+          <strong>Module Loading Error:</strong><br>
+          Error: ${event.message}<br>
+          File: ${event.filename}<br>
+          Please refresh the page or check the console for more details.
         `;
         
         document.body.insertBefore(errorDiv, document.body.firstChild);
       }
     });
   </script>
-
-  <script>
-(function() {
-  // Show loading status
-  const loadingStatus = document.getElementById('loading-status');
-  const loadingBar = document.getElementById('loading-bar');
-  const loadingProgress = document.getElementById('loading-progress');
-  const loadingMessage = document.getElementById('loading-message');
-  
-  // Only show loading indicator if we need to
-  if (window.serverStatus === 'sleeping' || window.serverStatus === 'unavailable') {
-    loadingStatus.style.display = 'block';
-  }
-  
-  // Critical resources to verify and load
-  const resources = [
-    { name: 'translations.js', path: '/js/translations.js', type: 'script', optional: true },
-    { name: 'config.js', path: '/js/config.js', type: 'module', optional: false },
-    { name: 'utils.js', path: '/js/utils.js', type: 'module', optional: false },
-    { name: 'api-service.js', path: '/js/api-service.js', type: 'module', optional: false },
-    { name: 'simulation.js', path: '/js/simulation.js', type: 'module', optional: false },
-    { name: 'topic-visualizer.js', path: '/js/topic-visualizer.js', type: 'module', optional: false },
-    { name: 'ui-handlers.js', path: '/js/ui-handlers.js', type: 'module', optional: false },
-    { name: 'app.js', path: '/js/app.js', type: 'module', optional: false }
-  ];
-  
-  // Counter for loaded resources
-  let loadedCount = 0;
-  const totalResources = resources.length;
-  
-  // Function to update loading progress
-  function updateProgress(status) {
-    loadedCount++;
-    const percentage = Math.round((loadedCount / totalResources) * 100);
-    loadingProgress.textContent = `${percentage}%`;
-    loadingBar.style.width = `${percentage}%`;
-    loadingMessage.textContent = status || 'Loading resources...';
-    
-    // Hide loading status when complete
-    if (loadedCount >= totalResources) {
-      setTimeout(() => {
-        loadingStatus.style.display = 'none';
-      }, 500);
-    }
-  }
-  
-  // Function to verify a resource exists by making a HEAD request
-  async function verifyResource(resource) {
-    try {
-      const response = await fetch(resource.path, { method: 'HEAD' });
-      return response.ok;
-    } catch (error) {
-      console.warn(`Error verifying ${resource.name}:`, error);
-      return false;
-    }
-  }
-  
-  // Function to load a script
-  function loadScript(resource) {
-    return new Promise(async (resolve) => {
-      // First verify the resource exists
-      const exists = await verifyResource(resource);
-      
-      if (!exists) {
-        console.warn(`Resource ${resource.name} does not exist or is not accessible at ${resource.path}`);
-        if (resource.optional) {
-          updateProgress(`Optional resource ${resource.name} not found, skipping...`);
-          resolve(false);
-          return;
-        }
-      }
-      
-      const script = document.createElement('script');
-      script.src = resource.path;
-      
-      if (resource.type === 'module') {
-        script.type = 'module';
-      }
-      
-      script.onload = () => {
-        console.log(`Successfully loaded ${resource.name}`);
-        updateProgress(`Loaded ${resource.name}`);
-        resolve(true);
-      };
-      
-      script.onerror = () => {
-        console.error(`Failed to load ${resource.name}`);
-        if (resource.optional) {
-          updateProgress(`Optional resource ${resource.name} failed to load, continuing...`);
-          resolve(false);
-        } else {
-          updateProgress(`Critical resource ${resource.name} failed to load!`);
-          resolve(false);
-        }
-      };
-      
-      document.head.appendChild(script);
-    });
-  }
-  
-  // Function to initialize the application
-  async function initializeApp() {
-    // Start with optional resources
-    for (const resource of resources.filter(r => r.optional)) {
-      await loadScript(resource);
-    }
-    
-    // Then load critical resources
-    for (const resource of resources.filter(r => !r.optional)) {
-      await loadScript(resource);
-    }
-    
-    // Verify that everything loaded
-    const criticalResourcesLoaded = resources.filter(r => !r.optional).every(r => {
-      // Check if modules have been loaded by looking for specific globals
-      if (r.name === 'app.js') {
-        return typeof window.initApp === 'function' || typeof window.comments !== 'undefined';
-      }
-      return true;
-    });
-    
-    if (!criticalResourcesLoaded) {
-      console.error("Some critical resources failed to load. Entering fallback mode.");
-      updateProgress("Some critical resources failed to load. Using fallback mode.");
-      
-      // Select simulation mode
-      const simulationRadio = document.getElementById('useSimulation');
-      if (simulationRadio) {
-        simulationRadio.checked = true;
-        const event = new Event('change');
-        simulationRadio.dispatchEvent(event);
-      }
-    } else {
-      updateProgress("Application loaded successfully!");
-    }
-  }
-  
-  // Start the initialization process
-  initializeApp();
-})();
-</script>
-<!-- Add this right before the end of your body tag -->
-<script>
-// Fallback initialization if modules fail to load
-(function() {
-  // Wait a reasonable time for the modules to load
-  setTimeout(() => {
-    // Check if the application has been initialized
-    if (typeof window.comments === 'undefined') {
-      console.warn("Application did not initialize properly. Using fallback initialization.");
-      
-      // Initialize comments array
-      window.comments = [];
-      
-      // Set up basic functionality
-      setupBasicFunctionality();
-    }
-  }, 5000);  // Wait 5 seconds
-  
-  function setupBasicFunctionality() {
-    console.log("Setting up basic functionality");
-    
-    // Helper function to safely get element
-    function getElement(id) {
-      return document.getElementById(id);
-    }
-    
-    // Select simulation mode by default
-    const useSimulation = getElement('useSimulation');
-    if (useSimulation) {
-      useSimulation.checked = true;
-    }
-    
-    // Hide API key section
-    const apiKeySection = getElement('apiKeySection');
-    if (apiKeySection) {
-      apiKeySection.style.display = 'none';
-    }
-    
-    // Set up add comment functionality
-    const addCommentBtn = getElement('addCommentBtn');
-    const commentInput = getElement('commentInput');
-    const commentsList = getElement('commentsList');
-    
-    if (addCommentBtn && commentInput && commentsList) {
-      addCommentBtn.addEventListener('click', function() {
-        const text = commentInput.value.trim();
-        if (text) {
-          window.comments.push(text);
-          
-          // Add to list
-          const item = document.createElement('div');
-          item.className = 'comment-item';
-          item.textContent = text;
-          commentsList.appendChild(item);
-          
-          // Clear input
-          commentInput.value = '';
-        }
-      });
-    }
-    
-    // Set up clear comments functionality
-    const clearCommentsBtn = getElement('clearCommentsBtn');
-    if (clearCommentsBtn && commentsList) {
-      clearCommentsBtn.addEventListener('click', function() {
-        window.comments = [];
-        commentsList.innerHTML = '';
-        
-        // Clear results
-        const categoriesContainer = getElement('categoriesContainer');
-        if (categoriesContainer) {
-          categoriesContainer.innerHTML = '';
-        }
-        
-        const overallStats = getElement('overallStats');
-        if (overallStats) {
-          overallStats.style.display = 'none';
-        }
-      });
-    }
-    
-    // Set up basic categorization
-    const processCommentsBtn = getElement('processCommentsBtn');
-    const loader = getElement('loader');
-    const categoriesContainer = getElement('categoriesContainer');
-    
-    if (processCommentsBtn && loader && categoriesContainer) {
-      processCommentsBtn.addEventListener('click', function() {
-        if (window.comments.length === 0) {
-          alert('Please add some comments first.');
-          return;
-        }
-        
-        // Show loader
-        loader.style.display = 'block';
-        
-        // Simulate processing (quick timeout to show loader)
-        setTimeout(() => {
-          // Create simple categories for demonstration
-          const categories = [];
-          const sentiments = [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8];
-          
-          // Create 2-4 categories
-          const numCategories = Math.max(2, Math.min(4, Math.ceil(window.comments.length / 3)));
-          
-          // Distribute comments among categories
-          const assignedComments = new Set();
-          
-          for (let i = 0; i < numCategories; i++) {
-            const categoryComments = [];
-            const categoryName = `Category ${i + 1}`;
-            
-            // Assign comments to this category
-            const targetCount = Math.floor(window.comments.length / numCategories);
-            
-            // For each category, find unassigned comments
-            for (let j = 0; j < window.comments.length && categoryComments.length < targetCount; j++) {
-              if (!assignedComments.has(j)) {
-                categoryComments.push(j + 1); // 1-based indexing for comments
-                assignedComments.add(j);
-              }
-            }
-            
-            // Random sentiment
-            const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
-            
-            // Create simulated summary
-            const summary = `This is a simulated summary for ${categoryComments.length} comments in ${categoryName}.`;
-            
-            categories.push({
-              name: categoryName,
-              comments: categoryComments,
-              summary: summary,
-              sentiment: sentiment
-            });
-          }
-          
-          // Assign any remaining comments to random categories
-          for (let j = 0; j < window.comments.length; j++) {
-            if (!assignedComments.has(j)) {
-              const randomCategory = Math.floor(Math.random() * categories.length);
-              categories[randomCategory].comments.push(j + 1); // 1-based indexing
-              assignedComments.add(j);
-            }
-          }
-          
-          // Display categories
-          categoriesContainer.innerHTML = '';
-          
-          categories.forEach(category => {
-            const categoryEl = document.createElement('div');
-            categoryEl.className = 'category-card';
-            
-            // Get sentiment class
-            const sentimentClass = category.sentiment > 0.3
-              ? 'sentiment-positive'
-              : category.sentiment < -0.3
-                ? 'sentiment-negative'
-                : 'sentiment-neutral';
-            
-            // Get sentiment emoji
-            const sentimentEmoji = category.sentiment > 0.3
-              ? '😃'
-              : category.sentiment < -0.3
-                ? '😞'
-                : '😐';
-            
-            // Calculate sentiment percentage for the progress bar (convert -1 to 1 range to 0 to 100%)
-            const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
-            
-            // Create HTML structure for the category
-            categoryEl.innerHTML = `
-              <div class="category-header">
-                <div class="category-name">${category.name}</div>
-                <div class="category-count">${category.comments.length} comments</div>
-              </div>
-              <div class="category-summary">${category.summary}</div>
-              <div class="sentiment-details">
-                <span class="sentiment-emoji">${sentimentEmoji}</span>
-                <div style="flex-grow: 1;">
-                  <div class="sentiment-label">
-                    <span>Sentiment:</span>
-                    <span>${category.sentiment.toFixed(1)}</span>
-                  </div>
-                  <div class="sentiment-bar-container">
-                    <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
-                  </div>
-                  <div class="sentiment-label">
-                    <span>Negative</span>
-                    <span>Positive</span>
-                  </div>
-                </div>
-              </div>
-              <button class="show-comments-btn" data-action="show">Show Comments</button>
-              <div class="category-comments">
-                ${category.comments.map(commentIndex => {
-                  // Convert to 0-based index and ensure it's within bounds
-                  const index = commentIndex - 1; 
-                  const comment = index >= 0 && index < window.comments.length 
-                    ? window.comments[index] 
-                    : `[Comment #${commentIndex} not found]`;
-                  return `<div class="category-comment">${comment}</div>`;
-                }).join('')}
-              </div>
-            `;
-            
-            // Add to container
-            categoriesContainer.appendChild(categoryEl);
-            
-            // Add click handler for show/hide comments button
-            const showHideBtn = categoryEl.querySelector('.show-comments-btn');
-            const commentsDiv = categoryEl.querySelector('.category-comments');
-            
-            showHideBtn.addEventListener('click', function() {
-              const action = this.getAttribute('data-action');
-              if (action === 'show') {
-                commentsDiv.style.display = 'block';
-                this.textContent = 'Hide Comments';
-                this.setAttribute('data-action', 'hide');
-              } else {
-                commentsDiv.style.display = 'none';
-                this.textContent = 'Show Comments';
-                this.setAttribute('data-action', 'show');
-              }
-            });
-          });
-          
-          // Show overall stats
-          const overallStats = getElement('overallStats');
-          const totalCommentsEl = getElement('totalComments');
-          const categoryCountEl = getElement('categoryCount');
-          const avgSentimentEl = getElement('avgSentiment');
-          
-          if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
-            let totalSentiment = 0;
-            categories.forEach(cat => totalSentiment += cat.sentiment);
-            const avgSentiment = categories.length > 0 ? (totalSentiment / categories.length).toFixed(1) : 0;
-            
-            totalCommentsEl.textContent = window.comments.length;
-            categoryCountEl.textContent = categories.length;
-            avgSentimentEl.textContent = avgSentiment;
-            
-            overallStats.style.display = 'block';
-          }
-          
-          // Hide loader
-          loader.style.display = 'none';
-        }, 1000);
-      });
-    }
-    
-    // Set up tabs
-    const tabs = document.querySelectorAll('.tab');
-    if (tabs.length) {
-      tabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-          // Remove active class from all tabs
-          tabs.forEach(t => t.classList.remove('active'));
-          
-          // Add active class to clicked tab
-          this.classList.add('active');
-          
-          // Hide all tab content
-          document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-          });
-          
-          // Show related tab content
-          const tabId = this.getAttribute('data-tab');
-          document.getElementById(tabId).classList.add('active');
-        });
-      });
-    }
-    
-    // Show success message
-    const debugLog = getElement('debugLog');
-    if (debugLog) {
-      debugLog.style.display = 'block';
-      debugLog.innerHTML += `<div style="color: orange">[${new Date().toLocaleTimeString()}] Using fallback functionality due to module loading issues</div>`;
-      debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Simulation mode enabled - all processing will be done locally</div>`;
-    }
-  }
-})();
-</script>
 </body>
 </html>
