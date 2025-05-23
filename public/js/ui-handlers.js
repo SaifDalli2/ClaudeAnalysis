@@ -1,5 +1,6 @@
 /**
- * UI handler functions for the Comment Categorization application
+ * Enhanced UI handler functions for real-time progress display
+ * Updated to show results as they complete and remove simulation mode
  */
 import { 
   getCurrentLanguage, 
@@ -8,458 +9,273 @@ import {
   addLogEntry,
   clearLogs,
   getTranslation,
-  formatFileSize  // Added this import
+  formatFileSize
 } from './utils.js';
 import { displayTopics } from './topic-visualizer.js';
 
+// Global variables to track processing state
+let currentJobId = null;
+let processedResults = { categorizedComments: [], extractedTopics: [] };
+
 /**
- * Set up tabs functionality
+ * Enhanced processComments function with real-time updates
  */
-export function setupTabs() {
-  const tabs = document.querySelectorAll('.tab');
-  if (tabs.length) {
-    tabs.forEach(tab => {
-      tab.addEventListener('click', function() {
-        // Remove active class from all tabs
-        tabs.forEach(t => t.classList.remove('active'));
+export async function enhancedProcessComments(comments, useSimulation = false) {
+  clearLogs();
+  addLogEntry('Starting comment processing...');
+  
+  try {
+    // Get API key
+    const apiKey = useSimulation ? null : document.getElementById('apiKeyInput').value;
+    
+    if (!useSimulation && (!apiKey || apiKey.trim() === '')) {
+      throw new Error('Please provide a valid Claude API key for API processing');
+    }
+    
+    let result;
+    
+    if (useSimulation) {
+      // Import and use simulation
+      const { processCommentsWithSimulation } = await import('./simulation.js');
+      
+      showProgressIndicator(true);
+      updateProgressIndicator(50, 'Running simulation...', {
+        batchesCompleted: 1,
+        totalBatches: 2,
+        processedComments: Math.floor(comments.length * 0.8),
+        totalComments: comments.length,
+        elapsedMinutes: 0.1
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      result = processCommentsWithSimulation(comments);
+      
+      updateProgressIndicator(100, 'Simulation completed!', {
+        batchesCompleted: 2,
+        totalBatches: 2,
+        processedComments: comments.length,
+        totalComments: comments.length,
+        elapsedMinutes: 0.1
+      });
+      
+    } else {
+      // Use API with real-time progress tracking
+      addLogEntry('Using Claude API with async processing');
+      
+      showProgressIndicator(true);
+      
+      try {
+        result = await processCommentsWithAPI(comments, apiKey);
+      } catch (error) {
+        addLogEntry(`API processing failed: ${error.message}`, 'error');
+        addLogEntry('Note: You can switch to simulation mode if API issues persist', 'warning');
+        throw error;
+      }
+    }
+    
+    // Display final results
+    addLogEntry('Processing complete! Displaying results...');
+    displayProcessingResults(result, comments);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error processing comments:', error);
+    addLogEntry(`Error: ${error.message}`, 'error');
+    
+    updateProgressIndicator(0, `Error: ${error.message}`, {});
+    
+    // Show error in results container
+    const categoriesContainer = document.getElementById('categoriesContainer');
+    if (categoriesContainer) {
+      categoriesContainer.innerHTML = `<div class="error">Error processing comments: ${error.message}</div>`;
+    }
+    
+    throw error;
+  } finally {
+    // Hide progress indicator after delay
+    setTimeout(() => {
+      showProgressIndicator(false);
+    }, 3000);
+  }
+}
+
+/**
+ * Process comments with API using enhanced real-time updates
+ */
+async function processCommentsWithAPI(comments, apiKey) {
+  const { startCategorizationJob, checkJobStatus, getJobResults } = await import('./api-service.js');
+  
+  try {
+    // Start the job
+    const jobInfo = await startCategorizationJob(comments, apiKey);
+    currentJobId = jobInfo.jobId;
+    
+    addLogEntry(`Job started with ID: ${currentJobId}`, 'success');
+    addLogEntry(`Estimated processing time: ${jobInfo.estimatedTimeMinutes} minutes`, 'info');
+    
+    // Setup job cancellation
+    setupJobCancellation(currentJobId);
+    
+    // Reset processed results
+    processedResults = { categorizedComments: [], extractedTopics: [] };
+    
+    // Poll for status with enhanced real-time display
+    let attempts = 0;
+    const maxAttempts = 300; // 25 minutes max (5-second intervals)
+    let lastProgress = 0;
+    let stuckCounter = 0;
+    
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second intervals
+      attempts++;
+      
+      try {
+        const status = await checkJobStatus(currentJobId);
         
-        // Add active class to clicked tab
-        this.classList.add('active');
-        
-        // Hide all tab content
-        document.querySelectorAll('.tab-content').forEach(content => {
-          content.classList.remove('active');
+        // Update progress display
+        updateProgressIndicator(status.progress, 
+          `Processing batch ${status.batchesCompleted}/${status.totalBatches}...`, {
+          batchesCompleted: status.batchesCompleted,
+          totalBatches: status.totalBatches,
+          processedComments: status.processedComments,
+          totalComments: status.totalComments,
+          elapsedMinutes: status.elapsedMinutes
         });
         
-        // Show related tab content
-        const tabId = this.getAttribute('data-tab');
-        document.getElementById(tabId).classList.add('active');
-      });
-    });
-  }
-}
-
-/**
- * Set up API/Simulation toggle
- */
-export function setupProcessingMethodToggle() {
-  const useApiRadio = document.getElementById('useApi');
-  const apiKeySection = document.getElementById('apiKeySection');
-  const apiKeyInput = document.getElementById('apiKeyInput');
-  
-  if (useApiRadio && apiKeySection && apiKeyInput) {
-    // Check for stored API key
-    const storedApiKey = localStorage.getItem('claudeApiKey');
-    if (storedApiKey) {
-      apiKeyInput.value = storedApiKey;
-    }
-    
-    // Set initial state
-    apiKeySection.style.display = useApiRadio.checked ? 'block' : 'none';
-    
-    // Add change event listeners
-    document.querySelectorAll('input[name="processingMethod"]').forEach(radio => {
-      radio.addEventListener('change', function() {
-        apiKeySection.style.display = useApiRadio.checked ? 'block' : 'none';
-      });
-    });
-    
-    // Save API key when changed
-    apiKeyInput.addEventListener('change', function() {
-      localStorage.setItem('claudeApiKey', this.value);
-    });
-  }
-}
-
-/**
- * Set up comment entry functionality
- * @param {Function} addCommentCallback - Callback function to add a comment
- */
-export function setupCommentEntry(addCommentCallback) {
-  const addCommentBtn = document.getElementById('addCommentBtn');
-  const commentInput = document.getElementById('commentInput');
-  
-  if (addCommentBtn && commentInput) {
-    addCommentBtn.addEventListener('click', function() {
-      if (typeof addCommentCallback === 'function') {
-        addCommentCallback();
-      }
-    });
-    
-    // Also allow Enter key to add comment
-    commentInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (typeof addCommentCallback === 'function') {
-          addCommentCallback();
+        addLogEntry(`Progress: ${status.progress}% (${status.batchesCompleted}/${status.totalBatches} batches, ${status.elapsedMinutes}min elapsed)`, 'info');
+        
+        // Check if job completed
+        if (status.status === 'completed') {
+          addLogEntry('Job completed successfully!', 'success');
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(`Job failed: ${status.error}`);
         }
-      }
-    });
-  }
-}
-
-/**
- * Add a comment to the UI and global comments array
- * @param {Array<string>} commentsArray - Global comments array
- * @returns {Function} Callback function to add a comment
- */
-export function createAddCommentHandler(commentsArray) {
-  return function() {
-    const commentInput = document.getElementById('commentInput');
-    const commentsList = document.getElementById('commentsList');
-    
-    const text = commentInput.value.trim();
-    if (text) {
-      commentsArray.push(text);
-      
-      // Add to list
-      const item = document.createElement('div');
-      item.className = 'comment-item';
-      item.textContent = text;
-      commentsList.appendChild(item);
-      
-      // Clear input
-      commentInput.value = '';
-    }
-  };
-}
-
-/**
- * Set up CSV upload functionality
- * @param {Array<string>} commentsArray - Global comments array
- */
-export function setupCSVUpload(commentsArray) {
-  const csvFileInput = document.getElementById('csvFileInput');
-  const loadCsvBtn = document.getElementById('loadCsvBtn');
-  const fileInfo = document.getElementById('fileInfo');
-  
-  if (csvFileInput && loadCsvBtn && fileInfo) {
-    csvFileInput.addEventListener('change', function() {
-      const file = this.files[0];
-      if (file) {
-        fileInfo.textContent = `${file.name} (${formatFileSize(file.size)})`;
-      } else {
-        fileInfo.textContent = '';
-      }
-    });
-    
-    loadCsvBtn.addEventListener('click', function() {
-      const file = csvFileInput.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const content = e.target.result;
+        
+        // **REAL-TIME RESULTS DISPLAY**: Show partial results as they become available
+        if (status.categorizedComments && status.categorizedComments.length > processedResults.categorizedComments.length) {
+          // New results available - update the display
+          processedResults.categorizedComments = status.categorizedComments;
+          processedResults.extractedTopics = status.extractedTopics || [];
           
-          // Process CSV and get comments
-          const commentsToAdd = processCSVContent(content);
-          
-          // Add comments to UI and array
-          const commentsList = document.getElementById('commentsList');
-          for (const comment of commentsToAdd) {
-            commentsArray.push(comment);
-            
-            const item = document.createElement('div');
-            item.className = 'comment-item';
-            item.textContent = comment;
-            commentsList.appendChild(item);
+          addLogEntry(`Displaying partial results: ${processedResults.categorizedComments.length} comments processed so far`, 'info');
+          displayProcessingResults(processedResults, comments, true); // true = partial results
+        }
+        
+        // Check for stuck job
+        if (status.progress === lastProgress) {
+          stuckCounter++;
+          if (stuckCounter >= 6) { // 30 seconds of no progress
+            addLogEntry('Job appears to be stuck, continuing to wait...', 'warning');
+            stuckCounter = 0; // Reset counter
           }
-          
-          // Show a notification
-          alert(`Added ${commentsToAdd.length} comments from CSV file.`);
+        } else {
+          stuckCounter = 0;
+        }
+        lastProgress = status.progress;
+        
+      } catch (statusError) {
+        addLogEntry(`Status check error: ${statusError.message}`, 'warning');
+        
+        if (statusError.message.includes('not found')) {
+          throw new Error('Job was not found. It may have been cleaned up or expired.');
+        }
+        
+        continue; // Continue polling for other errors
+      }
+    }
+    
+    if (attempts >= maxAttempts) {
+      // Timeout reached - but we may have partial results
+      if (processedResults.categorizedComments.length > 0) {
+        addLogEntry(`Job timed out after 25 minutes, but ${processedResults.categorizedComments.length} comments were successfully processed`, 'warning');
+        return processedResults; // Return partial results
+      } else {
+        throw new Error('Job timed out after 25 minutes with no results');
+      }
+    }
+    
+    // Get final results
+    addLogEntry('Retrieving final results...', 'info');
+    const finalResults = await getJobResults(currentJobId);
+    
+    addLogEntry(`Final results retrieved: ${finalResults.categorizedComments.length} comments categorized`, 'success');
+    
+    // Generate summaries for final results
+    return await generateSummariesForResults(finalResults, comments, apiKey);
+    
+  } catch (error) {
+    addLogEntry(`API processing error: ${error.message}`, 'error');
+    
+    // If we have partial results, return them
+    if (processedResults.categorizedComments.length > 0) {
+      addLogEntry(`Returning partial results: ${processedResults.categorizedComments.length} comments processed`, 'warning');
+      return await generateSummariesForResults(processedResults, comments, apiKey);
+    }
+    
+    throw error;
+  } finally {
+    currentJobId = null;
+    hideJobCancellation();
+  }
+}
+
+/**
+ * Generate summaries for results (either partial or final)
+ */
+async function generateSummariesForResults(results, comments, apiKey) {
+  try {
+    const { summarizeComments } = await import('./api-service.js');
+    
+    addLogEntry('Generating summaries...', 'info');
+    const summaryResult = await summarizeComments(
+      results.categorizedComments,
+      results.extractedTopics,
+      apiKey
+    );
+    
+    // Convert to expected format
+    const processedResult = {
+      categories: (summaryResult.summaries || []).map(summary => {
+        const categoryComments = results.categorizedComments
+          .filter(item => item.category === summary.category)
+          .map(item => item.id);
+        
+        return {
+          name: summary.category,
+          comments: categoryComments,
+          summary: summary.summary,
+          sentiment: summary.sentiment || 0,
+          commonIssues: summary.commonIssues,
+          suggestedActions: summary.suggestedActions
         };
-        reader.readAsText(file);
-      } else {
-        alert(getTranslation('select-csv', 'Please select a CSV file first.'));
-      }
-    });
+      }),
+      topTopics: summaryResult.topTopics || [],
+      extractedTopics: results.extractedTopics
+    };
+    
+    return processedResult;
+    
+  } catch (summaryError) {
+    addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'warning');
+    
+    // Return just categorization results if summary fails
+    return {
+      categories: [{
+        name: 'Categorized Comments',
+        comments: results.categorizedComments.map(item => item.id),
+        summary: `Successfully categorized ${results.categorizedComments.length} comments.`,
+        sentiment: 0
+      }],
+      extractedTopics: results.extractedTopics
+    };
   }
 }
-
-/**
- * Set up process/clear buttons
- * @param {Array<string>} commentsArray - Global comments array
- * @param {Function} processFunction - Function to process comments
- */
-export function setupActionButtons(commentsArray, processFunction) {
-  const processCommentsBtn = document.getElementById('processCommentsBtn');
-  const clearCommentsBtn = document.getElementById('clearCommentsBtn');
-  
-  if (processCommentsBtn) {
-    processCommentsBtn.addEventListener('click', function() {
-      if (commentsArray.length === 0) {
-        alert(getTranslation('no-comments', 'Please add some comments first.'));
-        return;
-      }
-      
-      if (typeof processFunction === 'function') {
-        processFunction();
-      }
-    });
-  }
-  
-  if (clearCommentsBtn) {
-    clearCommentsBtn.addEventListener('click', function() {
-      // Clear comments array
-      commentsArray.length = 0;
-      
-      // Clear comments list UI
-      const commentsList = document.getElementById('commentsList');
-      if (commentsList) {
-        commentsList.innerHTML = '';
-      }
-      
-      // Clear results
-      const categoriesContainer = document.getElementById('categoriesContainer');
-      if (categoriesContainer) {
-        categoriesContainer.innerHTML = '';
-      }
-      
-      const overallStats = document.getElementById('overallStats');
-      if (overallStats) {
-        overallStats.style.display = 'none';
-      }
-    });
-  }
-}
-
-/**
- * Add server diagnostic button
- * @param {Function} checkServerAvailability - Function to check server availability
- */
-export function addDiagnosticButton(checkServerAvailability) {
-  const inputSection = document.querySelector('.input-section');
-  const debugLog = document.getElementById('debugLog');
-  
-  if (inputSection && debugLog && typeof checkServerAvailability === 'function') {
-    const diagnosticBtn = document.createElement('button');
-    diagnosticBtn.textContent = 'Run Server Diagnostics';
-    diagnosticBtn.style.backgroundColor = '#4a4a5e';
-    diagnosticBtn.style.color = '#fff';
-    diagnosticBtn.style.marginTop = '10px';
-    
-    diagnosticBtn.addEventListener('click', async () => {
-      debugLog.style.display = 'block';
-      clearLogs();
-      addLogEntry('Starting server diagnostics...');
-      
-      const isAvailable = await checkServerAvailability();
-      
-      if (isAvailable) {
-        addLogEntry('Server connection successful! You can use API mode.', 'success');
-      } else {
-        addLogEntry('Server connection failed. Please use Simulation mode for now.', 'warning');
-        addLogEntry('Common causes of this error:');
-        addLogEntry('- Heroku server is in sleep mode (first request may take up to 30 seconds to wake it)');
-        addLogEntry('- Server URL is incorrect');
-        addLogEntry('- CORS settings on the server need adjustment');
-        addLogEntry('- Heroku app is not running or has crashed');
-      }
-    });
-    
-    // Insert the button right before the debug log
-    inputSection.insertBefore(diagnosticBtn, debugLog);
-  }
-}
-
-/**
- * Display categorization results
- * @param {Object} result - Categorization results
- * @param {Array<string>} comments - Global comments array
- */
-export function displayResults(result, comments) {
-  const categoriesContainer = document.getElementById('categoriesContainer');
-  
-  if (!result || !result.categories || !Array.isArray(result.categories)) {
-    categoriesContainer.innerHTML = '<div class="error">Invalid result format</div>';
-    return;
-  }
-  
-  // Display each category
-  result.categories.forEach(category => {
-    const categoryEl = document.createElement('div');
-    categoryEl.className = 'category-card';
-    
-    // Get sentiment class
-    const sentimentClass = category.sentiment > 0.3
-      ? 'sentiment-positive'
-      : category.sentiment < -0.3
-        ? 'sentiment-negative'
-        : 'sentiment-neutral';
-    
-    // Get sentiment emoji
-    const sentimentEmoji = category.sentiment > 0.3
-      ? '😃'
-      : category.sentiment < -0.3
-        ? '😞'
-        : '😐';
-    
-    // Calculate sentiment percentage for the progress bar (convert -1 to 1 range to 0 to 100%)
-    const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
-    
-    // Create common issues and suggested actions HTML if available
-    let issuesAndActionsHtml = '';
-    if (category.commonIssues && category.commonIssues.length > 0) {
-      issuesAndActionsHtml += `
-        <div class="category-issues">
-          <h4>Common Issues:</h4>
-          <ul>
-            ${category.commonIssues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
-    if (category.suggestedActions && category.suggestedActions.length > 0) {
-      issuesAndActionsHtml += `
-        <div class="category-actions">
-          <h4>Suggested Actions:</h4>
-          <ul>
-            ${category.suggestedActions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
-    // Create HTML structure for the category
-    categoryEl.innerHTML = `
-      <div class="category-header">
-        <div class="category-name">${escapeHtml(category.name)}</div>
-        <div class="category-count">${category.comments.length} ${getTranslation('comments', 'comments')}</div>
-      </div>
-      <div class="category-summary">${escapeHtml(category.summary)}</div>
-      <div class="sentiment-details">
-        <span class="sentiment-emoji">${sentimentEmoji}</span>
-        <div style="flex-grow: 1;">
-          <div class="sentiment-label">
-            <span>${getTranslation('sentiment', 'Sentiment')}:</span>
-            <span>${category.sentiment.toFixed(1)}</span>
-          </div>
-          <div class="sentiment-bar-container">
-            <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
-          </div>
-          <div class="sentiment-label">
-            <span>${getTranslation('negative', 'Negative')}</span>
-            <span>${getTranslation('positive', 'Positive')}</span>
-          </div>
-        </div>
-      </div>
-      ${issuesAndActionsHtml}
-      <button class="show-comments-btn" data-action="show">${getTranslation('show-comments', 'Show Comments')}</button>
-      <div class="category-comments">
-        ${category.comments.map(commentIndex => {
-          // Convert to 0-based index and ensure it's within bounds
-          const index = commentIndex - 1; 
-          const comment = index >= 0 && index < comments.length 
-            ? comments[index] 
-            : `[Comment #${commentIndex} not found]`;
-          return `<div class="category-comment">${escapeHtml(comment)}</div>`;
-        }).join('')}
-      </div>
-    `;
-    
-    // Add click handler for show/hide comments button
-    const showHideBtn = categoryEl.querySelector('.show-comments-btn');
-    const commentsDiv = categoryEl.querySelector('.category-comments');
-    
-    showHideBtn.addEventListener('click', function() {
-      const action = this.getAttribute('data-action');
-      if (action === 'show') {
-        commentsDiv.style.display = 'block';
-        this.textContent = getTranslation('hide-comments', 'Hide Comments');
-        this.setAttribute('data-action', 'hide');
-      } else {
-        commentsDiv.style.display = 'none';
-        this.textContent = getTranslation('show-comments', 'Show Comments');
-        this.setAttribute('data-action', 'show');
-      }
-    });
-    
-    categoriesContainer.appendChild(categoryEl);
-  });
-}
-
-/**
- * Update overall statistics
- * @param {Object} result - Categorization results
- * @param {Array<string>} comments - Global comments array
- */
-export function updateOverallStats(result, comments) {
-  const overallStats = document.getElementById('overallStats');
-  const totalCommentsEl = document.getElementById('totalComments');
-  const categoryCountEl = document.getElementById('categoryCount');
-  const avgSentimentEl = document.getElementById('avgSentiment');
-  
-  if (result && result.categories && result.categories.length > 0) {
-    // Calculate average sentiment
-    let totalSentiment = 0;
-    let sentimentCount = 0;
-    
-    result.categories.forEach(category => {
-      if (typeof category.sentiment === 'number') {
-        totalSentiment += category.sentiment;
-        sentimentCount++;
-      }
-    });
-    
-    const avgSentiment = sentimentCount > 0 ? (totalSentiment / sentimentCount).toFixed(1) : 0;
-    
-    // Update stats UI
-    if (overallStats && totalCommentsEl && categoryCountEl && avgSentimentEl) {
-      totalCommentsEl.textContent = comments.length;
-      categoryCountEl.textContent = result.categories.length;
-      avgSentimentEl.textContent = avgSentiment;
-      
-      // Show stats
-      overallStats.style.display = 'block';
-    }
-  }
-}
-
-/**
- * Display processing results with topics and categories
- * @param {Object} result - Processing results
- * @param {Array<string>} comments - Global comments array
- */
-export function displayProcessingResults(result, comments) {
-  const categoriesContainer = document.getElementById('categoriesContainer');
-  const overallStats = document.getElementById('overallStats');
-  
-  if (!result) {
-    categoriesContainer.innerHTML = '<div class="error">No results available</div>';
-    return;
-  }
-  
-  // Update statistics
-  updateOverallStats(result, comments);
-  
-  // Clear previous categories
-  categoriesContainer.innerHTML = '';
-  
-  // Display topic cloud if available
-  if (result.extractedTopics && result.extractedTopics.length) {
-    displayTopics(result.extractedTopics, comments, categoriesContainer);
-  }
-  
-  // Display categories
-  displayResults(result, comments);
-}
-
-/**
- * Show or hide the loader
- * @param {boolean} show - Whether to show the loader
- */
-export function toggleLoader(show) {
-  const loader = document.getElementById('loader');
-  if (loader) {
-    loader.style.display = show ? 'block' : 'none';
-  }
-}
-
-// Add these functions to your ui-handlers.js
 
 /**
  * Show progress indicator
- * @param {boolean} show - Whether to show the progress indicator
  */
 export function showProgressIndicator(show) {
   const progressDiv = document.getElementById('processingProgress');
@@ -467,7 +283,7 @@ export function showProgressIndicator(show) {
     progressDiv.style.display = show ? 'block' : 'none';
     
     if (show) {
-      // Reset progress when showing
+      progressDiv.classList.add('active');
       updateProgressIndicator(0, 'Starting job...', {
         batchesCompleted: 0,
         totalBatches: 0,
@@ -475,30 +291,36 @@ export function showProgressIndicator(show) {
         totalComments: 0,
         elapsedMinutes: 0
       });
+    } else {
+      progressDiv.classList.remove('active');
     }
   }
 }
 
 /**
- * Update progress indicator
- * @param {number} percentage - Progress percentage (0-100)
- * @param {string} message - Progress message
- * @param {Object} details - Additional progress details
+ * Update progress indicator with enhanced visual feedback
  */
 export function updateProgressIndicator(percentage, message, details = {}) {
-  // Update percentage
   const progressPercentage = document.getElementById('progressPercentage');
   if (progressPercentage) {
     progressPercentage.textContent = `${percentage}%`;
   }
   
-  // Update progress bar
   const progressBar = document.getElementById('progressBar');
   if (progressBar) {
     progressBar.style.width = `${percentage}%`;
+    
+    // Add color coding based on progress
+    progressBar.className = 'progress-bar';
+    if (percentage >= 90) {
+      progressBar.classList.add('progress-success');
+    } else if (percentage >= 70) {
+      progressBar.classList.add('progress-warning');
+    } else {
+      progressBar.classList.add('progress-processing');
+    }
   }
   
-  // Update message
   const progressMessage = document.getElementById('progressMessage');
   if (progressMessage) {
     progressMessage.textContent = message;
@@ -525,7 +347,6 @@ export function updateProgressIndicator(percentage, message, details = {}) {
       commentProgress.textContent = `${details.processedComments}/${details.totalComments}`;
     }
     
-    // Calculate and display success rate
     const successRate = details.totalComments > 0 
       ? Math.round((details.processedComments / details.totalComments) * 100)
       : 0;
@@ -537,139 +358,184 @@ export function updateProgressIndicator(percentage, message, details = {}) {
 }
 
 /**
- * Enhanced processComments function that uses the new async API
- * Replace the existing processComments function in app.js with this
+ * Setup job cancellation functionality
  */
-export async function processCommentsWithProgress(comments, apiKey) {
-  // Import the new API functions
-  const { processCommentsWithAPI } = await import('./api-service.js');
-  const { processCommentsWithSimulation } = await import('./simulation.js');
-  
-  try {
-    // Show progress indicator
-    showProgressIndicator(true);
-    
-    // Hide the regular loader
-    toggleLoader(false);
-    
-    let result;
-    
-    if (apiKey) {
-      // Use API with progress tracking
-      addLogEntry('Using Claude API with async processing');
-      
-      try {
-        result = await processCommentsWithAPI(comments, apiKey);
-      } catch (error) {
-        addLogEntry(`API processing failed: ${error.message}`, 'error');
-        addLogEntry('Falling back to simulation mode...', 'warning');
-        
-        // Show user-friendly message
-        alert('Could not process with the API: ' + error.message + '\n\nUsing simulation mode instead.');
-        
-        // Fall back to simulation
-        result = processCommentsWithSimulation(comments);
-      }
-    } else {
-      // Use simulation
-      addLogEntry('Using simulation mode');
-      updateProgressIndicator(50, 'Running simulation...', {
-        batchesCompleted: 1,
-        totalBatches: 2,
-        processedComments: Math.floor(comments.length * 0.8),
-        totalComments: comments.length,
-        elapsedMinutes: 0.1
-      });
-      
-      // Add a small delay to show progress
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      result = processCommentsWithSimulation(comments);
-      
-      updateProgressIndicator(100, 'Simulation completed!', {
-        batchesCompleted: 2,
-        totalBatches: 2,
-        processedComments: comments.length,
-        totalComments: comments.length,
-        elapsedMinutes: 0.1
-      });
-    }
-    
-    // Process and display results
-    addLogEntry('Processing complete! Displaying results...');
-    return result;
-    
-  } catch (error) {
-    console.error('Error processing comments:', error);
-    addLogEntry(`Error: ${error.message}`, 'error');
-    
-    updateProgressIndicator(0, `Error: ${error.message}`, {});
-    
-    throw error;
-  } finally {
-    // Hide progress indicator after a delay
-    setTimeout(() => {
-      showProgressIndicator(false);
-    }, 3000);
-  }
-}
-
-/**
- * Enhanced version of the global updateProgressDisplay function
- * This gets called from api-service.js during processing
- */
-window.updateProgressDisplay = function(percentage, message, details = {}) {
-  updateProgressIndicator(percentage, message, details);
-};
-
-/**
- * Setup cancel job functionality
- * @param {string} jobId - Current job ID
- */
-export function setupJobCancellation(jobId) {
+function setupJobCancellation(jobId) {
   const cancelBtn = document.getElementById('cancelJobBtn');
   if (cancelBtn && jobId) {
     cancelBtn.style.display = 'inline-block';
     cancelBtn.onclick = () => {
       if (confirm('Are you sure you want to cancel the current job?')) {
-        // For now, just hide the progress and show a message
-        // In a full implementation, you'd call a cancel endpoint
         showProgressIndicator(false);
         addLogEntry('Job cancelled by user', 'warning');
-        alert('Job cancellation requested. The current batch will complete, then processing will stop.');
+        
+        // Return partial results if available
+        if (processedResults.categorizedComments.length > 0) {
+          addLogEntry(`Displaying ${processedResults.categorizedComments.length} partially processed comments`, 'info');
+          displayProcessingResults(processedResults, window.comments, true);
+        }
+        
+        currentJobId = null;
       }
     };
   }
 }
 
 /**
- * Update the main app.js processComments function to use the new approach
- * Replace your existing processComments function with this:
+ * Hide job cancellation button
  */
-export async function enhancedProcessComments() {
-  clearLogs();
-  addLogEntry('Starting comment processing...');
-  
-  try {
-    // Get API key if using API
-    const useApi = document.getElementById('useApi').checked;
-    const apiKey = useApi ? document.getElementById('apiKeyInput').value : null;
-    
-    // Use the new progress-enabled processing
-    const result = await processCommentsWithProgress(window.comments, apiKey);
-    
-    // Display results
-    addLogEntry('Displaying results...');
-    displayProcessingResults(result, window.comments);
-    
-  } catch (error) {
-    console.error('Error processing comments:', error);
-    addLogEntry(`Error: ${error.message}`, 'error');
-    
-    // Show error in results container
-    const categoriesContainer = document.getElementById('categoriesContainer');
-    if (categoriesContainer) {
-      categoriesContainer.innerHTML = `<div class="error">Error processing comments: ${error.message}</div>`;
-    }
+function hideJobCancellation() {
+  const cancelBtn = document.getElementById('cancelJobBtn');
+  if (cancelBtn) {
+    cancelBtn.style.display = 'none';
   }
 }
+
+/**
+ * Enhanced processing method toggle (removing simulation option)
+ */
+export function setupProcessingMethodToggle() {
+  const useApiRadio = document.getElementById('useApi');
+  const useSimulationRadio = document.getElementById('useSimulation');
+  const apiKeySection = document.getElementById('apiKeySection');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  
+  if (useApiRadio && apiKeySection && apiKeyInput) {
+    // Check for stored API key
+    const storedApiKey = localStorage.getItem('claudeApiKey');
+    if (storedApiKey) {
+      apiKeyInput.value = storedApiKey;
+    }
+    
+    // Default to API mode (remove simulation as default)
+    useApiRadio.checked = true;
+    apiKeySection.style.display = 'block';
+    
+    // Add change event listeners
+    document.querySelectorAll('input[name="processingMethod"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        apiKeySection.style.display = useApiRadio.checked ? 'block' : 'none';
+      });
+    });
+    
+    // Save API key when changed
+    apiKeyInput.addEventListener('change', function() {
+      localStorage.setItem('claudeApiKey', this.value);
+    });
+  }
+}
+
+/**
+ * Enhanced display processing results with partial results support
+ */
+export function displayProcessingResults(result, comments, isPartial = false) {
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  
+  if (!result) {
+    categoriesContainer.innerHTML = '<div class="error">No results available</div>';
+    return;
+  }
+  
+  // Add partial results indicator
+  if (isPartial) {
+    const partialHeader = document.createElement('div');
+    partialHeader.className = 'partial-results-header';
+    partialHeader.innerHTML = `
+      <div class="partial-notice">
+        <strong>⏳ Partial Results</strong> - Processing continues in background. 
+        Results will update automatically as more comments are processed.
+      </div>
+    `;
+    categoriesContainer.innerHTML = '';
+    categoriesContainer.appendChild(partialHeader);
+  } else {
+    categoriesContainer.innerHTML = '';
+  }
+  
+  // Update statistics
+  updateOverallStats(result, comments);
+  
+  // Display topic cloud if available
+  if (result.extractedTopics && result.extractedTopics.length) {
+    displayTopics(result.extractedTopics, comments, categoriesContainer);
+  }
+  
+  // Display categories
+  displayResults(result, comments);
+}
+
+/**
+ * Setup action buttons with enhanced processing
+ */
+export function setupActionButtons(commentsArray, processFunction) {
+  const processCommentsBtn = document.getElementById('processCommentsBtn');
+  const clearCommentsBtn = document.getElementById('clearCommentsBtn');
+  
+  if (processCommentsBtn) {
+    processCommentsBtn.addEventListener('click', async function() {
+      if (commentsArray.length === 0) {
+        alert(getTranslation('no-comments', 'Please add some comments first.'));
+        return;
+      }
+      
+      // Check processing method
+      const useSimulation = document.getElementById('useSimulation').checked;
+      
+      try {
+        await enhancedProcessComments(commentsArray, useSimulation);
+      } catch (error) {
+        console.error('Processing failed:', error);
+      }
+    });
+  }
+  
+  if (clearCommentsBtn) {
+    clearCommentsBtn.addEventListener('click', function() {
+      // Cancel any ongoing job
+      if (currentJobId) {
+        showProgressIndicator(false);
+        currentJobId = null;
+      }
+      
+      // Clear comments array
+      commentsArray.length = 0;
+      
+      // Clear comments list UI
+      const commentsList = document.getElementById('commentsList');
+      if (commentsList) {
+        commentsList.innerHTML = '';
+      }
+      
+      // Clear results
+      const categoriesContainer = document.getElementById('categoriesContainer');
+      if (categoriesContainer) {
+        categoriesContainer.innerHTML = '';
+      }
+      
+      const overallStats = document.getElementById('overallStats');
+      if (overallStats) {
+        overallStats.style.display = 'none';
+      }
+      
+      // Reset processed results
+      processedResults = { categorizedComments: [], extractedTopics: [] };
+    });
+  }
+}
+
+// Export all the other existing functions
+export {
+  setupTabs,
+  setupCommentEntry,
+  createAddCommentHandler,
+  setupCSVUpload,
+  addDiagnosticButton,
+  displayResults,
+  updateOverallStats,
+  toggleLoader
+} from './ui-handlers.js';
+
+// Global progress update function
+window.updateProgressDisplay = function(percentage, message, details = {}) {
+  updateProgressIndicator(percentage, message, details);
+};

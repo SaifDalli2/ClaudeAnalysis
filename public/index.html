@@ -35,34 +35,37 @@
       <h1 data-lang-key="app-title">Comment Categorization System</h1>
       <p data-lang-key="app-description">Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
       
-      <div class="api-key-section">
-        <h3 data-lang-key="processing-method">Processing Method</h3>
-        <div class="radio-group">
-          <div class="radio-option">
-            <input type="radio" id="useSimulation" name="processingMethod" value="simulation" checked>
-            <label for="useSimulation" data-lang-key="use-simulation">Use Simulation (No API key required)</label>
-          </div>
-          <div class="radio-option">
-            <input type="radio" id="useApi" name="processingMethod" value="api">
-            <label for="useApi" data-lang-key="use-api">Use Claude API</label>
-          </div>
-        </div>
-        
-        <div id="apiKeySection" style="display: none; margin-top: 15px;">
-          <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
-          <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
-          <p style="font-size: 12px; margin-top: 5px;" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
-          
-          <div class="deploy-instructions">
-            <strong data-lang-key="note">Note:</strong> <span data-lang-key="api-instructions">For this to work with the Claude API:</span>
-            <ol>
-              <li data-lang-key="api-instruction-1">The app must be deployed with a backend server that proxies requests to Claude API</li>
-              <li data-lang-key="api-instruction-2">The API endpoint should be configured at "/api/claude"</li>
-            </ol>
-            <p data-lang-key="simulation-fallback">Otherwise, the app will use simulated results.</p>
-          </div>
-        </div>
-      </div>
+<div class="api-key-section">
+  <h3 data-lang-key="processing-method">Processing Method</h3>
+  <div class="radio-group">
+    <div class="radio-option">
+      <input type="radio" id="useApi" name="processingMethod" value="api" checked>
+      <label for="useApi" data-lang-key="use-api">Use Claude API (Recommended)</label>
+    </div>
+    <!-- Simulation option hidden by CSS -->
+    <div class="radio-option" style="display: none;">
+      <input type="radio" id="useSimulation" name="processingMethod" value="simulation">
+      <label for="useSimulation" data-lang-key="use-simulation">Use Simulation</label>
+    </div>
+  </div>
+  
+  <div id="apiKeySection" style="margin-top: 15px;">
+    <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
+    <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
+    <p style="font-size: 12px; margin-top: 5px;" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
+    
+    <div class="deploy-instructions">
+      <strong data-lang-key="note">Real-time Processing:</strong>
+      <p>This system processes comments in batches with live progress updates:</p>
+      <ul>
+        <li>Comments are processed in batches of 50</li>
+        <li>Results appear in real-time as each batch completes</li>
+        <li>Processing continues even if some batches timeout</li>
+        <li>You can see partial results while processing continues</li>
+      </ul>
+    </div>
+  </div>
+</div>
       
       <div class="tabs">
         <div class="tab active" data-tab="manual-entry" data-lang-key="manual-entry">Manual Entry</div>
@@ -94,8 +97,8 @@
 <!-- Progress Indicator (add after the process button) -->
 <div id="processingProgress" class="processing-progress">
   <div class="progress-header">
-    <span class="progress-title">Processing Comments...</span>
-    <span class="progress-percentage" id="progressPercentage">0%</span>
+    <div class="progress-title">Processing Comments...</div>
+    <div class="progress-percentage" id="progressPercentage">0%</div>
   </div>
   
   <div class="progress-bar-container">
@@ -123,7 +126,24 @@
   
   <div class="progress-message" id="progressMessage">Starting job...</div>
   
-  <button class="cancel-job-btn" id="cancelJobBtn">Cancel Job</button>
+  <button class="cancel-job-btn" id="cancelJobBtn">Cancel Processing</button>
+</div>
+<div id="systemStatus" class="system-status">
+  <h4>System Status</h4>
+  <div class="status-grid">
+    <div class="status-item">
+      <span class="status-label">API Server:</span>
+      <span id="apiStatus" class="status-value status-checking">Checking...</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Comments Loaded:</span>
+      <span id="commentCount" class="status-value">0</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Last Processed:</span>
+      <span id="lastProcessed" class="status-value">Never</span>
+    </div>
+  </div>
 </div>
 
 <!-- Update your existing loader to be hidden when progress indicator is shown -->
@@ -159,6 +179,159 @@
     </div>
   </div>
 
+<style>
+.system-status {
+  background: rgba(226, 255, 102, 0.05);
+  padding: 15px;
+  border-radius: 6px;
+  margin: 15px 0;
+  border: 1px solid rgba(226, 255, 102, 0.2);
+}
+
+.system-status h4 {
+  margin-top: 0;
+  color: var(--dark-primary-hover);
+  font-size: 16px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--dark-surface-lighter);
+  border-radius: 4px;
+  border: 1px solid var(--dark-border);
+}
+
+.status-label {
+  color: var(--dark-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-value {
+  color: var(--dark-text);
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.status-available {
+  color: var(--dark-success) !important;
+}
+
+.status-unavailable {
+  color: var(--dark-error) !important;
+}
+
+.status-checking {
+  color: var(--dark-warning) !important;
+}
+
+.status-error {
+  color: var(--dark-error) !important;
+}
+
+/* Enhanced button styles */
+.process-button-enhanced {
+  background: linear-gradient(135deg, var(--dark-primary), var(--dark-primary-hover));
+  color: black;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(226, 255, 102, 0.3);
+}
+
+.process-button-enhanced:hover {
+  background: linear-gradient(135deg, var(--dark-primary-hover), var(--dark-primary));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(226, 255, 102, 0.4);
+}
+
+.process-button-enhanced:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Real-time results styling */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.results-status {
+  background: var(--dark-surface-lighter);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--dark-border);
+  font-size: 14px;
+  color: var(--dark-text-secondary);
+}
+
+.results-status.partial {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.05));
+  border-color: var(--dark-warning);
+  color: var(--dark-warning);
+}
+
+.results-status.complete {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
+  border-color: var(--dark-success);
+  color: var(--dark-success);
+}
+
+/* Enhanced loader with progress indication */
+.enhanced-loader {
+  display: none;
+  text-align: center;
+  padding: 20px;
+  background: var(--dark-surface-lighter);
+  border-radius: 6px;
+  border: 1px solid var(--dark-border);
+  margin: 20px 0;
+}
+
+.enhanced-loader .loader-text {
+  margin-top: 10px;
+  color: var(--dark-text-secondary);
+  font-size: 14px;
+}
+
+.enhanced-loader .loader-progress {
+  width: 100%;
+  height: 4px;
+  background: var(--dark-surface);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.enhanced-loader .loader-progress-bar {
+  height: 100%;
+  background: var(--dark-primary);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+</style>
+
   <!-- Load modular JavaScript files - order matters -->
   <script type="module" src="js/config.js"></script>
   <script type="module" src="js/utils.js"></script>
@@ -168,7 +341,53 @@
   <script type="module" src="js/ui-handlers.js"></script>
   <script type="module" src="js/app.js"></script>
   
+  <script>
+// Enhanced comment counter
+function updateCommentCount() {
+  const count = window.comments ? window.comments.length : 0;
+  const commentCountEl = document.getElementById('commentCount');
+  if (commentCountEl) {
+    commentCountEl.textContent = count;
+  }
+}
+
+// Update last processed timestamp
+function updateLastProcessed() {
+  const lastProcessedEl = document.getElementById('lastProcessed');
+  if (lastProcessedEl) {
+    lastProcessedEl.textContent = new Date().toLocaleTimeString();
+  }
+}
+
+// Enhanced comment addition with counter update
+document.addEventListener('DOMContentLoaded', function() {
+  // Override the original add comment function
+  const originalAddComment = window.addComment;
+  window.addComment = function() {
+    if (originalAddComment) {
+      originalAddComment();
+    }
+    updateCommentCount();
+  };
   
+  // Update counter on page load
+  updateCommentCount();
+  
+  // Enhanced process button
+  const processBtn = document.getElementById('processCommentsBtn');
+  if (processBtn) {
+    processBtn.className += ' process-button-enhanced';
+    
+    // Add enhanced click handler
+    processBtn.addEventListener('click', function() {
+      updateLastProcessed();
+    });
+  }
+});
+
+// Auto-update comment count when comments are added
+setInterval(updateCommentCount, 1000);
+</script>
 
   <!-- Fallback error handling script -->
   <script>

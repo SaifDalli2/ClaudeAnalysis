@@ -1,9 +1,8 @@
 /**
- * Main application file for the Comment Categorization System
- * Orchestrates functionality between all modules
+ * Updated main application file with enhanced real-time processing
+ * Replace your existing app.js with this version
  */
 
-// Import modules
 import { DEFAULT_LANGUAGE } from './config.js';
 import { 
   getCurrentLanguage, 
@@ -14,8 +13,7 @@ import {
   clearLogs
 } from './utils.js';
 import { 
-  checkServerAvailability, 
-  processCommentsWithAPI 
+  checkServerAvailability
 } from './api-service.js';
 import {
   setupTabs,
@@ -25,12 +23,8 @@ import {
   setupCSVUpload,
   setupActionButtons,
   addDiagnosticButton,
-  displayProcessingResults,
-  toggleLoader
+  enhancedProcessComments  // Import the enhanced version
 } from './ui-handlers.js';
-import {
-  processCommentsWithSimulation
-} from './simulation.js';
 import {
   initializeTopicVisualizer
 } from './topic-visualizer.js';
@@ -39,63 +33,31 @@ import {
 window.comments = [];
 
 /**
- * Process comments (either with API or simulation)
+ * Enhanced process comments function that uses the new real-time approach
  */
 async function processComments() {
   clearLogs();
-  addLogEntry('Starting comment processing...');
-  
-  // Show loader
-  toggleLoader(true);
+  addLogEntry('Starting enhanced comment processing...');
   
   try {
-    // Get API key if using API
-    const useApi = document.getElementById('useApi').checked;
-    const apiKey = useApi ? document.getElementById('apiKeyInput').value : null;
+    // Check which processing method is selected
+    const useSimulation = document.getElementById('useSimulation').checked;
     
-    let result;
-    
-    if (useApi && apiKey) {
-      // Process with Claude API
-      addLogEntry('Using Claude API with two-step processing');
-      addLogEntry(`Processing ${window.comments.length} comments...`);
-      
-      try {
-        result = await processCommentsWithAPI(window.comments, apiKey);
-      } catch (error) {
-        addLogEntry(`Processing Error: ${error.message}`, 'error');
-        addLogEntry('Falling back to simulation mode...', 'warning');
-        
-        // Show user-friendly message about server issues
-        alert('Could not connect to the server for API processing: ' + error.message + '\n\nUsing simulation mode instead.');
-        
-        // Fall back to simulation
-        result = processCommentsWithSimulation(window.comments);
+    if (!useSimulation) {
+      // Check if API key is provided
+      const apiKey = document.getElementById('apiKeyInput').value;
+      if (!apiKey || apiKey.trim() === '') {
+        alert('Please provide a Claude API key for API processing, or switch to Simulation mode.');
+        return;
       }
-    } else {
-      // Use simulation
-      addLogEntry('Using simulation mode');
-      result = processCommentsWithSimulation(window.comments);
     }
     
-    // Process and display the results
-    addLogEntry('Displaying results...');
-    displayProcessingResults(result, window.comments);
+    // Use the enhanced processing function
+    await enhancedProcessComments(window.comments, useSimulation);
     
   } catch (error) {
-    console.error('Error processing comments:', error);
-    
-    // Log error in debug log
-    addLogEntry(`Error: ${error.message}`, 'error');
-    
-    // Show error
-    const categoriesContainer = document.getElementById('categoriesContainer');
-    if (categoriesContainer) {
-      categoriesContainer.innerHTML = `<div class="error">Error processing comments: ${error.message}</div>`;
-    }
-  } finally {
-    // Hide loader
-    toggleLoader(false);
+    console.error('Error in processComments:', error);
+    addLogEntry(`Processing failed: ${error.message}`, 'error');
   }
 }
 
@@ -105,14 +67,10 @@ async function processComments() {
 function initializeLanguageSettings() {
   const languageSelector = document.getElementById('languageSelector');
   if (languageSelector) {
-    // Initialize language
     const currentLanguage = initializeLanguage();
     languageSelector.value = currentLanguage;
-    
-    // Apply stored/default language
     applyLanguage(currentLanguage);
     
-    // Add change event listener
     languageSelector.addEventListener('change', function() {
       const newLanguage = this.value;
       setCurrentLanguage(newLanguage);
@@ -122,10 +80,71 @@ function initializeLanguageSettings() {
 }
 
 /**
- * Initialize the application
+ * Remove simulation mode from the interface
+ */
+function configureProcessingMethods() {
+  // Hide simulation radio button and always default to API
+  const simulationOption = document.querySelector('.radio-option:has(#useSimulation)');
+  if (simulationOption) {
+    simulationOption.style.display = 'none';
+  }
+  
+  // Default to API mode
+  const useApiRadio = document.getElementById('useApi');
+  if (useApiRadio) {
+    useApiRadio.checked = true;
+    
+    // Trigger change event to show API key section
+    const event = new Event('change');
+    useApiRadio.dispatchEvent(event);
+  }
+  
+  // Update instructions to remove simulation references
+  const deployInstructions = document.querySelector('.deploy-instructions');
+  if (deployInstructions) {
+    deployInstructions.innerHTML = `
+      <strong>API Configuration:</strong>
+      <p>This system uses the Claude API for real-time comment categorization with progress tracking.</p>
+      <ol>
+        <li>Enter your Claude API key above</li>
+        <li>The system will process comments in batches with real-time progress updates</li>
+        <li>Results will appear as batches complete, even if some batches timeout</li>
+      </ol>
+    `;
+  }
+}
+
+/**
+ * Add enhanced progress monitoring
+ */
+function setupProgressMonitoring() {
+  // Add status indicators to the UI
+  const inputSection = document.querySelector('.input-section');
+  if (inputSection) {
+    // Add a status display element
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'systemStatus';
+    statusDiv.className = 'system-status';
+    statusDiv.innerHTML = `
+      <div class="status-item">
+        <span class="status-label">API Status:</span>
+        <span id="apiStatus" class="status-value">Not checked</span>
+      </div>
+    `;
+    
+    // Insert before the debug log
+    const debugLog = document.getElementById('debugLog');
+    if (debugLog) {
+      inputSection.insertBefore(statusDiv, debugLog);
+    }
+  }
+}
+
+/**
+ * Enhanced initialization function
  */
 function initApp() {
-  console.log("App initialization started");
+  console.log("Enhanced app initialization started");
   
   try {
     // Initialize language
@@ -137,8 +156,12 @@ function initApp() {
     // Setup tabs functionality
     setupTabs();
     
-    // Setup API/Simulation toggle
+    // Setup API/Simulation toggle (enhanced to hide simulation)
     setupProcessingMethodToggle();
+    configureProcessingMethods();
+    
+    // Setup progress monitoring
+    setupProgressMonitoring();
     
     // Setup comment entry functionality
     const addCommentHandler = createAddCommentHandler(window.comments);
@@ -147,17 +170,192 @@ function initApp() {
     // Setup CSV upload functionality
     setupCSVUpload(window.comments);
     
-    // Setup process/clear buttons
+    // Setup process/clear buttons with enhanced processing
     setupActionButtons(window.comments, processComments);
     
     // Add diagnostic button
     addDiagnosticButton(checkServerAvailability);
     
-    console.log("App initialized successfully");
+    // Add enhanced error handling
+    setupGlobalErrorHandling();
+    
+    // Add periodic status checks
+    setupPeriodicStatusChecks();
+    
+    console.log("Enhanced app initialized successfully");
   } catch(e) {
-    console.error("Error initializing app:", e);
+    console.error("Error initializing enhanced app:", e);
+    addLogEntry(`Initialization error: ${e.message}`, 'error');
+  }
+}
+
+/**
+ * Setup global error handling for better user experience
+ */
+function setupGlobalErrorHandling() {
+  // Handle unhandled promise rejections
+  window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    addLogEntry(`System error: ${event.reason.message || event.reason}`, 'error');
+    
+    // Prevent the default browser error handling
+    event.preventDefault();
+  });
+  
+  // Handle general errors
+  window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+    addLogEntry(`Application error: ${event.error?.message || event.message}`, 'error');
+  });
+}
+
+/**
+ * Setup periodic status checks to monitor system health
+ */
+function setupPeriodicStatusChecks() {
+  const apiStatusEl = document.getElementById('apiStatus');
+  
+  if (apiStatusEl) {
+    // Initial status check
+    updateApiStatus('Checking...', 'checking');
+    
+    // Check API status periodically (every 5 minutes)
+    setInterval(async () => {
+      try {
+        const isAvailable = await checkServerAvailability();
+        updateApiStatus(isAvailable ? 'Available' : 'Unavailable', isAvailable ? 'available' : 'unavailable');
+      } catch (error) {
+        updateApiStatus('Error', 'error');
+      }
+    }, 300000); // 5 minutes
+    
+    // Initial check
+    setTimeout(async () => {
+      try {
+        const isAvailable = await checkServerAvailability();
+        updateApiStatus(isAvailable ? 'Available' : 'Unavailable', isAvailable ? 'available' : 'unavailable');
+      } catch (error) {
+        updateApiStatus('Error', 'error');
+      }
+    }, 1000);
+  }
+}
+
+/**
+ * Update API status display
+ */
+function updateApiStatus(status, type) {
+  const apiStatusEl = document.getElementById('apiStatus');
+  if (apiStatusEl) {
+    apiStatusEl.textContent = status;
+    apiStatusEl.className = `status-value status-${type}`;
+  }
+}
+
+/**
+ * Enhanced comment validation
+ */
+function validateComments(comments) {
+  if (!comments || !Array.isArray(comments)) {
+    throw new Error('Comments must be provided as an array');
+  }
+  
+  if (comments.length === 0) {
+    throw new Error('At least one comment is required');
+  }
+  
+  if (comments.length > 1000) {
+    throw new Error('Maximum 1000 comments allowed per batch');
+  }
+  
+  // Check for valid comment content
+  const validComments = comments.filter(comment => 
+    comment && typeof comment === 'string' && comment.trim().length > 0
+  );
+  
+  if (validComments.length === 0) {
+    throw new Error('No valid comments found');
+  }
+  
+  if (validComments.length < comments.length) {
+    addLogEntry(`Filtered out ${comments.length - validComments.length} invalid comments`, 'warning');
+  }
+  
+  return validComments;
+}
+
+/**
+ * Enhanced progress tracking with user notifications
+ */
+function setupProgressNotifications() {
+  // Request notification permission if supported
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+}
+
+/**
+ * Show browser notification for processing milestones
+ */
+function showProcessingNotification(message, type = 'info') {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const notification = new Notification('Comment Analyzer', {
+      body: message,
+      icon: '/img/logo.png',
+      badge: '/img/logo.png'
+    });
+    
+    // Auto-close after 5 seconds
+    setTimeout(() => notification.close(), 5000);
+  }
+}
+
+/**
+ * Enhanced comment processing with notifications and validation
+ */
+async function enhancedProcessComments() {
+  try {
+    // Validate comments before processing
+    const validComments = validateComments(window.comments);
+    
+    addLogEntry(`Starting processing of ${validComments.length} valid comments`, 'info');
+    
+    // Show notification for large batches
+    if (validComments.length > 100) {
+      showProcessingNotification(`Starting to process ${validComments.length} comments. This may take several minutes.`);
+    }
+    
+    // Get processing method
+    const useSimulation = document.getElementById('useSimulation')?.checked || false;
+    
+    // Process comments with the enhanced function
+    const result = await enhancedProcessComments(validComments, useSimulation);
+    
+    // Show completion notification
+    if (result && result.categories) {
+      const categorizedCount = result.categories.reduce((sum, cat) => sum + cat.comments.length, 0);
+      showProcessingNotification(`Processing complete! Categorized ${categorizedCount} comments into ${result.categories.length} categories.`);
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Enhanced processing error:', error);
+    addLogEntry(`Processing failed: ${error.message}`, 'error');
+    showProcessingNotification(`Processing failed: ${error.message}`, 'error');
+    throw error;
   }
 }
 
 // Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+  setupProgressNotifications();
+});
+
+// Export enhanced processing function for external use
+window.enhancedProcessComments = enhancedProcessComments;
+window.validateComments = validateComments;
+window.showProcessingNotification = showProcessingNotification;
