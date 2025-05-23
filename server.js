@@ -193,6 +193,62 @@ process.on('uncaughtException', (err) => {
 });
 
 
+// For Arabic language comments:
+const systemMessage_ar = `
+الغرض: تحليل التعليقات وتصنيفها إلى فئات محددة.
+
+تعليمات مهمة:
+1. أعد النتائج بصيغة JSON صالحة فقط، بدون أي نص آخر أو محادثة.
+2. استخدم فقط الفئات المحددة مسبقًا كما هي بالضبط.
+3. تأكد من أن جميع الحقول صالحة 100% في JSON.
+4. كتابة أسماء الفئات بشكل صحيح بدون أي علامات اقتباس إضافية.
+5. لا تستخدم علامات اقتباس إضافية في أسماء الفئات.
+
+أسماء الفئات الصحيحة هي:
+* مشكلات تقنية: تحديث التطبيق
+* مشكلات تقنية: تجميد/بطء التطبيق
+* مشكلات تقنية: مشكلات التطبيق
+* مشكلات تقنية: لا يعمل
+* مشكلات تقنية: تسجيل الدخول والوصول
+* مشكلات تقنية: الأمان
+* ملاحظات العملاء: معقد
+* ملاحظات العملاء: خدمة العملاء
+* ملاحظات العملاء: التصميم
+* ملاحظات العملاء: مسيء
+* ملاحظات العملاء: شكرًا
+* مالية: احتيال
+* مالية: التسعير
+* مالية: طلب استرداد
+`;
+
+// For English language comments:
+const systemMessage_en = `
+Purpose: Analyze and categorize comments into predefined categories.
+
+Critical instructions:
+1. Return ONLY valid JSON, with no additional text or conversation.
+2. Use ONLY the exact predefined categories as listed below.
+3. Ensure all JSON fields are 100% valid.
+4. Write category names correctly without any extra quotation marks.
+5. Do not use extra quotes in category names.
+
+The correct category names are:
+* Technical issues: App update
+* Technical issues: App Freeze/Slow
+* Technical issues: App issues
+* Technical issues: Doesn't work
+* Technical issues: Login and Access
+* Technical issues: Security
+* Customer Feedback: Complicated
+* Customer Feedback: Customer Service
+* Customer Feedback: Design
+* Customer Feedback: Offensive
+* Customer Feedback: Thank you
+* Monetary: Fraud
+* Monetary: Pricing
+* Monetary: Refund Request
+`;
+
 // NEW ENDPOINT: Step 1 - Categorize comments
 app.post('/api/categorize', async (req, res) => {
   try {
@@ -1127,6 +1183,57 @@ Return ONLY the results in JSON format like this, with no additional text:
     console.error('Error in categorizeComments function:', error);
     throw error;
   }
+}
+
+// Add this function to your server.js file
+
+/**
+ * Fix category names specifically for the issue with extra quotes in Arabic categories
+ * @param {string} jsonString - JSON string to fix
+ * @returns {string} - Fixed JSON string
+ */
+function fixCategoryNames(jsonString) {
+  // Fix the specific pattern where """: appears in category names
+  let fixed = jsonString.replace(/"category":\s*""":\s*([^"]+)"/g, '"category": "مالية: $1"');
+  
+  // Fix the pattern where "مشكلات "": appears
+  fixed = fixed.replace(/"category":\s*"مشكلات "":\s*([^"]+)"/g, '"category": "مشكلات تقنية: $1"');
+  
+  // Fix any other cases with mixed quotes in category names
+  fixed = fixed.replace(/"category":\s*"([^"]*)"([^"]*)"([^"]*)"/g, '"category": "$1$2$3"');
+  
+  return fixed;
+}
+
+// Then modify your cleanJsonString function to include this fix:
+function cleanJsonString(jsonString) {
+  // Apply category name fix first
+  jsonString = fixCategoryNames(jsonString);
+  
+  return jsonString
+    .replace(/\\"/g, '"')      // Fix escaped quotes
+    .replace(/\\n/g, ' ')      // Replace newlines with spaces
+    .replace(/\\/g, '\\\\')    // Escape backslashes
+    .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":') // Fix unquoted keys
+    .replace(/,\s*}/g, '}')    // Remove trailing commas
+    .replace(/,\s*]/g, ']')    // Remove trailing commas in arrays
+    .replace(/[\u0600-\u06FF]+:/g, function(match) {
+      // Properly quote Arabic property names
+      const cleanKey = match.replace(/:/g, '');
+      return `"${cleanKey}":`;
+    })
+    .replace(/"""/g, '"')      // Fix triple quotes
+    .replace(/"{2,}/g, '"')    // Fix any sequence of multiple quotes
+    .replace(/[\u4e00-\u9fff]+/g, function(match) {
+      // Replace Chinese characters with placeholders
+      return '"[Chinese characters]"';
+    })
+    .replace(/…/g, '...')      // Replace ellipsis
+    .replace(/[^\x00-\x7F]+:/g, function(match) {
+      // Fix non-ASCII characters in property names
+      const cleanKey = match.replace(/[^\x00-\x7F]/g, '').replace(/:/g, '');
+      return `"${cleanKey}":`;
+    });
 }
 
 // Catch-all route - serve the main HTML file for any unknown routes
