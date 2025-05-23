@@ -517,7 +517,7 @@ app.get('/api/categorize/:jobId/status', (req, res) => {
 // Enhanced server.js sections - ADD these improvements to your existing server.js
 
 // 1. Enhanced job status endpoint to return partial results
-app.get('/api/categorize/:jobId/status', (req, res) => {
+app.get('/api/categorize/:jobId/results', (req, res) => {
   const jobId = req.params.jobId;
   const job = processingJobs.get(jobId);
   
@@ -528,28 +528,22 @@ app.get('/api/categorize/:jobId/status', (req, res) => {
     });
   }
   
-  // Calculate progress percentage
-  const progressPercentage = job.totalBatches > 0 
-    ? Math.round((job.batchesCompleted / job.totalBatches) * 100)
-    : 0;
+  if (job.status !== 'completed' && job.status !== 'failed') {
+    return res.status(425).json({
+      error: 'Job not completed',
+      details: 'The job is still processing.',
+      progress: Math.round((job.batchesCompleted / job.totalBatches) * 100)
+    });
+  }
   
-  // Calculate elapsed time
-  const elapsedMs = new Date() - job.startTime;
-  const elapsedMinutes = Math.round(elapsedMs / 60000 * 10) / 10;
-  
+  // Return results even if job failed but has partial results
   res.json({
-    jobId: jobId,
-    status: job.status,
-    progress: progressPercentage,
-    batchesCompleted: job.batchesCompleted,
-    totalBatches: job.totalBatches,
-    processedComments: job.processedComments,
-    totalComments: job.totalComments,
-    elapsedMinutes: elapsedMinutes,
-    error: job.error,
-    // **ENHANCED**: Always include partial results for real-time display
     categorizedComments: job.categorizedComments || [],
-    extractedTopics: job.extractedTopics || []
+    extractedTopics: job.extractedTopics || [],
+    status: job.status,
+    processedComments: job.processedComments || 0,
+    totalComments: job.totalComments || 0,
+    error: job.error
   });
 });
 
@@ -833,7 +827,7 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
     
     console.log(`Raw Claude response for batch ${batchIndex + 1} (first 200 chars):`, responseContent.substring(0, 200));
     
-    // **ENHANCED**: Better detection of various response types
+    // Check if the response is conversational rather than JSON
     const conversationalPatterns = [
       'سأقوم', 'قبل أن', 'نظرًا ل', 'هل تريد', 'اقتراح:', 'من خلال تحليل',
       'I will', 'Before I', 'Let me', 'Would you like', 'Here is', 'Based on',
@@ -849,7 +843,7 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
       return { categorizedComments: [], extractedTopics: [] };
     }
     
-    // **ENHANCED**: More aggressive JSON extraction
+    // Try to extract JSON from the response
     let jsonString = responseContent;
     
     // Try multiple extraction methods
@@ -909,14 +903,13 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
       return { categorizedComments: [], extractedTopics: [] };
     }
     
-    // **ENHANCED**: Multi-stage JSON cleaning
-    const originalJsonLength = jsonString.length;
+    // Enhanced JSON cleaning with the thorough function
+    console.log(`Batch ${batchIndex + 1}: Applying thorough JSON cleaning...`);
     jsonString = cleanJsonStringThoroughly(jsonString);
     
-    console.log(`Batch ${batchIndex + 1}: Cleaned JSON string (${originalJsonLength} -> ${jsonString.length} chars)`);
     console.log(`Batch ${batchIndex + 1}: Cleaned JSON (first 100 chars):`, jsonString.substring(0, 100));
     
-    // **ENHANCED**: Multiple parsing attempts with different strategies
+    // Multiple parsing attempts with different strategies
     const parsingStrategies = [
       // Strategy 1: Direct parsing
       () => JSON.parse(jsonString),
@@ -925,7 +918,7 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
       () => JSON.parse(ultraCleanJsonString(jsonString)),
       
       // Strategy 3: Reconstruct from patterns
-      () => JSON.parse(reconstructJsonFromPatterns(jsonString))
+      () => reconstructJsonFromPatternsFixed(jsonString)
     ];
     
     for (let i = 0; i < parsingStrategies.length; i++) {
@@ -934,9 +927,7 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
         console.log(`Batch ${batchIndex + 1}: Successfully parsed JSON using strategy ${i + 1}`);
         return parsedData;
       } catch (parseError) {
-        if (i === 0) {
-          console.error(`Batch ${batchIndex + 1}: Strategy ${i + 1} parse error:`, parseError.message);
-        }
+        console.error(`Batch ${batchIndex + 1}: Strategy ${i + 1} parse error:`, parseError.message);
         continue;
       }
     }
@@ -1020,6 +1011,86 @@ function reconstructJsonFromPatterns(jsonString) {
     categorizedComments: bestResults,
     extractedTopics: []
   });
+}
+
+// 3. ADD this improved pattern reconstruction function
+function reconstructJsonFromPatternsFixed(jsonString) {
+  console.log('Attempting improved JSON reconstruction from patterns...');
+  
+  try {
+    // More comprehensive regex patterns for different malformed cases
+    const patterns = [
+      // Pattern 1: Standard format
+      /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"[^}]*?"topics":\s*\[([^\]]*)\]/g,
+      
+      // Pattern 2: Malformed category with unescaped content
+      /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"?([^",}]+)"?[^}]*?"topics":\s*\[([^\]]*)\]/g,
+      
+      // Pattern 3: Missing topics array
+      /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"/g,
+      
+      // Pattern 4: Simplified extraction for severely malformed JSON
+      /(\d+)\.\s*([^"]*)\s*"category":\s*"?([^",}]+)"?/g
+    ];
+    
+    let bestResults = [];
+    
+    for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+      const pattern = patterns[patternIndex];
+      const results = [];
+      let match;
+      
+      // Reset regex state
+      pattern.lastIndex = 0;
+      
+      while ((match = pattern.exec(jsonString)) !== null) {
+        try {
+          const [, id, comment, category, topicsStr] = match;
+          
+          let topics = [];
+          if (topicsStr && topicsStr.trim()) {
+            topics = topicsStr.split(',')
+              .map(topic => topic.trim().replace(/^["']|["']$/g, ''))
+              .filter(topic => topic.length > 0);
+          }
+          
+          // Clean category name more aggressively
+          const cleanCategory = category
+            .replace(/^["']|["']$/g, '')
+            .replace(/[""]/g, '')
+            .trim();
+          
+          // Validate the extracted data
+          if (id && comment && cleanCategory) {
+            results.push({
+              id: parseInt(id),
+              comment: comment.trim(),
+              category: cleanCategory,
+              topics: topics
+            });
+          }
+        } catch (e) {
+          console.log(`Failed to parse individual match in pattern ${patternIndex + 1}, skipping...`);
+        }
+      }
+      
+      if (results.length > bestResults.length) {
+        bestResults = results;
+        console.log(`Pattern ${patternIndex + 1} extracted ${results.length} comments`);
+      }
+    }
+    
+    console.log(`Reconstructed JSON with ${bestResults.length} comments using pattern matching`);
+    
+    return {
+      categorizedComments: bestResults,
+      extractedTopics: []
+    };
+    
+  } catch (error) {
+    console.error('Pattern reconstruction failed:', error);
+    return { categorizedComments: [], extractedTopics: [] };
+  }
 }
 
 // 5. Enhanced ultra clean function
@@ -1504,6 +1575,63 @@ function fixArabicCategoryJSON(jsonString) {
     .replace(/,\s*,/g, ',');        // Fix double commas
   
   return fixed;
+}
+
+// Add this function to your server.js file - this is the missing function causing the error
+function cleanJsonStringThoroughly(jsonString) {
+  try {
+    console.log('Performing thorough JSON cleaning...');
+    
+    let cleaned = jsonString;
+    
+    // Fix the most common Arabic category issues
+    const categoryFixes = [
+      [/"مالية":\s*التسعير/g, '"مالية: التسعير"'],
+      [/"مشكلات\s+"تقنية":\s*([^,}"]+)/g, '"مشكلات تقنية: $1"'],
+      [/"ملاحظات\s+"العملاء":\s*([^,}"]+)/g, '"ملاحظات العملاء: $1"'],
+      [/"category":\s*"([^"]*)"([^"]*)":\s*([^",}]+)/g, '"category": "$1$2: $3"'],
+      [/"category":\s*([^",{}]+)([,}])/g, '"category": "$1"$2']
+    ];
+    
+    for (const [pattern, replacement] of categoryFixes) {
+      cleaned = cleaned.replace(pattern, replacement);
+    }
+    
+    // General structural fixes
+    cleaned = cleaned
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, ' ')
+      .replace(/\t/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']')
+      .replace(/"{2,}/g, '"')
+      .replace(/:\s*,/g, ': "",')
+      .replace(/\[\s*,/g, '[')
+      .replace(/,\s*,/g, ',');
+    
+    // Fix unbalanced braces and brackets
+    const openBraces = (cleaned.match(/{/g) || []).length;
+    const closeBraces = (cleaned.match(/}/g) || []).length;
+    if (openBraces > closeBraces) {
+      cleaned += '}'.repeat(openBraces - closeBraces);
+    }
+    
+    const openBrackets = (cleaned.match(/\[/g) || []).length;
+    const closeBrackets = (cleaned.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) {
+      cleaned += ']'.repeat(openBrackets - closeBrackets);
+    }
+    
+    console.log(`Thorough clean: Fixed structure and category names`);
+    return cleaned;
+    
+  } catch (error) {
+    console.error('Thorough clean function error:', error.message);
+    return '{"categorizedComments": [], "extractedTopics": []}';
+  }
 }
 
 // More aggressive JSON fixing for stubborn cases
