@@ -206,33 +206,6 @@ export async function startCategorizationJob(comments, apiKey) {
   }
 }
 
-/**
- * Check job status
- */
-export async function checkJobStatus(jobId) {
-  try {
-    const statusUrl = `${SERVER_URL}/api/categorize/${jobId}/status`;
-    
-    const response = await fetchWithTimeout(statusUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      }
-    }, 15000); // Shorter timeout for status checks
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Job not found or expired');
-      }
-      throw new Error(`Status check failed: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    addLogEntry(`Status check failed: ${error.message}`, 'error');
-    throw error;
-  }
-}
 
 /**
  * Get job results
