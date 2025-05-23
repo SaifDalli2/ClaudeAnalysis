@@ -818,9 +818,10 @@ function parseClaudeResponse(response) {
     console.log('Raw Claude response (first 200 chars):', responseContent.substring(0, 200));
     
     // Check if the response is conversational rather than JSON
-    // This handles cases where Claude asks questions or provides explanations in Arabic or English
     if (responseContent.startsWith('قبل') || 
         responseContent.startsWith('هل') || 
+        responseContent.startsWith('سأقوم بإعداد') ||
+        responseContent.startsWith('نظرًا لحجم') ||
         responseContent.startsWith('I need') ||
         responseContent.startsWith('Before I') || 
         responseContent.includes('would you like me to')) {
@@ -843,8 +844,8 @@ function parseClaudeResponse(response) {
       }
     }
     
-    // Attempt to clean the JSON string before parsing
-    jsonString = cleanJsonString(jsonString);
+    // Apply comprehensive JSON fixes
+    jsonString = fixArabicCategoryJSON(jsonString);
     
     // Log for debugging (limit to avoid flooding logs)
     console.log('Clean JSON string (first 100 chars):', jsonString.substring(0, 100));
@@ -857,45 +858,155 @@ function parseClaudeResponse(response) {
       console.error('JSON parse error:', parseError.message);
       console.error('JSON string (first 500 chars):', jsonString.substring(0, 500));
       
-      // If parsing fails, try to manually fix common JSON issues
-      const fixedJsonString = fixJsonString(jsonString);
+      // Try more aggressive fixes
+      const fixedJsonString = aggressiveJSONFix(jsonString);
       
-      // Try parsing again after fixes
       try {
         const fixedJsonData = JSON.parse(fixedJsonString);
-        console.log('Successfully parsed JSON after fixing common issues');
+        console.log('Successfully parsed JSON after aggressive fixing');
         return fixedJsonData;
       } catch (secondError) {
-        // If still failing, try a different approach: extract just the categorizedComments array
         console.error('Second JSON parse error:', secondError.message);
         
+        // Try to extract just the categorizedComments array as a last resort
         try {
-          const commentsMatch = jsonString.match(/"categorizedComments"\s*:\s*(\[\s*{[\s\S]*?}\s*\])/);
-          if (commentsMatch && commentsMatch[1]) {
-            const commentsArrayString = commentsMatch[1];
-            const cleanedCommentsString = cleanJsonString(commentsArrayString);
-            const commentsArray = JSON.parse(cleanedCommentsString);
-            
-            console.log('Successfully extracted comments array with', commentsArray.length, 'items');
-            return { 
-              categorizedComments: commentsArray,
-              extractedTopics: []
-            };
+          const extractedData = extractCategorizedComments(jsonString);
+          if (extractedData.categorizedComments.length > 0) {
+            console.log('Successfully extracted comments array with', extractedData.categorizedComments.length, 'items');
+            return extractedData;
           }
         } catch (extractError) {
           console.error('Failed to extract comments array:', extractError.message);
         }
         
-        // For the original endpoint
+        // Return empty result if all parsing attempts fail
         return { categorizedComments: [], extractedTopics: [] };
       }
     }
   } catch (error) {
     console.error('Error in parseClaudeResponse:', error);
-    
-    // Return a valid but empty response
     return { categorizedComments: [], extractedTopics: [] };
   }
+}
+
+// New comprehensive function to fix Arabic category JSON issues
+function fixArabicCategoryJSON(jsonString) {
+  console.log('Applying Arabic category JSON fixes...');
+  
+  // Fix the most common patterns from your logs
+  let fixed = jsonString;
+  
+  // Pattern 1: "مالية": التسعير -> "مالية: التسعير"
+  fixed = fixed.replace(/"مالية":\s*التسعير/g, '"مالية: التسعير"');
+  
+  // Pattern 2: "مشكلات "تقنية": -> "مشكلات تقنية:"
+  fixed = fixed.replace(/"مشكلات\s+"تقنية":\s*([^,}"]+)/g, '"مشكلات تقنية: $1"');
+  
+  // Pattern 3: "ملاحظات "العملاء": -> "ملاحظات العملاء:"
+  fixed = fixed.replace(/"ملاحظات\s+"العملاء":\s*([^,}"]+)/g, '"ملاحظات العملاء: $1"');
+  
+  // Pattern 4: Fix incomplete category names that end with comma instead of quote
+  fixed = fixed.replace(/"category":\s*([^",}]+),/g, '"category": "$1",');
+  
+  // Pattern 5: Fix the specific patterns seen in logs
+  fixed = fixed.replace(/"category":\s*"مالية":\s*([^",}]+),/g, '"category": "مالية: $1",');
+  fixed = fixed.replace(/"category":\s*"مشكلات\s+"تقنية":\s*([^",}]+),/g, '"category": "مشكلات تقنية: $1",');
+  
+  // Pattern 6: Fix any remaining malformed category patterns
+  fixed = fixed.replace(/"category":\s*"([^"]*)"([^"]*)":\s*([^",}]+),/g, '"category": "$1$2: $3",');
+  
+  // Pattern 7: Ensure all category values are properly quoted
+  fixed = fixed.replace(/"category":\s*([^",{}]+)([,}])/g, '"category": "$1"$2');
+  
+  // General cleanup
+  fixed = fixed
+    .replace(/\\"/g, '"')           // Fix escaped quotes
+    .replace(/\\n/g, ' ')           // Replace newlines with spaces
+    .replace(/,\s*}/g, '}')         // Remove trailing commas
+    .replace(/,\s*]/g, ']')         // Remove trailing commas in arrays
+    .replace(/"{2,}/g, '"')         // Fix multiple consecutive quotes
+    .replace(/:\s*,/g, ': "",')     // Fix empty values
+    .replace(/\[\s*,/g, '[')        // Fix arrays starting with comma
+    .replace(/,\s*,/g, ',');        // Fix double commas
+  
+  return fixed;
+}
+
+// More aggressive JSON fixing for stubborn cases
+function aggressiveJSONFix(jsonString) {
+  console.log('Applying aggressive JSON fixes...');
+  
+  let fixed = jsonString;
+  
+  // Fix unbalanced braces
+  const openBraces = (fixed.match(/{/g) || []).length;
+  const closeBraces = (fixed.match(/}/g) || []).length;
+  
+  if (openBraces > closeBraces) {
+    const missing = openBraces - closeBraces;
+    fixed += '}'.repeat(missing);
+  }
+  
+  // Fix unbalanced brackets
+  const openBrackets = (fixed.match(/\[/g) || []).length;
+  const closeBrackets = (fixed.match(/\]/g) || []).length;
+  
+  if (openBrackets > closeBrackets) {
+    const missing = openBrackets - closeBrackets;
+    fixed += ']'.repeat(missing);
+  }
+  
+  // Fix incomplete objects - if we see an incomplete comment, close it
+  if (fixed.includes('"comment":') && !fixed.match(/"comment":\s*"[^"]*"/)) {
+    fixed = fixed.replace(/"comment":\s*"([^"]*$)/, '"comment": "$1"');
+  }
+  
+  // Ensure the JSON ends properly
+  if (!fixed.trim().endsWith('}') && !fixed.trim().endsWith(']')) {
+    if (fixed.includes('"categorizedComments":')) {
+      fixed += ']}';
+    } else {
+      fixed += '}';
+    }
+  }
+  
+  return fixed;
+}
+
+// Extract categorizedComments array even from severely malformed JSON
+function extractCategorizedComments(jsonString) {
+  console.log('Attempting to extract categorized comments from malformed JSON...');
+  
+  const result = { categorizedComments: [], extractedTopics: [] };
+  
+  // Try to find individual comment objects using regex
+  const commentPattern = /"id":\s*(\d+),\s*"comment":\s*"([^"]+)",\s*"category":\s*"([^"]+)",\s*"topics":\s*\[([^\]]*)\]/g;
+  
+  let match;
+  while ((match = commentPattern.exec(jsonString)) !== null) {
+    try {
+      const [, id, comment, category, topicsStr] = match;
+      
+      // Parse topics array
+      let topics = [];
+      if (topicsStr.trim()) {
+        topics = topicsStr.split(',').map(topic => 
+          topic.trim().replace(/^["']|["']$/g, '')
+        ).filter(topic => topic.length > 0);
+      }
+      
+      result.categorizedComments.push({
+        id: parseInt(id),
+        comment: comment,
+        category: category,
+        topics: topics
+      });
+    } catch (e) {
+      console.log('Failed to parse individual comment, skipping...');
+    }
+  }
+  
+  return result;
 }
 
 // Function to thoroughly clean a JSON string
