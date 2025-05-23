@@ -1,6 +1,6 @@
 /**
  * Enhanced UI handler functions for real-time progress display
- * Fixed to remove circular dependencies and duplicate exports
+ * Fixed result display issues
  */
 import { 
   getCurrentLanguage, 
@@ -74,8 +74,17 @@ export async function enhancedProcessComments(comments, useSimulation = false) {
       }
     }
     
-    // Display final results
+    // Display final results with debugging
     addLogEntry('Processing complete! Displaying results...');
+    addLogEntry(`Result structure: ${JSON.stringify(Object.keys(result || {}), null, 2)}`, 'info');
+    
+    if (result && result.categories) {
+      addLogEntry(`Categories found: ${result.categories.length}`, 'info');
+      result.categories.forEach((cat, index) => {
+        addLogEntry(`Category ${index + 1}: ${cat.name} (${cat.comments ? cat.comments.length : 0} comments)`, 'info');
+      });
+    }
+    
     displayProcessingResults(result, comments);
     
     return result;
@@ -161,7 +170,10 @@ async function processCommentsWithAPI(comments, apiKey) {
           processedResults.extractedTopics = status.extractedTopics || [];
           
           addLogEntry(`Displaying partial results: ${processedResults.categorizedComments.length} comments processed so far`, 'info');
-          displayProcessingResults(processedResults, comments, true); // true = partial results
+          
+          // Generate partial categories for display
+          const partialCategories = generateCategoriesFromComments(processedResults.categorizedComments, comments);
+          displayProcessingResults(partialCategories, comments, true); // true = partial results
         }
         
         // Check for stuck job
@@ -191,7 +203,7 @@ async function processCommentsWithAPI(comments, apiKey) {
       // Timeout reached - but we may have partial results
       if (processedResults.categorizedComments.length > 0) {
         addLogEntry(`Job timed out after 25 minutes, but ${processedResults.categorizedComments.length} comments were successfully processed`, 'warning');
-        return processedResults; // Return partial results
+        return generateCategoriesFromComments(processedResults.categorizedComments, comments);
       } else {
         throw new Error('Job timed out after 25 minutes with no results');
       }
@@ -212,7 +224,7 @@ async function processCommentsWithAPI(comments, apiKey) {
     // If we have partial results, return them
     if (processedResults.categorizedComments.length > 0) {
       addLogEntry(`Returning partial results: ${processedResults.categorizedComments.length} comments processed`, 'warning');
-      return await generateSummariesForResults(processedResults, comments, apiKey);
+      return generateCategoriesFromComments(processedResults.categorizedComments, comments);
     }
     
     throw error;
@@ -220,6 +232,51 @@ async function processCommentsWithAPI(comments, apiKey) {
     currentJobId = null;
     hideJobCancellation();
   }
+}
+
+/**
+ * Generate categories from categorized comments (FIXED VERSION)
+ */
+function generateCategoriesFromComments(categorizedComments, originalComments) {
+  console.log('Generating categories from categorized comments:', categorizedComments.length);
+  
+  const categoryMap = new Map();
+  
+  // Group comments by category
+  categorizedComments.forEach(item => {
+    const categoryName = item.category || 'Uncategorized';
+    if (!categoryMap.has(categoryName)) {
+      categoryMap.set(categoryName, []);
+    }
+    categoryMap.get(categoryName).push(item.id);
+  });
+  
+  console.log('Category map created:', Array.from(categoryMap.keys()));
+  
+  // Convert to expected format
+  const categories = Array.from(categoryMap.entries()).map(([categoryName, commentIds]) => {
+    const categoryComments = categorizedComments.filter(item => item.category === categoryName);
+    const avgSentiment = categoryComments.length > 0 
+      ? categoryComments.reduce((sum, item) => sum + (item.sentiment || 0), 0) / categoryComments.length 
+      : 0;
+    
+    const category = {
+      name: categoryName,
+      comments: commentIds,
+      summary: `Category containing ${commentIds.length} comments about ${categoryName.toLowerCase()}.`,
+      sentiment: avgSentiment,
+      commonIssues: [`Issues related to ${categoryName}`],
+      suggestedActions: [`Address ${categoryName} concerns`, `Review ${categoryName} feedback`]
+    };
+    
+    console.log(`Generated category: ${categoryName} with ${commentIds.length} comments`);
+    return category;
+  });
+  
+  return {
+    categories: categories,
+    extractedTopics: []
+  };
 }
 
 /**
@@ -236,6 +293,8 @@ async function generateSummariesForResults(results, comments, apiKey) {
       apiKey
     );
     
+    addLogEntry(`Summary result structure: ${JSON.stringify(Object.keys(summaryResult || {}), null, 2)}`, 'info');
+    
     // Convert to expected format
     const processedResult = {
       categories: (summaryResult.summaries || []).map(summary => {
@@ -243,35 +302,221 @@ async function generateSummariesForResults(results, comments, apiKey) {
           .filter(item => item.category === summary.category)
           .map(item => item.id);
         
-        return {
+        const category = {
           name: summary.category,
           comments: categoryComments,
           summary: summary.summary,
           sentiment: summary.sentiment || 0,
-          commonIssues: summary.commonIssues,
-          suggestedActions: summary.suggestedActions
+          commonIssues: summary.commonIssues || [],
+          suggestedActions: summary.suggestedActions || []
         };
+        
+        addLogEntry(`Processed category: ${summary.category} with ${categoryComments.length} comments`, 'info');
+        return category;
       }),
       topTopics: summaryResult.topTopics || [],
       extractedTopics: results.extractedTopics
     };
     
+    addLogEntry(`Final processed result has ${processedResult.categories.length} categories`, 'info');
     return processedResult;
     
   } catch (summaryError) {
     addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'warning');
     
     // Return just categorization results if summary fails
-    return {
-      categories: [{
-        name: 'Categorized Comments',
-        comments: results.categorizedComments.map(item => item.id),
-        summary: `Successfully categorized ${results.categorizedComments.length} comments.`,
-        sentiment: 0
-      }],
-      extractedTopics: results.extractedTopics
-    };
+    return generateCategoriesFromComments(results.categorizedComments, comments);
   }
+}
+
+/**
+ * Enhanced display processing results with debugging and better error handling
+ */
+export function displayProcessingResults(result, comments, isPartial = false) {
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  
+  addLogEntry(`displayProcessingResults called with: ${result ? 'valid result' : 'null result'}`, 'info');
+  
+  if (!result) {
+    addLogEntry('No result provided to displayProcessingResults', 'error');
+    categoriesContainer.innerHTML = '<div class="error">No results available</div>';
+    return;
+  }
+  
+  addLogEntry(`Result keys: ${JSON.stringify(Object.keys(result))}`, 'info');
+  
+  if (!result.categories || !Array.isArray(result.categories)) {
+    addLogEntry(`Invalid categories in result: ${typeof result.categories}`, 'error');
+    categoriesContainer.innerHTML = '<div class="error">No categories found in results</div>';
+    return;
+  }
+  
+  addLogEntry(`Found ${result.categories.length} categories to display`, 'info');
+  
+  // Add partial results indicator
+  if (isPartial) {
+    const partialHeader = document.createElement('div');
+    partialHeader.className = 'partial-results-header';
+    partialHeader.innerHTML = `
+      <div class="partial-notice">
+        <strong>⏳ Partial Results</strong> - Processing continues in background. 
+        Results will update automatically as more comments are processed.
+      </div>
+    `;
+    categoriesContainer.innerHTML = '';
+    categoriesContainer.appendChild(partialHeader);
+  } else {
+    categoriesContainer.innerHTML = '';
+  }
+  
+  // Update statistics
+  updateOverallStats(result, comments);
+  
+  // Display topic cloud if available
+  if (result.extractedTopics && result.extractedTopics.length) {
+    addLogEntry(`Displaying ${result.extractedTopics.length} topics`, 'info');
+    displayTopics(result.extractedTopics, comments, categoriesContainer);
+  }
+  
+  // Display categories with enhanced logging
+  addLogEntry('About to call displayResults function', 'info');
+  displayResults(result, comments);
+  addLogEntry('displayResults function completed', 'info');
+}
+
+/**
+ * Display categorization results (FIXED VERSION)
+ */
+export function displayResults(result, comments) {
+  const categoriesContainer = document.getElementById('categoriesContainer');
+  
+  addLogEntry(`displayResults called with ${result.categories ? result.categories.length : 0} categories`, 'info');
+  
+  if (!result || !result.categories || !Array.isArray(result.categories)) {
+    addLogEntry('Invalid result structure in displayResults', 'error');
+    categoriesContainer.innerHTML = '<div class="error">No categories to display</div>';
+    return;
+  }
+  
+  // Clear existing results (but keep partial results header if it exists)
+  const existingHeader = categoriesContainer.querySelector('.partial-results-header');
+  if (!existingHeader) {
+    categoriesContainer.innerHTML = '';
+  } else {
+    // Remove everything except the header
+    const children = Array.from(categoriesContainer.children);
+    children.forEach(child => {
+      if (!child.classList.contains('partial-results-header')) {
+        child.remove();
+      }
+    });
+  }
+  
+  addLogEntry(`Processing ${result.categories.length} categories for display`, 'info');
+  
+  result.categories.forEach((category, index) => {
+    addLogEntry(`Creating card for category ${index + 1}: ${category.name}`, 'info');
+    
+    const categoryCard = document.createElement('div');
+    categoryCard.className = 'category-card';
+    
+    // Get sentiment class and emoji
+    const sentimentClass = category.sentiment > 0.3
+      ? 'sentiment-positive'
+      : category.sentiment < -0.3
+        ? 'sentiment-negative'
+        : 'sentiment-neutral';
+    
+    const sentimentEmoji = category.sentiment > 0.3
+      ? '😃'
+      : category.sentiment < -0.3
+        ? '😞'
+        : '😐';
+    
+    // Calculate sentiment percentage for the progress bar
+    const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
+    
+    // Ensure we have valid data
+    const commentCount = category.comments ? category.comments.length : 0;
+    const categoryName = category.name || 'Unknown Category';
+    const categorySummary = category.summary || 'No summary available';
+    const sentiment = category.sentiment || 0;
+    
+    addLogEntry(`Category ${categoryName}: ${commentCount} comments`, 'info');
+    
+    // Create category HTML
+    categoryCard.innerHTML = `
+      <div class="category-header">
+        <div class="category-name">${escapeHtml(categoryName)}</div>
+        <div class="category-count">${commentCount} ${getTranslation('comments', 'comments')}</div>
+      </div>
+      <div class="category-summary">${escapeHtml(categorySummary)}</div>
+      <div class="sentiment-details">
+        <span class="sentiment-emoji">${sentimentEmoji}</span>
+        <div style="flex-grow: 1;">
+          <div class="sentiment-label">
+            <span>${getTranslation('sentiment', 'Sentiment')}:</span>
+            <span>${sentiment.toFixed(1)}</span>
+          </div>
+          <div class="sentiment-bar-container">
+            <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
+          </div>
+          <div class="sentiment-label">
+            <span>${getTranslation('negative', 'Negative')}</span>
+            <span>${getTranslation('positive', 'Positive')}</span>
+          </div>
+        </div>
+      </div>
+      ${category.commonIssues && category.commonIssues.length > 0 ? `
+        <div class="category-issues">
+          <h4>Common Issues:</h4>
+          <ul>
+            ${category.commonIssues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      ${category.suggestedActions && category.suggestedActions.length > 0 ? `
+        <div class="category-actions">
+          <h4>Suggested Actions:</h4>
+          <ul>
+            ${category.suggestedActions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      <button class="show-comments-btn" data-action="show">${getTranslation('show-comments', 'Show Comments')}</button>
+      <div class="category-comments">
+        ${category.comments && category.comments.length > 0 ? category.comments.map(commentIndex => {
+          const index = commentIndex - 1;
+          const comment = index >= 0 && index < comments.length 
+            ? comments[index] 
+            : `[Comment #${commentIndex} not found]`;
+          return `<div class="category-comment">${escapeHtml(comment)}</div>`;
+        }).join('') : '<div class="no-comments">No comments available</div>'}
+      </div>
+    `;
+    
+    // Add click handler for show/hide comments
+    const showHideBtn = categoryCard.querySelector('.show-comments-btn');
+    const commentsDiv = categoryCard.querySelector('.category-comments');
+    
+    showHideBtn.addEventListener('click', function() {
+      const action = this.getAttribute('data-action');
+      if (action === 'show') {
+        commentsDiv.style.display = 'block';
+        this.textContent = getTranslation('hide-comments', 'Hide Comments');
+        this.setAttribute('data-action', 'hide');
+      } else {
+        commentsDiv.style.display = 'none';
+        this.textContent = getTranslation('show-comments', 'Show Comments');
+        this.setAttribute('data-action', 'show');
+      }
+    });
+    
+    categoriesContainer.appendChild(categoryCard);
+    addLogEntry(`Category card created and added for: ${categoryName}`, 'info');
+  });
+  
+  addLogEntry(`All ${result.categories.length} category cards have been created`, 'success');
 }
 
 /**
@@ -372,7 +617,8 @@ function setupJobCancellation(jobId) {
         // Return partial results if available
         if (processedResults.categorizedComments.length > 0) {
           addLogEntry(`Displaying ${processedResults.categorizedComments.length} partially processed comments`, 'info');
-          displayProcessingResults(processedResults, window.comments, true);
+          const partialCategories = generateCategoriesFromComments(processedResults.categorizedComments, window.comments);
+          displayProcessingResults(partialCategories, window.comments, true);
         }
         
         currentJobId = null;
@@ -423,45 +669,6 @@ export function setupProcessingMethodToggle() {
       localStorage.setItem('claudeApiKey', this.value);
     });
   }
-}
-
-/**
- * Enhanced display processing results with partial results support
- */
-export function displayProcessingResults(result, comments, isPartial = false) {
-  const categoriesContainer = document.getElementById('categoriesContainer');
-  
-  if (!result) {
-    categoriesContainer.innerHTML = '<div class="error">No results available</div>';
-    return;
-  }
-  
-  // Add partial results indicator
-  if (isPartial) {
-    const partialHeader = document.createElement('div');
-    partialHeader.className = 'partial-results-header';
-    partialHeader.innerHTML = `
-      <div class="partial-notice">
-        <strong>⏳ Partial Results</strong> - Processing continues in background. 
-        Results will update automatically as more comments are processed.
-      </div>
-    `;
-    categoriesContainer.innerHTML = '';
-    categoriesContainer.appendChild(partialHeader);
-  } else {
-    categoriesContainer.innerHTML = '';
-  }
-  
-  // Update statistics
-  updateOverallStats(result, comments);
-  
-  // Display topic cloud if available
-  if (result.extractedTopics && result.extractedTopics.length) {
-    displayTopics(result.extractedTopics, comments, categoriesContainer);
-  }
-  
-  // Display categories
-  displayResults(result, comments);
 }
 
 /**
@@ -696,123 +903,6 @@ export function addDiagnosticButton(checkServerFunction) {
       inputSection.insertBefore(diagnosticBtn, debugLog);
     }
   }
-}
-
-/**
- * Display categorization results
- */
-export function displayResults(result, comments) {
-  const categoriesContainer = document.getElementById('categoriesContainer');
-  
-  if (!result || !result.categories || !Array.isArray(result.categories)) {
-    categoriesContainer.innerHTML = '<div class="error">No categories to display</div>';
-    return;
-  }
-  
-  // Clear existing results (but keep partial results header if it exists)
-  const existingHeader = categoriesContainer.querySelector('.partial-results-header');
-  if (!existingHeader) {
-    categoriesContainer.innerHTML = '';
-  } else {
-    // Remove everything except the header
-    const children = Array.from(categoriesContainer.children);
-    children.forEach(child => {
-      if (!child.classList.contains('partial-results-header')) {
-        child.remove();
-      }
-    });
-  }
-  
-  result.categories.forEach(category => {
-    const categoryCard = document.createElement('div');
-    categoryCard.className = 'category-card';
-    
-    // Get sentiment class and emoji
-    const sentimentClass = category.sentiment > 0.3
-      ? 'sentiment-positive'
-      : category.sentiment < -0.3
-        ? 'sentiment-negative'
-        : 'sentiment-neutral';
-    
-    const sentimentEmoji = category.sentiment > 0.3
-      ? '😃'
-      : category.sentiment < -0.3
-        ? '😞'
-        : '😐';
-    
-    // Calculate sentiment percentage for the progress bar
-    const sentimentPercentage = Math.round((category.sentiment + 1) / 2 * 100);
-    
-    // Create category HTML
-    categoryCard.innerHTML = `
-      <div class="category-header">
-        <div class="category-name">${escapeHtml(category.name)}</div>
-        <div class="category-count">${category.comments.length} ${getTranslation('comments', 'comments')}</div>
-      </div>
-      <div class="category-summary">${escapeHtml(category.summary)}</div>
-      <div class="sentiment-details">
-        <span class="sentiment-emoji">${sentimentEmoji}</span>
-        <div style="flex-grow: 1;">
-          <div class="sentiment-label">
-            <span>${getTranslation('sentiment', 'Sentiment')}:</span>
-            <span>${category.sentiment.toFixed(1)}</span>
-          </div>
-          <div class="sentiment-bar-container">
-            <div class="sentiment-bar ${sentimentClass}" style="width: ${sentimentPercentage}%"></div>
-          </div>
-          <div class="sentiment-label">
-            <span>${getTranslation('negative', 'Negative')}</span>
-            <span>${getTranslation('positive', 'Positive')}</span>
-          </div>
-        </div>
-      </div>
-      ${category.commonIssues ? `
-        <div class="category-issues">
-          <h4>Common Issues:</h4>
-          <ul>
-            ${category.commonIssues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}
-          </ul>
-        </div>
-      ` : ''}
-      ${category.suggestedActions ? `
-        <div class="category-actions">
-          <h4>Suggested Actions:</h4>
-          <ul>
-            ${category.suggestedActions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}
-          </ul>
-        </div>
-      ` : ''}
-      <button class="show-comments-btn" data-action="show">${getTranslation('show-comments', 'Show Comments')}</button>
-      <div class="category-comments">
-        ${category.comments.map(commentIndex => {
-          const index = commentIndex - 1;
-          const comment = index >= 0 && index < comments.length 
-            ? comments[index] 
-            : `[Comment #${commentIndex} not found]`;
-          return `<div class="category-comment">${escapeHtml(comment)}</div>`;
-        }).join('')}
-      </div>
-    `;
-    
-    // Add click handler for show/hide comments
-    const showHideBtn = categoryCard.querySelector('.show-comments-btn');
-    const commentsDiv = categoryCard.querySelector('.category-comments');
-    
-    showHideBtn.addEventListener('click', function() {
-      const action = this.getAttribute('data-action');
-      if (action === 'show') {
-        commentsDiv.style.display = 'block';
-        this.textContent = getTranslation('hide-comments', 'Hide Comments');
-        this.setAttribute('data-action', 'hide');
-      } else {
-        commentsDiv.style.display = 'none';
-        this.textContent = getTranslation('show-comments', 'Show Comments');
-        this.setAttribute('data-action', 'show');
-      }
-    });
-    
-    categoriesContainer.appendChild(categoryCard);
-  });
 }
 
 /**

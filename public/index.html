@@ -147,6 +147,15 @@
         </div>
       </div>
 
+      <!-- Debug Panel (Enhanced) -->
+      <div class="debug-panel" style="margin-top: 20px; padding: 15px; background: var(--dark-surface); border-radius: 6px; border: 1px solid var(--dark-border);">
+        <h4 style="color: var(--dark-primary-hover); margin-top: 0;">Debug Controls</h4>
+        <button id="debugBtn" style="background: #ff6b6b; margin-right: 10px;">🐛 Enable Debug Mode</button>
+        <button id="testDisplayBtn" style="background: #4ecdc4; margin-right: 10px;">🧪 Test Display</button>
+        <button id="clearConsoleBtn" style="background: #45b7d1;">🧹 Clear Console</button>
+        <div id="debugInfo" style="margin-top: 10px; font-family: monospace; font-size: 12px; color: var(--dark-text-secondary);"></div>
+      </div>
+
       <div class="loader" id="loader"></div>
       <div class="debug-log" id="debugLog"></div>
     </div>
@@ -176,6 +185,9 @@
       <div id="categoriesContainer"></div>
     </div>
   </div>
+
+  <!-- Load debug helper script first -->
+  <script src="js/debug-helper.js"></script>
 
   <!-- SINGLE MODULE IMPORT - This replaces all the individual script imports -->
   <script type="module">
@@ -211,6 +223,121 @@
 
     // Auto-update comment count
     setInterval(updateCommentCount, 1000);
+  </script>
+
+  <!-- Enhanced debug controls script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Debug mode toggle
+      const debugBtn = document.getElementById('debugBtn');
+      const testDisplayBtn = document.getElementById('testDisplayBtn');
+      const clearConsoleBtn = document.getElementById('clearConsoleBtn');
+      const debugInfo = document.getElementById('debugInfo');
+      
+      let debugMode = false;
+      
+      if (debugBtn) {
+        debugBtn.addEventListener('click', function() {
+          debugMode = !debugMode;
+          if (debugMode) {
+            this.textContent = '🐛 Debug Mode ON';
+            this.style.background = '#27ae60';
+            debugInfo.innerHTML = 'Debug mode enabled - detailed logging active';
+            console.log('🐛 Debug mode ENABLED - Detailed logging active');
+            
+            // Enable enhanced logging
+            window.debugMode = true;
+            
+            // Override console.log to also show in debug panel
+            const originalLog = console.log;
+            console.log = function(...args) {
+              originalLog.apply(console, args);
+              if (debugInfo) {
+                const logEntry = args.map(arg => 
+                  typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+                ).join(' ');
+                debugInfo.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + logEntry;
+                debugInfo.scrollTop = debugInfo.scrollHeight;
+              }
+            };
+            
+          } else {
+            this.textContent = '🐛 Enable Debug Mode';
+            this.style.background = '#ff6b6b';
+            debugInfo.innerHTML = 'Debug mode disabled';
+            window.debugMode = false;
+            console.log('🐛 Debug mode DISABLED');
+          }
+        });
+      }
+      
+      if (testDisplayBtn) {
+        testDisplayBtn.addEventListener('click', function() {
+          console.log('🧪 Testing display function with mock data...');
+          
+          // Create mock result data
+          const mockResult = {
+            categories: [
+              {
+                name: 'Test Category 1',
+                comments: [1, 2, 3],
+                summary: 'This is a test category with mock data',
+                sentiment: 0.5,
+                commonIssues: ['Test issue 1', 'Test issue 2'],
+                suggestedActions: ['Test action 1', 'Test action 2']
+              },
+              {
+                name: 'Test Category 2',
+                comments: [4, 5],
+                summary: 'Another test category',
+                sentiment: -0.3,
+                commonIssues: ['Test issue 3'],
+                suggestedActions: ['Test action 3']
+              }
+            ],
+            extractedTopics: [
+              { topic: 'test topic', count: 5 }
+            ]
+          };
+          
+          const mockComments = [
+            'Test comment 1',
+            'Test comment 2', 
+            'Test comment 3',
+            'Test comment 4',
+            'Test comment 5'
+          ];
+          
+          if (window.enhancedDisplayProcessingResults) {
+            console.log('🧪 Calling enhanced display function...');
+            window.enhancedDisplayProcessingResults(mockResult, mockComments, false);
+          } else if (window.displayProcessingResults) {
+            console.log('🧪 Calling standard display function...');
+            window.displayProcessingResults(mockResult, mockComments, false);
+          } else {
+            console.error('❌ No display function found!');
+            debugInfo.innerHTML += '<br>❌ ERROR: No display function available';
+          }
+        });
+      }
+      
+      if (clearConsoleBtn) {
+        clearConsoleBtn.addEventListener('click', function() {
+          console.clear();
+          if (debugInfo) {
+            debugInfo.innerHTML = 'Console cleared at ' + new Date().toLocaleTimeString();
+          }
+        });
+      }
+      
+      // Auto-detect if we're in development mode
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('🔧 Development mode detected - enabling debug features');
+        if (debugBtn && !debugMode) {
+          debugBtn.click(); // Auto-enable debug mode in development
+        }
+      }
+    });
   </script>
 
   <!-- Fallback error handling script -->
@@ -268,6 +395,21 @@
         document.body.insertBefore(errorDiv, document.body.firstChild);
       }
     });
+    
+    // Final verification that everything loaded
+    setTimeout(function() {
+      console.log('🔍 Final verification check...');
+      console.log('- Translations loaded:', typeof window.translations !== 'undefined');
+      console.log('- Debug helper loaded:', typeof window.debugObject !== 'undefined');
+      console.log('- Enhanced display loaded:', typeof window.enhancedDisplayProcessingResults !== 'undefined');
+      console.log('- Comments array:', typeof window.comments !== 'undefined');
+      
+      if (typeof window.debugObject !== 'undefined') {
+        console.log('✅ All systems appear to be loaded correctly');
+      } else {
+        console.warn('⚠️ Some components may not have loaded properly');
+      }
+    }, 2000);
   </script>
 </body>
 </html>
