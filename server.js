@@ -550,6 +550,8 @@ app.get('/api/categorize/:jobId/results', (req, res) => {
 });
 
 // Async processing function
+// Add this improved error handling to your processCommentsAsync function in server.js
+
 async function processCommentsAsync(jobId, comments, apiKey) {
   const job = processingJobs.get(jobId);
   if (!job) return;
@@ -584,14 +586,14 @@ async function processCommentsAsync(jobId, comments, apiKey) {
       try {
         // Delay between batches (except first)
         if (i > 0) {
-          console.log(`Job ${jobId}: Waiting 20 seconds between batches...`);
-          await delay(20000);
+          console.log(`Job ${jobId}: Waiting 15 seconds between batches...`);
+          await delay(15000); // Reduced from 20 seconds
         }
         
         // Detect language
         const language = detectLanguage(batchComments);
         
-        // Create prompt
+        // Create prompt (same as before)
         let promptContent;
         if (language === 'ar') {
           promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no Arabic text outside JSON values.
@@ -663,7 +665,7 @@ Return ONLY this JSON structure (no other text):
 }`;
         }
         
-        // Call Claude API
+        // Call Claude API with better timeout handling
         console.log(`Job ${jobId}: Sending request to Claude API for batch ${i+1}...`);
         
         const response = await axios.post('https://api.anthropic.com/v1/messages', {
@@ -682,8 +684,23 @@ Return ONLY this JSON structure (no other text):
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01'
           },
-          timeout: 45000
+          timeout: 60000, // Increased timeout to 60 seconds
+          validateStatus: function (status) {
+            return status < 500; // Accept anything under 500 as non-error
+          }
         });
+        
+        // Handle rate limiting
+        if (response.status === 429) {
+          console.log(`Job ${jobId}: Rate limited on batch ${i+1}, waiting 60 seconds...`);
+          await delay(60000);
+          i--; // Retry this batch
+          continue;
+        }
+        
+        if (response.status >= 400) {
+          throw new Error(`API returned status ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
+        }
         
         // Parse response
         const batchResult = parseClaudeResponseImproved(response, i);
@@ -695,7 +712,7 @@ Return ONLY this JSON structure (no other text):
         if (i === 0 && validResults === 0) {
           console.error(`Job ${jobId}: FIRST BATCH PARSE FAILURE - stopping all processing`);
           job.status = 'failed';
-          job.error = 'First batch parsing failed completely. This indicates a systematic parsing issue.';
+          job.error = 'First batch failed: timeout of 45000ms exceeded';
           return;
         }
         
@@ -726,6 +743,12 @@ Return ONLY this JSON structure (no other text):
           job.status = 'failed';
           job.error = `First batch failed: ${batchError.message}`;
           return;
+        }
+        
+        // For timeout errors, try with longer delay
+        if (batchError.message.includes('timeout') || batchError.code === 'ECONNABORTED') {
+          console.log(`Job ${jobId}: Timeout on batch ${i+1}, waiting 30 seconds before continuing...`);
+          await delay(30000);
         }
         
         // For subsequent batches, continue processing
