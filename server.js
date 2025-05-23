@@ -1190,180 +1190,183 @@ async function categorizeComments(comments, apiKey) {
     // Process all batches
     let allCategorizedComments = [];
     let allExtractedTopics = new Set();
+      
+      // Replace the batch processing loop in your /api/categorize endpoint with this improved version:
+
+for (let i = 0; i < batches.length; i++) {
+  const batchComments = batches[i];
+  const batchStartIndex = i * batchSize;
+  
+  console.log(`Processing batch ${i+1}/${batches.length}`);
+  
+  try {
+    // Longer delay between batches (except for first batch)
+    if (i > 0) {
+      console.log('Waiting 20 seconds between batches to avoid rate limits...');
+      await delay(20000);
+    }
     
-    for (let i = 0; i < batches.length; i++) {
-      const batchComments = batches[i];
-      const batchStartIndex = i * batchSize;
-      
-      console.log(`Processing batch ${i+1}/${batches.length}`);
-      
-      try {
-        // Wait between batches to avoid rate limits - longer delay
-        if (i > 0) {
-          console.log('Waiting 20 seconds between batches to avoid rate limits...');
-          await delay(20000); // Increased from 15s to 20s
-        }
-        
-        // Detect language of the comments
-        const language = detectLanguage(batchComments);
-        
-        // Choose a consistent system message language
-        const systemMessage = "Please respond in JSON format only, not conversation. Parse the comments according to instructions.";
-        
-        // Create prompt based on detected language
-        let promptContent;
-        
-        if (language === 'ar') {
-          promptContent = `${systemMessage}
-          
-قم بتصنيف كل من التعليقات التالية إلى فئة واحدة بالضبط من الفئات المحددة مسبقًا، واستخرج أيضًا الكيانات والموضوعات المهمة.
+    // Detect language
+    const language = detectLanguage(batchComments);
+    
+    // Create a more explicit prompt that demands JSON-only response
+    let promptContent;
+    
+    if (language === 'ar') {
+      promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no Arabic text outside JSON values.
 
-الفئات المحددة مسبقًا:
-[مشكلات تقنية: تحديث التطبيق، تجميد/بطء التطبيق، مشكلات التطبيق، لا يعمل، تسجيل الدخول والوصول، الأمان]
-[ملاحظات العملاء: معقد، خدمة العملاء، التصميم، مسيء، شكرًا]
-[مالية: احتيال، التسعير، طلب استرداد]
+Categorize each comment into exactly one category from this list:
+- مشكلات تقنية: تحديث التطبيق
+- مشكلات تقنية: تجميد/بطء التطبيق  
+- مشكلات تقنية: مشكلات التطبيق
+- مشكلات تقنية: لا يعمل
+- مشكلات تقنية: تسجيل الدخول والوصول
+- مشكلات تقنية: الأمان
+- ملاحظات العملاء: معقد
+- ملاحظات العملاء: خدمة العملاء
+- ملاحظات العملاء: التصميم
+- ملاحظات العملاء: مسيء
+- ملاحظات العملاء: شكرًا
+- مالية: احتيال
+- مالية: التسعير
+- مالية: طلب استرداد
 
-التعليقات:
+Comments to categorize:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-مطلوب منك القيام بمهمتين:
-
-المهمة 1: لكل تعليق، حدد:
-1. رقم التعليق
-2. الفئة الرئيسية (اختر واحدة فقط من الفئات المحددة مسبقًا)
-3. الموضوعات المحددة داخل التعليق (يمكن أن يكون هناك أكثر من موضوع واحد)
-
-المهمة 2: استخرج قائمة بجميع الكيانات المهمة المذكورة في التعليقات، مثل:
-- أسماء العلامات التجارية
-- المنتجات
-- الخدمات
-- الأماكن
-- المواقع الإلكترونية
-- التطبيقات
-- أي كيانات مميزة أخرى
-
-أعد النتائج بتنسيق JSON كما يلي فقط، بدون أي نص إضافي:
+Return ONLY this JSON structure (no other text):
 {
   "categorizedComments": [
     {
       "id": 1,
-      "comment": "نص التعليق",
-      "category": "مشكلات تقنية: تحديث التطبيق",
-      "topics": ["تحديث التطبيق", "بطء التطبيق"]
+      "comment": "comment text here",
+      "category": "exact category name from list above",
+      "topics": ["topic1", "topic2"]
     }
   ],
-  "extractedTopics": [
-    {
-      "topic": "اسم المنتج",
-      "type": "منتج",
-      "count": 5,
-      "commentIds": [1, 3, 5, 7, 9]
-    }
-  ]
+  "extractedTopics": []
 }`;
-        } else {
-          promptContent = `${systemMessage}
-          
-Categorize each of the following comments into exactly one of the predefined categories and also extract important entities and topics.
+    } else {
+      promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no conversational text.
 
-Predefined Categories:
-[Technical issues: App update, App Freeze/Slow, App issues, Doesn't work, Login and Access, Security]
-[Customer Feedback: Complicated, Customer Service, Design, Offensive, Thank you]
-[Monetary: Fraud, Pricing, Refund Request]
+Categorize each comment into exactly one category from this list:
+- Technical issues: App update
+- Technical issues: App Freeze/Slow
+- Technical issues: App issues
+- Technical issues: Doesn't work
+- Technical issues: Login and Access
+- Technical issues: Security
+- Customer Feedback: Complicated
+- Customer Feedback: Customer Service
+- Customer Feedback: Design
+- Customer Feedback: Offensive
+- Customer Feedback: Thank you
+- Monetary: Fraud
+- Monetary: Pricing
+- Monetary: Refund Request
 
-Comments:
+Comments to categorize:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-You have TWO tasks:
-
-Task 1: For each comment, identify:
-1. The comment number
-2. The main category (choose only one from the predefined categories)
-3. The specific topics mentioned in the comment (there can be more than one topic)
-
-Task 2: Extract a list of all significant entities mentioned in the comments, such as:
-- Brand names
-- Products
-- Services
-- Places
-- Websites
-- Applications
-- Any other distinctive entities
-
-Return ONLY the results in JSON format like this, with no additional text:
+Return ONLY this JSON structure (no other text):
 {
   "categorizedComments": [
     {
       "id": 1,
-      "comment": "The comment text",
-      "category": "Technical issues: App update",
-      "topics": ["App update", "App slow"]
+      "comment": "comment text here", 
+      "category": "exact category name from list above",
+      "topics": ["topic1", "topic2"]
     }
   ],
-  "extractedTopics": [
-    {
-      "topic": "Product Name",
-      "type": "product",
-      "count": 5,
-      "commentIds": [1, 3, 5, 7, 9]
-    }
-  ]
+  "extractedTopics": []
 }`;
+    }
+    
+    console.log(`Sending categorization request to Claude API for batch ${i+1}...`);
+    
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 4000,
+      system: "You are a JSON-only categorization tool. Return only valid JSON with no explanations or conversational text. Do not start responses with explanatory text in any language.",
+      messages: [
+        {
+          role: 'user',
+          content: promptContent
         }
+      ]
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      timeout: 45000 // Reduced timeout
+    });
+    
+    // Process the response with improved parser
+    const batchResult = parseClaudeResponseImproved(response);
+    const validResults = batchResult.categorizedComments?.length || 0;
+    
+    console.log(`Batch ${i+1} processed successfully, got ${validResults} categorized comments`);
+    
+    // CRITICAL CHECK: If first batch fails completely, stop processing
+    if (i === 0 && validResults === 0) {
+      console.error('FIRST BATCH PARSE FAILURE: No comments were successfully categorized from the first batch.');
+      console.error('This indicates a systematic parsing issue. Stopping all batch processing to avoid wasting API calls.');
+      
+      // Log the raw response for debugging
+      const responseContent = response.data.content[0].text;
+      console.error('Raw response from first batch (first 500 chars):', responseContent.substring(0, 500));
+      
+      throw new Error('First batch parsing failed completely. This suggests a systematic issue with the prompt or response format. Please check the API response format and try again.');
+    }
+    
+    // Add to accumulated results
+    if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
+      allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
+    }
+    
+    if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
+      batchResult.extractedTopics.forEach(topicInfo => {
+        allExtractedTopics.add(JSON.stringify(topicInfo));
+      });
+    }
+    
+    // Optional: Also check if success rate is too low after first few batches
+    if (i === 2) { // After processing 3 batches
+      const totalProcessed = allCategorizedComments.length;
+      const totalExpected = (i + 1) * batchSize;
+      const successRate = (totalProcessed / totalExpected) * 100;
+      
+      if (successRate < 30) { // Less than 30% success rate
+        console.warn(`LOW SUCCESS RATE DETECTED: Only ${successRate.toFixed(1)}% of comments successfully categorized after 3 batches.`);
+        console.warn('This may indicate persistent parsing issues. Consider stopping or adjusting the approach.');
         
-        // Call Claude API with better error handling
-        console.log(`Sending categorization request to Claude API for batch ${i+1}...`);
-        try {
-          const response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-3-5-haiku-latest',
-            max_tokens: 4000, // Reduced to avoid memory issues
-            system: systemMessage,
-            messages: [
-              {
-                role: 'user',
-                content: promptContent
-              }
-            ]
-          }, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': apiKey || process.env.CLAUDE_API_KEY,
-              'anthropic-version': '2023-06-01'
-            },
-            timeout: 60000 // 1-minute timeout - reduced from 5 minutes
-          });
-          
-          // Process the response with our improved parser
-          const batchResult = parseClaudeResponse(response);
-          const validResults = batchResult.categorizedComments?.length || 0;
-          
-          console.log(`Batch ${i+1} processed successfully, got ${validResults} categorized comments`);
-          
-          // Add to our accumulated results
-          if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
-            allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
-          }
-          
-          // Collect extracted topics
-          if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
-            batchResult.extractedTopics.forEach(topicInfo => {
-              allExtractedTopics.add(JSON.stringify(topicInfo));
-            });
-          }
-        } catch (claudeError) {
-          console.error(`Error calling Claude API for batch ${i+1}:`, claudeError.message);
-          
-          if (claudeError.response) {
-            console.error('Claude API response:', claudeError.response.status, claudeError.response.data);
-          }
-          
-          // Continue with next batch instead of failing completely
-        }
-      } catch (batchError) {
-        console.error(`Error processing batch ${i+1}:`, batchError.message);
-        // Continue with next batch instead of failing completely
+        // Optionally, you can choose to stop here too:
+        // throw new Error(`Success rate too low (${successRate.toFixed(1)}%). Stopping to avoid wasting resources.`);
       }
     }
+    
+  } catch (error) {
+    console.error(`Error processing batch ${i+1}:`, error.message);
+    
+    // If this is the first batch and it's a critical error, stop everything
+    if (i === 0) {
+      console.error('CRITICAL: First batch failed with error. Stopping all processing.');
+      throw error; // Re-throw to stop the entire process
+    }
+    
+    // For timeout errors on subsequent batches, try to continue with a longer delay
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.log('Timeout detected, waiting longer before continuing...');
+      await delay(30000); // Wait 30 seconds after timeout
+    }
+    
+    // For other errors on subsequent batches, continue processing
+    console.log(`Continuing with remaining batches despite error in batch ${i+1}`);
+    continue;
+  }
+}
     
     // Merge all extracted topics
     const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
