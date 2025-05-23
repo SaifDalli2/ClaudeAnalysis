@@ -80,13 +80,16 @@ function getJobStatus(jobId) {
     processedComments: job.processedComments || 0,
     totalComments: job.totalComments,
     elapsedMinutes: elapsedMinutes,
-    error: job.error
+    error: job.error,
+    hasPartialResults: !!(job.categorizedComments && job.categorizedComments.length > 0),
+    partialResultsCount: job.categorizedComments ? job.categorizedComments.length : 0
   };
   
-  // Include partial results if available
+  // Always include partial results if available, regardless of status
   if (job.categorizedComments && job.categorizedComments.length > 0) {
     response.categorizedComments = job.categorizedComments;
     response.extractedTopics = job.extractedTopics || [];
+    console.log(`Job ${jobId} status: Including ${job.categorizedComments.length} partial results`);
   }
   
   return response;
@@ -96,18 +99,25 @@ function getJobResults(jobId) {
   const job = processingJobs.get(jobId);
   if (!job) return null;
   
-  if (job.status !== 'completed' && job.status !== 'failed') {
-    throw new Error('Job not completed yet');
+  // Allow results retrieval for completed jobs OR jobs with partial results
+  if (job.status !== 'completed' && job.status !== 'failed' && (!job.categorizedComments || job.categorizedComments.length === 0)) {
+    throw new Error('Job not completed yet and no partial results available');
   }
   
-  return {
+  // Always return available results, even if partial
+  const results = {
     categorizedComments: job.categorizedComments || [],
     extractedTopics: job.extractedTopics || [],
     status: job.status,
     processedComments: job.processedComments || 0,
     totalComments: job.totalComments || 0,
-    error: job.error
+    error: job.error,
+    isPartial: job.status !== 'completed' || (job.processedComments || 0) < (job.totalComments || 0)
   };
+  
+  console.log(`Job ${jobId} results retrieved: ${results.categorizedComments.length} categorized comments, status: ${results.status}`);
+  
+  return results;
 }
 
 function cancelJob(jobId) {
@@ -133,6 +143,21 @@ function cancelJob(jobId) {
 async function processCommentsAsync(jobId, comments, apiKey) {
   const job = processingJobs.get(jobId);
   if (!job) return;
+  
+  // Set up timeout handling
+  const timeoutDuration = 25 * 60 * 1000; // 25 minutes
+  const timeoutHandler = setTimeout(() => {
+    if (job && job.status === 'processing') {
+      console.log(`Job ${jobId} timed out after 25 minutes, but ${job.processedComments || 0} comments were successfully processed`);
+      job.status = 'completed'; // Mark as completed with partial results
+      job.error = `Processing timed out after 25 minutes. Successfully processed ${job.processedComments || 0}/${comments.length} comments.`;
+      
+      // Ensure results are preserved
+      if (job.categorizedComments && job.categorizedComments.length > 0) {
+        console.log(`Preserving ${job.categorizedComments.length} categorized comments from timeout`);
+      }
+    }
+  }, timeoutDuration);
   
   try {
     console.log(`Starting async processing for job ${jobId} with ${comments.length} comments`);
@@ -272,6 +297,8 @@ async function processCommentsAsync(jobId, comments, apiKey) {
     }
     
     // Finalize processing
+    clearTimeout(timeoutHandler); // Clear the timeout since we completed normally
+    
     const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
       try { return JSON.parse(topicStr); } catch (e) { return null; }
     }).filter(Boolean);
@@ -287,12 +314,16 @@ async function processCommentsAsync(jobId, comments, apiKey) {
     console.log(`Job ${jobId}: Processing complete. Processed ${allCategorizedComments.length}/${comments.length} comments (${successRate}%)`);
     
   } catch (error) {
+    clearTimeout(timeoutHandler); // Clear the timeout on error
     console.error(`Job ${jobId}: Fatal error:`, error);
     job.status = 'failed';
     job.error = error.message;
     
+    // Always preserve partial results even on error
     if (job.categorizedComments && job.categorizedComments.length > 0) {
       console.log(`Job ${jobId}: Failed but preserving ${job.categorizedComments.length} partial results`);
+      job.status = 'completed'; // Change to completed so results are accessible
+      job.error = `Processing failed but preserved ${job.categorizedComments.length} partial results: ${error.message}`;
     }
   }
 }
