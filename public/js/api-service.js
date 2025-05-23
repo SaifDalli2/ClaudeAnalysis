@@ -449,3 +449,305 @@ export async function summarizeComments(categorizedComments, extractedTopics, ap
     throw error;
   }
 }
+
+// Add these fixes to your api-service.js file
+
+/**
+ * Enhanced processCommentsWithAPI with better timeout and retry handling
+ */
+export async function processCommentsWithAPI(comments, apiKey) {
+  try {
+    // Step 1: Start the categorization job
+    const jobInfo = await startCategorizationJob(comments, apiKey);
+    const jobId = jobInfo.jobId;
+    
+    addLogEntry(`Job started with ID: ${jobId}`, 'success');
+    addLogEntry(`Estimated processing time: ${jobInfo.estimatedTimeMinutes} minutes`, 'info');
+    addLogEntry(`Processing ${comments.length} comments in ${jobInfo.estimatedBatches} batches`, 'info');
+    
+    // Step 2: Enhanced polling with better error handling
+    let attempts = 0;
+    const maxAttempts = 600; // 50 minutes max (5-second intervals)
+    let lastProgress = 0;
+    let stuckCounter = 0;
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+    
+    while (attempts < maxAttempts) {
+      await delay(5000); // Wait 5 seconds between checks
+      attempts++;
+      
+      try {
+        const status = await checkJobStatus(jobId);
+        consecutiveErrors = 0; // Reset error counter on successful status check
+        
+        // Update progress display with enhanced information
+        if (window.updateProgressDisplay) {
+          const progressMessage = status.status === 'processing' 
+            ? `Processing batch ${status.batchesCompleted}/${status.totalBatches}... (${status.processedComments} comments completed)`
+            : status.status === 'completed' 
+              ? 'Processing completed successfully!'
+              : status.status === 'failed'
+                ? `Processing failed: ${status.error}`
+                : 'Starting processing...';
+          
+          window.updateProgressDisplay(status.progress, progressMessage, {
+            batchesCompleted: status.batchesCompleted,
+            totalBatches: status.totalBatches,
+            processedComments: status.processedComments,
+            totalComments: status.totalComments,
+            elapsedMinutes: status.elapsedMinutes
+          });
+        }
+        
+        addLogEntry(`Progress: ${status.progress}% (${status.batchesCompleted}/${status.totalBatches} batches, ${status.elapsedMinutes}min elapsed)`, 'info');
+        
+        // Display partial results in real-time if available
+        if (status.categorizedComments && status.categorizedComments.length > 0) {
+          addLogEntry(`Real-time update: ${status.categorizedComments.length} comments processed so far`, 'info');
+          
+          // Create partial results object for real-time display
+          const partialResults = {
+            categories: generateCategoriesFromComments(status.categorizedComments, comments),
+            extractedTopics: status.extractedTopics || []
+          };
+          
+          // Update display with partial results
+          if (window.displayProcessingResults) {
+            window.displayProcessingResults(partialResults, comments, true); // true = partial results
+          }
+        }
+        
+        // Check completion status
+        if (status.status === 'completed') {
+          addLogEntry('Job completed successfully!', 'success');
+          break;
+        } else if (status.status === 'failed') {
+          // Don't immediately fail - check if we have partial results
+          if (status.categorizedComments && status.categorizedComments.length > 0) {
+            addLogEntry(`Job failed but recovered ${status.categorizedComments.length} comments`, 'warning');
+            break; // Continue with partial results
+          } else {
+            throw new Error(`Job failed: ${status.error}`);
+          }
+        } else if (status.status === 'cancelled') {
+          throw new Error('Job was cancelled');
+        }
+        
+        // Enhanced stuck detection with more sophisticated logic
+        if (status.progress === lastProgress) {
+          stuckCounter++;
+          if (stuckCounter >= 12) { // 1 minute of no progress
+            addLogEntry(`No progress for ${stuckCounter * 5} seconds. Job may be processing a difficult batch...`, 'warning');
+            
+            if (stuckCounter >= 36) { // 3 minutes of no progress
+              addLogEntry('Long delay detected. This is normal for large batches or during high API load.', 'warning');
+            }
+            
+            // Reset stuck counter periodically to avoid false alarms
+            if (stuckCounter >= 60) { // 5 minutes
+              stuckCounter = 0;
+              addLogEntry('Resetting stuck counter. Continuing to monitor...', 'info');
+            }
+          }
+        } else {
+          stuckCounter = 0; // Reset if progress is made
+        }
+        lastProgress = status.progress;
+        
+        // Adaptive polling - slow down if job is taking long
+        if (status.elapsedMinutes > 20) {
+          await delay(5000); // Extra 5 second delay for long-running jobs
+        }
+        
+      } catch (statusError) {
+        consecutiveErrors++;
+        addLogEntry(`Status check error (${consecutiveErrors}/${maxConsecutiveErrors}): ${statusError.message}`, 'warning');
+        
+        // If job not found after several attempts, it may have been cleaned up
+        if (statusError.message.includes('not found')) {
+          if (consecutiveErrors >= 3) {
+            throw new Error('Job was not found. It may have been cleaned up due to inactivity or server restart.');
+          }
+        }
+        
+        // If too many consecutive errors, give up
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          throw new Error(`Too many consecutive status check failures: ${statusError.message}`);
+        }
+        
+        // Wait longer before next attempt after error
+        await delay(10000);
+        continue;
+      }
+    }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Job timed out after 50 minutes. This may indicate an issue with the processing.');
+    }
+    
+    // Step 3: Get the final results
+    addLogEntry('Retrieving final results...', 'info');
+    let finalResults;
+    
+    try {
+      finalResults = await getJobResults(jobId);
+    } catch (resultsError) {
+      // If we can't get final results but have partial results from status, use those
+      const lastStatus = await checkJobStatus(jobId).catch(() => null);
+      if (lastStatus && lastStatus.categorizedComments && lastStatus.categorizedComments.length > 0) {
+        addLogEntry('Using partial results from last status check', 'warning');
+        finalResults = {
+          categorizedComments: lastStatus.categorizedComments,
+          extractedTopics: lastStatus.extractedTopics || []
+        };
+      } else {
+        throw resultsError;
+      }
+    }
+    
+    addLogEntry(`Final results: ${finalResults.categorizedComments.length} comments categorized`, 'success');
+    
+    // Step 4: Generate summaries if we have enough results
+    if (finalResults.categorizedComments.length > 0) {
+      try {
+        addLogEntry('Generating summaries...', 'info');
+        const summaryResult = await summarizeComments(
+          finalResults.categorizedComments,
+          finalResults.extractedTopics,
+          apiKey
+        );
+        
+        // Convert to expected format
+        const processedResult = {
+          categories: (summaryResult.summaries || []).map(summary => {
+            const categoryComments = finalResults.categorizedComments
+              .filter(item => item.category === summary.category)
+              .map(item => item.id);
+            
+            return {
+              name: summary.category,
+              comments: categoryComments,
+              summary: summary.summary,
+              sentiment: summary.sentiment || 0,
+              commonIssues: summary.commonIssues,
+              suggestedActions: summary.suggestedActions
+            };
+          }),
+          topTopics: summaryResult.topTopics || [],
+          extractedTopics: finalResults.extractedTopics
+        };
+        
+        return processedResult;
+      } catch (summaryError) {
+        addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'warning');
+        
+        // Return just categorization results if summary fails
+        return generateCategoriesFromComments(finalResults.categorizedComments, comments);
+      }
+    } else {
+      throw new Error('No comments were successfully categorized');
+    }
+    
+  } catch (error) {
+    addLogEntry(`API processing error: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+/**
+ * Helper function to generate categories from categorized comments
+ */
+function generateCategoriesFromComments(categorizedComments, originalComments) {
+  const categoryMap = new Map();
+  
+  // Group comments by category
+  categorizedComments.forEach(item => {
+    if (!categoryMap.has(item.category)) {
+      categoryMap.set(item.category, []);
+    }
+    categoryMap.get(item.category).push(item.id);
+  });
+  
+  // Convert to expected format
+  const categories = Array.from(categoryMap.entries()).map(([categoryName, commentIds]) => {
+    const categoryComments = categorizedComments.filter(item => item.category === categoryName);
+    const avgSentiment = categoryComments.length > 0 
+      ? categoryComments.reduce((sum, item) => sum + (item.sentiment || 0), 0) / categoryComments.length 
+      : 0;
+    
+    return {
+      name: categoryName,
+      comments: commentIds,
+      summary: `Category containing ${commentIds.length} comments about ${categoryName.toLowerCase()}.`,
+      sentiment: avgSentiment
+    };
+  });
+  
+  return {
+    categories: categories,
+    extractedTopics: []
+  };
+}
+
+/**
+ * Enhanced checkJobStatus with retry logic
+ */
+export async function checkJobStatus(jobId, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const statusUrl = `${SERVER_URL}/api/categorize/${jobId}/status`;
+      
+      const response = await fetchWithTimeout(statusUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      }, 30000); // 30 second timeout
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Job not found or expired');
+        }
+        throw new Error(`Status check failed: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (attempt === retries - 1) {
+        throw error; // Last attempt, throw the error
+      }
+      
+      addLogEntry(`Status check attempt ${attempt + 1} failed, retrying...`, 'warning');
+      await delay(2000 * (attempt + 1)); // Progressive delay
+    }
+  }
+}
+
+/**
+ * Enhanced job cancellation
+ */
+export async function cancelJob(jobId) {
+  try {
+    const cancelUrl = `${SERVER_URL}/api/categorize/${jobId}/cancel`;
+    
+    const response = await fetchWithTimeout(cancelUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 15000);
+    
+    if (!response.ok) {
+      throw new Error(`Cancel request failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    addLogEntry('Job cancelled successfully', 'info');
+    
+    return result.partialResults || null;
+  } catch (error) {
+    addLogEntry(`Failed to cancel job: ${error.message}`, 'error');
+    throw error;
+  }
+}

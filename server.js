@@ -514,8 +514,6 @@ app.get('/api/categorize/:jobId/status', (req, res) => {
   });
 });
 
-// Enhanced server.js sections - ADD these improvements to your existing server.js
-
 // 1. Enhanced job status endpoint to return partial results
 app.get('/api/categorize/:jobId/results', (req, res) => {
   const jobId = req.params.jobId;
@@ -547,7 +545,350 @@ app.get('/api/categorize/:jobId/results', (req, res) => {
   });
 });
 
-// 2. Enhanced async processing function with better timeout handling
+// Add these improvements to your server.js file
+
+// 1. Enhanced status endpoint with better error handling
+app.get('/api/categorize/:jobId/status', (req, res) => {
+  const jobId = req.params.jobId;
+  const job = processingJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found',
+      details: 'The specified job ID does not exist or has expired.'
+    });
+  }
+  
+  // Calculate progress percentage
+  const progressPercentage = job.totalBatches > 0 
+    ? Math.round((job.batchesCompleted / job.totalBatches) * 100)
+    : 0;
+  
+  // Calculate elapsed time
+  const elapsedMs = new Date() - job.startTime;
+  const elapsedMinutes = Math.round(elapsedMs / 60000 * 10) / 10;
+  
+  // Include partial results for real-time display
+  const response = {
+    jobId: jobId,
+    status: job.status,
+    progress: progressPercentage,
+    batchesCompleted: job.batchesCompleted,
+    totalBatches: job.totalBatches,
+    processedComments: job.processedComments || 0,
+    totalComments: job.totalComments,
+    elapsedMinutes: elapsedMinutes,
+    error: job.error
+  };
+  
+  // Include partial results if they exist
+  if (job.categorizedComments && job.categorizedComments.length > 0) {
+    response.categorizedComments = job.categorizedComments;
+    response.extractedTopics = job.extractedTopics || [];
+  }
+  
+  res.json(response);
+});
+
+// 2. Improved job cleanup with configurable timeout
+function setupJobCleanup(jobId, timeoutHours = 4) {
+  setTimeout(() => {
+    const job = processingJobs.get(jobId);
+    if (job) {
+      console.log(`Cleaning up job ${jobId} after ${timeoutHours} hours. Status: ${job.status}, Processed: ${job.processedComments || 0}/${job.totalComments}`);
+      processingJobs.delete(jobId);
+    }
+  }, timeoutHours * 60 * 60 * 1000);
+}
+
+// 3. Enhanced error handling middleware specifically for timeout issues
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  
+  // Enhanced timeout handling
+  if (err.name === 'TimeoutError' || err.code === 'ECONNABORTED') {
+    return res.status(408).json({
+      error: 'Request Timeout',
+      details: 'The request took too long to process. The job may still be running in the background.',
+      suggestion: 'Check the job status endpoint for updates, or try with smaller batch sizes.'
+    });
+  }
+  
+  // Rate limiting errors
+  if (err.response && err.response.status === 429) {
+    const retryAfter = err.response.headers['retry-after'] || 60;
+    return res.status(429).json({
+      error: 'Rate Limited',
+      details: `API rate limit exceeded. Please wait ${retryAfter} seconds before retrying.`,
+      retryAfter: retryAfter
+    });
+  }
+  
+  // API key errors
+  if (err.response && err.response.status === 401) {
+    return res.status(401).json({
+      error: 'Authentication Error',
+      details: 'Invalid or missing API key. Please check your Claude API key.',
+      suggestion: 'Verify your API key is correct and has sufficient credits.'
+    });
+  }
+  
+  // Connection errors
+  if (err.code === 'ECONNRESET' || err.code === 'ENOTFOUND') {
+    return res.status(503).json({
+      error: 'Connection Error',
+      details: 'Unable to connect to the Claude API. Please try again later.',
+      suggestion: 'Check your internet connection and try again in a few minutes.'
+    });
+  }
+  
+  // Default error response
+  res.status(500).json({
+    error: 'Internal Server Error',
+    details: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message,
+    suggestion: 'Please try again or contact support if the issue persists.'
+  });
+});
+
+// 4. Add a job cancellation endpoint
+app.post('/api/categorize/:jobId/cancel', (req, res) => {
+  const jobId = req.params.jobId;
+  const job = processingJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found',
+      details: 'The specified job ID does not exist or has expired.'
+    });
+  }
+  
+  // Mark job as cancelled
+  job.status = 'cancelled';
+  job.error = 'Job cancelled by user';
+  
+  console.log(`Job ${jobId} cancelled by user. Processed ${job.processedComments || 0}/${job.totalComments} comments.`);
+  
+  // Return partial results if available
+  res.json({
+    message: 'Job cancelled successfully',
+    partialResults: {
+      categorizedComments: job.categorizedComments || [],
+      extractedTopics: job.extractedTopics || [],
+      processedComments: job.processedComments || 0,
+      totalComments: job.totalComments
+    }
+  });
+});
+
+// 5. Add a health check endpoint for monitoring
+app.get('/api/system/health', (req, res) => {
+  const activeJobs = Array.from(processingJobs.values());
+  const processingJobsCount = activeJobs.filter(job => job.status === 'processing').length;
+  const completedJobsCount = activeJobs.filter(job => job.status === 'completed').length;
+  const failedJobsCount = activeJobs.filter(job => job.status === 'failed').length;
+  
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor((Date.now() - serverStatus.startTime) / 1000),
+    jobs: {
+      total: processingJobs.size,
+      processing: processingJobsCount,
+      completed: completedJobsCount,
+      failed: failedJobsCount
+    },
+    memory: process.memoryUsage(),
+    cpu: process.cpuUsage()
+  });
+});
+
+// 6. Enhanced categorization endpoint with better validation
+app.post('/api/categorize', async (req, res) => {
+  try {
+    const { comments, apiKey } = req.body;
+    
+    // Enhanced validation
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 10) {
+      return res.status(400).json({ 
+        error: 'Invalid API key', 
+        details: 'A valid Claude API key must be provided. The key should be at least 10 characters long.',
+        suggestion: 'Get your API key from the Claude console at https://console.anthropic.com/'
+      });
+    }
+    
+    if (!comments || !Array.isArray(comments) || comments.length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid request', 
+        details: 'Comments must be a non-empty array',
+        received: typeof comments
+      });
+    }
+
+    // Warn for very large datasets
+    if (comments.length > 3000) {
+      console.warn(`Large dataset detected: ${comments.length} comments. This may take a very long time to process.`);
+    }
+
+    // Create a job ID and start processing asynchronously
+    const jobId = generateJobId();
+    
+    // Calculate more accurate estimates
+    const estimatedBatches = Math.ceil(comments.length / 30); // Updated for smaller batch size
+    const estimatedTimeMinutes = Math.ceil(estimatedBatches * 1.5); // More conservative estimate: 1.5 minutes per batch
+    
+    // Initialize job status with enhanced tracking
+    processingJobs.set(jobId, {
+      status: 'starting',
+      progress: 0,
+      totalComments: comments.length,
+      processedComments: 0,
+      categorizedComments: [],
+      extractedTopics: [],
+      error: null,
+      startTime: new Date(),
+      batchesCompleted: 0,
+      totalBatches: estimatedBatches,
+      lastActivity: new Date(),
+      retryCount: 0,
+      successfulBatches: 0,
+      failedBatches: 0
+    });
+    
+    // Start processing in the background
+    processCommentsAsync(jobId, comments, apiKey);
+    
+    // Set up cleanup
+    setupJobCleanup(jobId, 4); // 4 hours cleanup
+    
+    // Return job information
+    res.json({
+      jobId: jobId,
+      status: 'started',
+      message: 'Processing started successfully. Use the job ID to check status.',
+      totalComments: comments.length,
+      estimatedBatches: estimatedBatches,
+      estimatedTimeMinutes: estimatedTimeMinutes,
+      statusEndpoint: `/api/categorize/${jobId}/status`,
+      resultsEndpoint: `/api/categorize/${jobId}/results`,
+      cancelEndpoint: `/api/categorize/${jobId}/cancel`,
+      tips: [
+        'Processing happens in the background',
+        'Check status every 30-60 seconds',
+        'Partial results are available as processing continues',
+        'Large datasets may take 1-3 hours to complete'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('Error starting categorization job:', error);
+    res.status(500).json({
+      error: 'Failed to start categorization job',
+      details: error.message,
+      suggestion: 'Please try again with a smaller dataset or check your API key.'
+    });
+  }
+});
+
+// 7. Add batch size optimization based on success rate
+function optimizeBatchSize(job) {
+  const totalBatches = job.batchesCompleted;
+  const successRate = totalBatches > 0 ? (job.successfulBatches / totalBatches) : 1;
+  
+  // Start with 30, reduce if success rate is low
+  if (successRate < 0.3) {
+    return 15; // Very low success rate, use smaller batches
+  } else if (successRate < 0.6) {
+    return 20; // Moderate success rate
+  } else {
+    return 30; // Good success rate, use standard size
+  }
+}
+
+// 8. Add comprehensive logging for debugging
+function logJobProgress(jobId, batchIndex, status, details = {}) {
+  const timestamp = new Date().toISOString();
+  const job = processingJobs.get(jobId);
+  
+  if (job) {
+    job.lastActivity = new Date();
+    
+    console.log(`[${timestamp}] Job ${jobId} - Batch ${batchIndex + 1}/${job.totalBatches}: ${status}`);
+    
+    if (details.error) {
+      console.error(`[${timestamp}] Job ${jobId} - Error: ${details.error}`);
+    }
+    
+    if (details.successCount !== undefined) {
+      console.log(`[${timestamp}] Job ${jobId} - Successfully processed: ${details.successCount} comments`);
+    }
+    
+    if (details.retryAttempt) {
+      console.log(`[${timestamp}] Job ${jobId} - Retry attempt: ${details.retryAttempt}`);
+    }
+  }
+}
+
+// 9. Add automatic retry mechanism for failed jobs
+async function autoRetryFailedBatch(jobId, batchIndex, batchComments, apiKey, originalError) {
+  const job = processingJobs.get(jobId);
+  if (!job || job.status === 'cancelled') return null;
+  
+  console.log(`Auto-retry mechanism activated for job ${jobId}, batch ${batchIndex + 1}`);
+  
+  // Wait longer before retry
+  await delay(60000); // 1 minute delay
+  
+  try {
+    // Use a simpler, more robust prompt for retry
+    const language = detectLanguage(batchComments);
+    const simplifiedPrompt = language === 'ar' 
+      ? `صنف هذه التعليقات إلى فئات. أرجع JSON فقط:\n${batchComments.map((c, i) => `${i+1}. ${c}`).join('\n')}`
+      : `Categorize these comments. Return only JSON:\n${batchComments.map((c, i) => `${i+1}. ${c}`).join('\n')}`;
+    
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 2000, // Reduced for simplicity
+      system: "Return only JSON. No explanations.",
+      messages: [{ role: 'user', content: simplifiedPrompt }]
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      timeout: 60000 // Shorter timeout for retry
+    });
+    
+    const result = parseClaudeResponseRobust(response, batchIndex);
+    console.log(`Auto-retry successful for job ${jobId}, batch ${batchIndex + 1}`);
+    return result;
+    
+  } catch (retryError) {
+    console.error(`Auto-retry failed for job ${jobId}, batch ${batchIndex + 1}:`, retryError.message);
+    return null;
+  }
+}
+
+// 10. Add progress persistence (in case of server restart)
+function saveJobProgress(jobId) {
+  const job = processingJobs.get(jobId);
+  if (!job) return;
+  
+  try {
+    // In a production environment, you'd save this to a database
+    // For now, we'll just log it for recovery purposes
+    console.log(`Job ${jobId} progress checkpoint:`, {
+      batchesCompleted: job.batchesCompleted,
+      processedComments: job.processedComments,
+      status: job.status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Failed to save progress for job ${jobId}:`, error);
+  }
+}
+
+// Enhanced async processing function with much better error handling and recovery
 async function processCommentsAsync(jobId, comments, apiKey) {
   const job = processingJobs.get(jobId);
   if (!job) return;
@@ -558,7 +899,7 @@ async function processCommentsAsync(jobId, comments, apiKey) {
     job.status = 'processing';
     job.progress = 0;
     
-    const batchSize = 50;
+    const batchSize = 30; // Smaller batch size for better reliability
     const batches = [];
     
     for (let i = 0; i < comments.length; i += batchSize) {
@@ -571,32 +912,51 @@ async function processCommentsAsync(jobId, comments, apiKey) {
     let allCategorizedComments = [];
     let allExtractedTopics = new Set();
     let consecutiveFailures = 0;
-    const maxConsecutiveFailures = 3;
+    const maxConsecutiveFailures = 8; // Increased from 3 to 8
+    let totalFailures = 0;
+    const maxTotalFailureRate = 0.6; // Allow up to 60% failure rate
     
-    // Process each batch with enhanced error handling
+    // Enhanced retry configuration
+    const retryConfig = {
+      maxRetries: 3,
+      baseDelay: 45000, // 45 seconds base delay
+      backoffMultiplier: 1.5,
+      timeoutMs: 90000  // 90 second timeout per request
+    };
+    
+    // Process each batch with enhanced error handling and retry logic
     for (let i = 0; i < batches.length; i++) {
       const batchComments = batches[i];
       const batchStartIndex = i * batchSize;
       
       console.log(`Job ${jobId}: Processing batch ${i+1}/${batches.length}`);
       
-      try {
-        // **ENHANCED**: Adaptive delay based on previous failures
-        if (i > 0) {
-          const delayTime = consecutiveFailures > 0 ? 30000 : 15000; // Longer delay after failures
-          console.log(`Job ${jobId}: Waiting ${delayTime/1000} seconds between batches...`);
-          await delay(delayTime);
-        }
-        
-        // Detect language
-        const language = detectLanguage(batchComments);
-        
-        // Create prompt (same as before)
-        let promptContent;
-        if (language === 'ar') {
-          promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no Arabic text outside JSON values.
+      let batchSuccess = false;
+      let lastError = null;
+      
+      // Retry logic for each batch
+      for (let retryAttempt = 0; retryAttempt <= retryConfig.maxRetries; retryAttempt++) {
+        try {
+          // Progressive delay: longer delays after failures and for later retries
+          const baseDelay = i > 0 ? retryConfig.baseDelay : 5000; // First batch gets shorter delay
+          const failureMultiplier = Math.min(3, 1 + (consecutiveFailures * 0.5));
+          const retryMultiplier = Math.pow(retryConfig.backoffMultiplier, retryAttempt);
+          const delayTime = baseDelay * failureMultiplier * retryMultiplier;
+          
+          if (i > 0 || retryAttempt > 0) {
+            console.log(`Job ${jobId}: Waiting ${Math.round(delayTime/1000)} seconds before ${retryAttempt > 0 ? 'retry' : 'next batch'}...`);
+            await delay(delayTime);
+          }
+          
+          // Detect language
+          const language = detectLanguage(batchComments);
+          
+          // Create more robust prompt with explicit formatting instructions
+          let promptContent;
+          if (language === 'ar') {
+            promptContent = `أرجع فقط JSON صالح. لا تكتب أي نص آخر.
 
-Categorize each comment into exactly one category from this list:
+صنف كل تعليق إلى فئة واحدة من هذه القائمة:
 - مشكلات تقنية: تحديث التطبيق
 - مشكلات تقنية: تجميد/بطء التطبيق  
 - مشكلات تقنية: مشكلات التطبيق
@@ -612,25 +972,15 @@ Categorize each comment into exactly one category from this list:
 - مالية: التسعير
 - مالية: طلب استرداد
 
-Comments to categorize:
+التعليقات:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-Return ONLY this JSON structure (no other text):
-{
-  "categorizedComments": [
-    {
-      "id": 1,
-      "comment": "comment text here",
-      "category": "exact category name from list above",
-      "topics": ["topic1", "topic2"]
-    }
-  ],
-  "extractedTopics": []
-}`;
-        } else {
-          promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no conversational text.
+أرجع هذا JSON فقط:
+{"categorizedComments":[{"id":1,"comment":"النص","category":"اسم الفئة","topics":["موضوع"]}],"extractedTopics":[]}`;
+          } else {
+            promptContent = `Return only valid JSON. No other text.
 
-Categorize each comment into exactly one category from this list:
+Categorize each comment into one category from this list:
 - Technical issues: App update
 - Technical issues: App Freeze/Slow
 - Technical issues: App issues
@@ -646,143 +996,149 @@ Categorize each comment into exactly one category from this list:
 - Monetary: Pricing
 - Monetary: Refund Request
 
-Comments to categorize:
+Comments:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
 
-Return ONLY this JSON structure (no other text):
-{
-  "categorizedComments": [
-    {
-      "id": 1,
-      "comment": "comment text here", 
-      "category": "exact category name from list above",
-      "topics": ["topic1", "topic2"]
-    }
-  ],
-  "extractedTopics": []
-}`;
-        }
-        
-        // **ENHANCED**: Adaptive timeout based on batch size and previous failures
-        const timeoutMs = Math.min(120000, 45000 + (batchComments.length * 1000) + (consecutiveFailures * 15000));
-        
-        console.log(`Job ${jobId}: Sending request to Claude API for batch ${i+1}...`);
-        
-        const response = await axios.post('https://api.anthropic.com/v1/messages', {
-          model: 'claude-3-5-haiku-latest',
-          max_tokens: 4000,
-          system: "You are a JSON-only categorization tool. Return only valid JSON with no explanations or conversational text. Do not start responses with explanatory text in any language.",
-          messages: [
-            {
-              role: 'user',
-              content: promptContent
-            }
-          ]
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          timeout: timeoutMs,
-          validateStatus: function (status) {
-            return status < 500;
+Return only this JSON:
+{"categorizedComments":[{"id":1,"comment":"text","category":"category name","topics":["topic"]}],"extractedTopics":[]}`;
           }
-        });
-        
-        // Handle rate limiting with exponential backoff
-        if (response.status === 429) {
-          const retryAfter = response.headers['retry-after'] || 60;
-          console.log(`Job ${jobId}: Rate limited on batch ${i+1}, waiting ${retryAfter} seconds...`);
-          await delay(retryAfter * 1000);
-          i--; // Retry this batch
-          consecutiveFailures++;
-          continue;
-        }
-        
-        if (response.status >= 400) {
-          throw new Error(`API returned status ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
-        }
-        
-        // Parse response
-        const batchResult = parseClaudeResponseImproved(response, i);
-        const validResults = batchResult.categorizedComments?.length || 0;
-        
-        console.log(`Job ${jobId}: Batch ${i+1} processed successfully, got ${validResults} categorized comments`);
-        
-        // **ENHANCED**: Early termination only if first few batches fail completely
-        if (i < 3 && validResults === 0) {
-          consecutiveFailures++;
-          if (consecutiveFailures >= maxConsecutiveFailures) {
-            console.error(`Job ${jobId}: ${consecutiveFailures} consecutive batch failures - stopping processing`);
-            job.status = 'failed';
-            job.error = `Failed after ${consecutiveFailures} consecutive batch failures`;
-            return;
-          }
-        } else {
-          consecutiveFailures = 0; // Reset failure counter on success
-        }
-        
-        // Add results
-        if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
-          allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
-          job.processedComments = allCategorizedComments.length;
           
-          // **ENHANCED**: Update job with partial results for real-time display
-          job.categorizedComments = allCategorizedComments;
-        }
-        
-        if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
-          batchResult.extractedTopics.forEach(topicInfo => {
-            allExtractedTopics.add(JSON.stringify(topicInfo));
+          console.log(`Job ${jobId}: Sending request to Claude API for batch ${i+1}${retryAttempt > 0 ? ` (retry ${retryAttempt})` : ''}...`);
+          
+          const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-3-5-haiku-latest',
+            max_tokens: 4000,
+            system: "Return only valid JSON. No explanations. No conversational text. Just JSON.",
+            messages: [
+              {
+                role: 'user',
+                content: promptContent
+              }
+            ]
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01'
+            },
+            timeout: retryConfig.timeoutMs,
+            validateStatus: function (status) {
+              return status < 500; // Don't throw on 4xx errors
+            }
           });
           
-          // **ENHANCED**: Update job with partial topics
-          const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
-            try { return JSON.parse(topicStr); } catch (e) { return null; }
-          }).filter(Boolean);
-          job.extractedTopics = mergedTopics;
+          // Handle specific HTTP status codes
+          if (response.status === 429) {
+            const retryAfter = parseInt(response.headers['retry-after']) || 60;
+            console.log(`Job ${jobId}: Rate limited on batch ${i+1}, waiting ${retryAfter} seconds...`);
+            await delay(retryAfter * 1000 + 10000); // Add 10 extra seconds buffer
+            throw new Error(`Rate limited, retry after ${retryAfter} seconds`);
+          }
+          
+          if (response.status === 401) {
+            throw new Error('Invalid API key. Please check your Claude API key.');
+          }
+          
+          if (response.status >= 400) {
+            throw new Error(`API returned status ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
+          }
+          
+          // Parse response with enhanced error handling
+          const batchResult = parseClaudeResponseRobust(response, i);
+          const validResults = batchResult.categorizedComments?.length || 0;
+          
+          console.log(`Job ${jobId}: Batch ${i+1}${retryAttempt > 0 ? ` (retry ${retryAttempt})` : ''} processed successfully, got ${validResults} categorized comments`);
+          
+          // Accept partial results (at least 30% success rate per batch)
+          const expectedResults = batchComments.length;
+          const batchSuccessRate = validResults / expectedResults;
+          
+          if (batchSuccessRate >= 0.3) { // Accept if at least 30% of comments were processed
+            batchSuccess = true;
+            consecutiveFailures = 0; // Reset consecutive failure counter
+            
+            // Add results
+            if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
+              allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
+              job.processedComments = allCategorizedComments.length;
+              job.categorizedComments = allCategorizedComments; // Real-time update
+            }
+            
+            if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
+              batchResult.extractedTopics.forEach(topicInfo => {
+                allExtractedTopics.add(JSON.stringify(topicInfo));
+              });
+              
+              const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
+                try { return JSON.parse(topicStr); } catch (e) { return null; }
+              }).filter(Boolean);
+              job.extractedTopics = mergedTopics; // Real-time update
+            }
+            
+            break; // Success, exit retry loop
+          } else {
+            throw new Error(`Low success rate: only ${Math.round(batchSuccessRate * 100)}% of comments processed in batch`);
+          }
+          
+        } catch (batchError) {
+          lastError = batchError;
+          console.error(`Job ${jobId}: Error in batch ${i+1}${retryAttempt > 0 ? ` retry ${retryAttempt}` : ''}: ${batchError.message}`);
+          
+          // Don't retry on authentication errors
+          if (batchError.message.includes('Invalid API key')) {
+            console.error(`Job ${jobId}: Authentication error, stopping all processing`);
+            job.status = 'failed';
+            job.error = batchError.message;
+            return;
+          }
+          
+          // For the last retry attempt, we'll accept the failure
+          if (retryAttempt === retryConfig.maxRetries) {
+            console.error(`Job ${jobId}: Batch ${i+1} failed after ${retryConfig.maxRetries + 1} attempts`);
+            break;
+          }
         }
-        
-        // Update progress
-        job.batchesCompleted = i + 1;
-        job.progress = Math.round((job.batchesCompleted / job.totalBatches) * 100);
-        
-        console.log(`Job ${jobId}: Progress: ${job.progress}% (${job.batchesCompleted}/${job.totalBatches} batches)`);
-        
-      } catch (batchError) {
-        console.error(`Job ${jobId}: Error processing batch ${i+1}:`, batchError.message);
+      }
+      
+      // Update counters based on batch result
+      if (!batchSuccess) {
         consecutiveFailures++;
-        
-        // **ENHANCED**: More flexible error handling
-        if (i === 0 && consecutiveFailures >= maxConsecutiveFailures) {
-          console.error(`Job ${jobId}: First batches failed - stopping all processing`);
-          job.status = 'failed';
-          job.error = `First ${consecutiveFailures} batches failed: ${batchError.message}`;
-          return;
-        }
-        
-        // For timeout errors, add adaptive delay
-        if (batchError.message.includes('timeout') || batchError.code === 'ECONNABORTED') {
-          const timeoutDelay = Math.min(60000, 30000 + (consecutiveFailures * 10000));
-          console.log(`Job ${jobId}: Timeout on batch ${i+1}, waiting ${timeoutDelay/1000} seconds before continuing...`);
-          await delay(timeoutDelay);
-        }
-        
-        // **ENHANCED**: Continue processing if we have some successful results
-        if (allCategorizedComments.length > 0) {
-          console.log(`Job ${jobId}: Continuing with remaining batches despite error in batch ${i+1}`);
-          continue;
-        } else if (consecutiveFailures >= maxConsecutiveFailures) {
-          console.error(`Job ${jobId}: Too many consecutive failures, stopping processing`);
-          job.status = 'failed';
-          job.error = `Failed after ${consecutiveFailures} consecutive batch failures`;
-          return;
-        }
+        totalFailures++;
+        console.error(`Job ${jobId}: Batch ${i+1} failed completely after all retries. Error: ${lastError?.message || 'Unknown error'}`);
+      }
+      
+      // Update progress
+      job.batchesCompleted = i + 1;
+      job.progress = Math.round((job.batchesCompleted / job.totalBatches) * 100);
+      
+      console.log(`Job ${jobId}: Progress: ${job.progress}% (${job.batchesCompleted}/${job.totalBatches} batches), ${allCategorizedComments.length} comments processed`);
+      
+      // More flexible stopping conditions
+      const currentFailureRate = totalFailures / (i + 1);
+      
+      // Only stop if we have excessive consecutive failures AND we're early in the process
+      if (consecutiveFailures >= maxConsecutiveFailures && i < 5) {
+        console.error(`Job ${jobId}: ${consecutiveFailures} consecutive failures in early batches - stopping processing`);
+        job.status = 'failed';
+        job.error = `Too many consecutive failures (${consecutiveFailures}) in early processing`;
+        return;
+      }
+      
+      // Stop if overall failure rate is too high and we have processed enough batches to be confident
+      if (currentFailureRate > maxTotalFailureRate && i >= 10 && allCategorizedComments.length < comments.length * 0.2) {
+        console.error(`Job ${jobId}: High failure rate (${Math.round(currentFailureRate * 100)}%) with low success - stopping processing`);
+        job.status = 'failed';
+        job.error = `High failure rate: ${Math.round(currentFailureRate * 100)}% of batches failed`;
+        return;
+      }
+      
+      // Reset consecutive failures if we've had some successes in between
+      if (consecutiveFailures > 0 && batchSuccess && i > 0) {
+        console.log(`Job ${jobId}: Had ${consecutiveFailures} consecutive failures but batch ${i+1} succeeded, continuing...`);
       }
     }
     
-    // **ENHANCED**: Complete processing even with partial results
+    // Finalize processing
     const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
       try {
         return JSON.parse(topicStr);
@@ -802,22 +1158,212 @@ Return ONLY this JSON structure (no other text):
     const successRate = Math.round((allCategorizedComments.length / comments.length) * 100);
     console.log(`Job ${jobId}: Processing complete. Processed ${allCategorizedComments.length} comments out of ${comments.length} (${successRate}%)`);
     
-    // Clean up job after 2 hours (increased from 1 hour)
+    // Extended cleanup time - 4 hours instead of 2
     setTimeout(() => {
       processingJobs.delete(jobId);
-      console.log(`Job ${jobId}: Cleaned up after 2 hours`);
-    }, 7200000);
+      console.log(`Job ${jobId}: Cleaned up after 4 hours`);
+    }, 14400000);
     
   } catch (error) {
     console.error(`Job ${jobId}: Fatal error:`, error);
     job.status = 'failed';
     job.error = error.message;
     
-    // **ENHANCED**: Even if job fails, preserve any partial results
+    // Preserve any partial results
     if (job.categorizedComments && job.categorizedComments.length > 0) {
       console.log(`Job ${jobId}: Failed but preserving ${job.categorizedComments.length} partial results`);
     }
   }
+}
+
+// Enhanced response parser with better JSON reconstruction
+function parseClaudeResponseRobust(response, batchIndex = 0) {
+  try {
+    const responseContent = response.data.content[0].text;
+    
+    console.log(`Raw Claude response for batch ${batchIndex + 1} (first 200 chars):`, responseContent.substring(0, 200));
+    
+    // Multiple extraction strategies with fallbacks
+    const extractionStrategies = [
+      // Strategy 1: Direct JSON extraction
+      () => {
+        const jsonMatch = responseContent.match(/\{[\s\S]*"categorizedComments"[\s\S]*?\}/);
+        return jsonMatch ? jsonMatch[0] : null;
+      },
+      
+      // Strategy 2: Code block extraction
+      () => {
+        const codeBlockMatch = responseContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        return codeBlockMatch ? codeBlockMatch[1] : null;
+      },
+      
+      // Strategy 3: First complete JSON object
+      () => {
+        const firstBrace = responseContent.indexOf('{');
+        if (firstBrace === -1) return null;
+        
+        let braceCount = 0;
+        let endIndex = firstBrace;
+        
+        for (let i = firstBrace; i < responseContent.length; i++) {
+          if (responseContent[i] === '{') braceCount++;
+          if (responseContent[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            endIndex = i;
+            break;
+          }
+        }
+        
+        return responseContent.substring(firstBrace, endIndex + 1);
+      },
+      
+      // Strategy 4: Pattern matching reconstruction
+      () => {
+        return reconstructFromPatterns(responseContent, batchIndex);
+      }
+    ];
+    
+    for (let strategyIndex = 0; strategyIndex < extractionStrategies.length; strategyIndex++) {
+      try {
+        const extracted = extractionStrategies[strategyIndex]();
+        if (!extracted) continue;
+        
+        // Clean and parse the extracted JSON
+        const cleaned = cleanJsonRobust(extracted);
+        const parsed = JSON.parse(cleaned);
+        
+        if (parsed.categorizedComments && Array.isArray(parsed.categorizedComments) && parsed.categorizedComments.length > 0) {
+          console.log(`Batch ${batchIndex + 1}: Successfully parsed using strategy ${strategyIndex + 1}`);
+          return parsed;
+        }
+      } catch (e) {
+        console.log(`Batch ${batchIndex + 1}: Strategy ${strategyIndex + 1} failed: ${e.message}`);
+        continue;
+      }
+    }
+    
+    console.log(`Batch ${batchIndex + 1}: All parsing strategies failed`);
+    return { categorizedComments: [], extractedTopics: [] };
+    
+  } catch (error) {
+    console.error(`Batch ${batchIndex + 1}: Error in parseClaudeResponseRobust:`, error);
+    return { categorizedComments: [], extractedTopics: [] };
+  }
+}
+
+// Robust JSON cleaning function
+function cleanJsonRobust(jsonString) {
+  try {
+    let cleaned = jsonString;
+    
+    // Fix common Arabic category formatting issues
+    const categoryFixes = [
+      [/"مالية":\s*التسعير/g, '"مالية: التسعير"'],
+      [/"مشكلات\s*تقنية":\s*([^",}]+)/g, '"مشكلات تقنية: $1"'],
+      [/"ملاحظات\s*العملاء":\s*([^",}]+)/g, '"ملاحظات العملاء: $1"'],
+      [/"category":\s*"([^"]*)"([^"]*)":\s*([^",}]+)/g, '"category": "$1$2: $3"'],
+      [/"category":\s*([^",{}]+)([,}])/g, '"category": "$1"$2'],
+      // Fix incomplete categories
+      [/"category":\s*"([^"]*)"([^"]*)"$/gm, '"category": "$1$2"']
+    ];
+    
+    for (const [pattern, replacement] of categoryFixes) {
+      cleaned = cleaned.replace(pattern, replacement);
+    }
+    
+    // General structural fixes
+    cleaned = cleaned
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, ' ')
+      .replace(/\t/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']')
+      .replace(/"{2,}/g, '"')
+      .replace(/:\s*,/g, ': "",')
+      .replace(/\[\s*,/g, '[')
+      .replace(/,\s*,/g, ',')
+      .replace(/}\s*{/g, '},{'); // Fix missing commas between objects
+    
+    // Fix unbalanced braces and brackets
+    const openBraces = (cleaned.match(/{/g) || []).length;
+    const closeBraces = (cleaned.match(/}/g) || []).length;
+    if (openBraces > closeBraces) {
+      cleaned += '}'.repeat(openBraces - closeBraces);
+    }
+    
+    const openBrackets = (cleaned.match(/\[/g) || []).length;
+    const closeBrackets = (cleaned.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) {
+      cleaned += ']'.repeat(openBrackets - closeBrackets);
+    }
+    
+    return cleaned;
+    
+  } catch (error) {
+    console.error('JSON cleaning error:', error.message);
+    return '{"categorizedComments": [], "extractedTopics": []}';
+  }
+}
+
+// Pattern-based reconstruction as last resort
+function reconstructFromPatterns(responseContent, batchIndex) {
+  console.log(`Batch ${batchIndex + 1}: Attempting pattern-based reconstruction...`);
+  
+  const patterns = [
+    // Enhanced patterns for various malformed structures
+    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"[^}]*?"topics":\s*\[([^\]]*)\]/g,
+    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*([^,}]+)[^}]*?"topics":\s*\[([^\]]*)\]/g,
+    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"/g,
+    /(\d+)\.\s*([^"]*?)(?="category"|$)[^}]*?"category":\s*"?([^",}]+)"?/g
+  ];
+  
+  let bestResults = [];
+  
+  for (const pattern of patterns) {
+    const results = [];
+    let match;
+    pattern.lastIndex = 0;
+    
+    while ((match = pattern.exec(responseContent)) !== null) {
+      try {
+        const [, id, comment, category, topicsStr] = match;
+        
+        let topics = [];
+        if (topicsStr && topicsStr.trim()) {
+          topics = topicsStr.split(',')
+            .map(topic => topic.trim().replace(/^["']|["']$/g, ''))
+            .filter(topic => topic.length > 0);
+        }
+        
+        const cleanCategory = category.replace(/^["']|["']$/g, '').trim();
+        
+        if (id && comment && cleanCategory) {
+          results.push({
+            id: parseInt(id),
+            comment: comment.trim(),
+            category: cleanCategory,
+            topics: topics
+          });
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    if (results.length > bestResults.length) {
+      bestResults = results;
+    }
+  }
+  
+  console.log(`Batch ${batchIndex + 1}: Pattern reconstruction found ${bestResults.length} comments`);
+  
+  return JSON.stringify({
+    categorizedComments: bestResults,
+    extractedTopics: []
+  });
 }
 
 // 3. Enhanced response parser with better timeout handling
@@ -951,66 +1497,6 @@ function parseClaudeResponseImproved(response, batchIndex = 0) {
     }
     return { categorizedComments: [], extractedTopics: [] };
   }
-}
-
-// 4. Enhanced JSON reconstruction function
-function reconstructJsonFromPatterns(jsonString) {
-  console.log('Attempting JSON reconstruction from patterns...');
-  
-  // More comprehensive regex patterns
-  const patterns = [
-    // Pattern 1: Standard format
-    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"[^}]*?"topics":\s*\[([^\]]*)\]/g,
-    
-    // Pattern 2: Malformed category
-    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*([^,}]+)[^}]*?"topics":\s*\[([^\]]*)\]/g,
-    
-    // Pattern 3: Missing topics
-    /"id":\s*(\d+)[^}]*?"comment":\s*"([^"]+)"[^}]*?"category":\s*"([^"]+)"/g
-  ];
-  
-  let bestResults = [];
-  
-  for (const pattern of patterns) {
-    const results = [];
-    let match;
-    
-    while ((match = pattern.exec(jsonString)) !== null) {
-      try {
-        const [, id, comment, category, topicsStr] = match;
-        
-        let topics = [];
-        if (topicsStr && topicsStr.trim()) {
-          topics = topicsStr.split(',')
-            .map(topic => topic.trim().replace(/^["']|["']$/g, ''))
-            .filter(topic => topic.length > 0);
-        }
-        
-        // Clean category name
-        const cleanCategory = category.replace(/^["']|["']$/g, '').trim();
-        
-        results.push({
-          id: parseInt(id),
-          comment: comment,
-          category: cleanCategory,
-          topics: topics
-        });
-      } catch (e) {
-        console.log('Failed to parse individual match, skipping...');
-      }
-    }
-    
-    if (results.length > bestResults.length) {
-      bestResults = results;
-    }
-  }
-  
-  console.log(`Reconstructed JSON with ${bestResults.length} comments`);
-  
-  return JSON.stringify({
-    categorizedComments: bestResults,
-    extractedTopics: []
-  });
 }
 
 // 3. ADD this improved pattern reconstruction function
