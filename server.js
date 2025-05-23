@@ -406,11 +406,22 @@ Return ONLY this JSON structure (no other text):
 
 // NEW ENDPOINT: Step 1 - Categorize comments
 // NEW ENDPOINT: Step 1 - Categorize comments - FIXED VERSION
+// Add to your server.js - Replace the existing /api/categorize endpoint
+
+// In-memory storage for processing jobs (in production, use Redis or a database)
+const processingJobs = new Map();
+
+// Helper function to generate unique job IDs
+function generateJobId() {
+  return 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// NEW APPROACH: Start async processing and return immediately
 app.post('/api/categorize', async (req, res) => {
   try {
     const { comments, apiKey } = req.body;
     
-    // Validate API key
+    // Validate inputs
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
       return res.status(400).json({ 
         error: 'Invalid API key', 
@@ -425,40 +436,163 @@ app.post('/api/categorize', async (req, res) => {
       });
     }
 
-    console.log(`Processing ${comments.length} comments for categorization...`);
+    // Create a job ID and start processing asynchronously
+    const jobId = generateJobId();
     
-    // Use smaller batches and longer delays
-    const batchSize = 50; // Reduced from 100
+    // Initialize job status
+    processingJobs.set(jobId, {
+      status: 'starting',
+      progress: 0,
+      totalComments: comments.length,
+      processedComments: 0,
+      categorizedComments: [],
+      extractedTopics: [],
+      error: null,
+      startTime: new Date(),
+      batchesCompleted: 0,
+      totalBatches: Math.ceil(comments.length / 50)
+    });
+    
+    // Start processing in the background (don't await)
+    processCommentsAsync(jobId, comments, apiKey);
+    
+    // Return immediately with job ID
+    res.json({
+      jobId: jobId,
+      status: 'started',
+      message: 'Processing started. Use the job ID to check status.',
+      totalComments: comments.length,
+      estimatedBatches: Math.ceil(comments.length / 50),
+      estimatedTimeMinutes: Math.ceil(comments.length / 50) * 0.5 // Rough estimate
+    });
+    
+  } catch (error) {
+    console.error('Error starting categorization job:', error);
+    res.status(500).json({
+      error: 'Failed to start categorization job',
+      details: error.message
+    });
+  }
+});
+
+// Status endpoint to check job progress
+app.get('/api/categorize/:jobId/status', (req, res) => {
+  const jobId = req.params.jobId;
+  const job = processingJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found',
+      details: 'The specified job ID does not exist or has expired.'
+    });
+  }
+  
+  // Calculate progress percentage
+  const progressPercentage = job.totalBatches > 0 
+    ? Math.round((job.batchesCompleted / job.totalBatches) * 100)
+    : 0;
+  
+  // Calculate elapsed time
+  const elapsedMs = new Date() - job.startTime;
+  const elapsedMinutes = Math.round(elapsedMs / 60000 * 10) / 10;
+  
+  res.json({
+    jobId: jobId,
+    status: job.status,
+    progress: progressPercentage,
+    batchesCompleted: job.batchesCompleted,
+    totalBatches: job.totalBatches,
+    processedComments: job.processedComments,
+    totalComments: job.totalComments,
+    elapsedMinutes: elapsedMinutes,
+    error: job.error,
+    // Include results if completed
+    ...(job.status === 'completed' && {
+      categorizedComments: job.categorizedComments,
+      extractedTopics: job.extractedTopics
+    })
+  });
+});
+
+// Results endpoint to get final results
+app.get('/api/categorize/:jobId/results', (req, res) => {
+  const jobId = req.params.jobId;
+  const job = processingJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found',
+      details: 'The specified job ID does not exist or has expired.'
+    });
+  }
+  
+  if (job.status !== 'completed') {
+    return res.status(425).json({
+      error: 'Job not completed',
+      status: job.status,
+      progress: Math.round((job.batchesCompleted / job.totalBatches) * 100),
+      details: 'Job is still processing. Check status endpoint for progress.'
+    });
+  }
+  
+  res.json({
+    categorizedComments: job.categorizedComments,
+    extractedTopics: job.extractedTopics,
+    processingStats: {
+      totalComments: job.totalComments,
+      processedComments: job.processedComments,
+      successRate: Math.round((job.processedComments / job.totalComments) * 100),
+      batchesCompleted: job.batchesCompleted,
+      totalBatches: job.totalBatches,
+      processingTime: Math.round((new Date() - job.startTime) / 60000 * 10) / 10
+    }
+  });
+});
+
+// Async processing function
+async function processCommentsAsync(jobId, comments, apiKey) {
+  const job = processingJobs.get(jobId);
+  if (!job) return;
+  
+  try {
+    console.log(`Starting async processing for job ${jobId} with ${comments.length} comments`);
+    
+    // Update status
+    job.status = 'processing';
+    job.progress = 0;
+    
+    const batchSize = 50;
     const batches = [];
     
     for (let i = 0; i < comments.length; i += batchSize) {
       batches.push(comments.slice(i, i + batchSize));
     }
     
+    job.totalBatches = batches.length;
     console.log(`Split into ${batches.length} batches of ${batchSize} comments each`);
     
     let allCategorizedComments = [];
     let allExtractedTopics = new Set();
     
+    // Process each batch
     for (let i = 0; i < batches.length; i++) {
       const batchComments = batches[i];
       const batchStartIndex = i * batchSize;
       
-      console.log(`Processing batch ${i+1}/${batches.length}`);
+      console.log(`Job ${jobId}: Processing batch ${i+1}/${batches.length}`);
       
       try {
-        // Longer delay between batches
+        // Delay between batches (except first)
         if (i > 0) {
-          console.log('Waiting 20 seconds between batches to avoid rate limits...');
+          console.log(`Job ${jobId}: Waiting 20 seconds between batches...`);
           await delay(20000);
         }
         
         // Detect language
         const language = detectLanguage(batchComments);
         
-        // Create a more explicit prompt that demands JSON-only response
+        // Create prompt
         let promptContent;
-        
         if (language === 'ar') {
           promptContent = `CRITICAL: Return ONLY valid JSON. No explanations, no Arabic text outside JSON values.
 
@@ -529,7 +663,8 @@ Return ONLY this JSON structure (no other text):
 }`;
         }
         
-        console.log(`Sending categorization request to Claude API for batch ${i+1}...`);
+        // Call Claude API
+        console.log(`Job ${jobId}: Sending request to Claude API for batch ${i+1}...`);
         
         const response = await axios.post('https://api.anthropic.com/v1/messages', {
           model: 'claude-3-5-haiku-latest',
@@ -547,16 +682,27 @@ Return ONLY this JSON structure (no other text):
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01'
           },
-          timeout: 45000 // Reduced timeout
+          timeout: 45000
         });
         
-        // Process the response with improved parser
+        // Parse response
         const batchResult = parseClaudeResponseImproved(response, i);
-        console.log(`Batch ${i+1} processed successfully, got ${batchResult.categorizedComments?.length || 0} categorized comments`);
+        const validResults = batchResult.categorizedComments?.length || 0;
         
-        // Add to accumulated results
+        console.log(`Job ${jobId}: Batch ${i+1} processed successfully, got ${validResults} categorized comments`);
+        
+        // EARLY TERMINATION: If first batch fails completely, stop processing
+        if (i === 0 && validResults === 0) {
+          console.error(`Job ${jobId}: FIRST BATCH PARSE FAILURE - stopping all processing`);
+          job.status = 'failed';
+          job.error = 'First batch parsing failed completely. This indicates a systematic parsing issue.';
+          return;
+        }
+        
+        // Add results
         if (batchResult.categorizedComments && Array.isArray(batchResult.categorizedComments)) {
           allCategorizedComments = [...allCategorizedComments, ...batchResult.categorizedComments];
+          job.processedComments = allCategorizedComments.length;
         }
         
         if (batchResult.extractedTopics && Array.isArray(batchResult.extractedTopics)) {
@@ -565,20 +711,30 @@ Return ONLY this JSON structure (no other text):
           });
         }
         
-      } catch (error) {
-        console.error(`Error processing batch ${i+1}:`, error.message);
+        // Update progress
+        job.batchesCompleted = i + 1;
+        job.progress = Math.round((job.batchesCompleted / job.totalBatches) * 100);
         
-        // For timeout errors, try to continue with a longer delay
-        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-          console.log('Timeout detected, waiting longer before continuing...');
-          await delay(30000); // Wait 30 seconds after timeout
+        console.log(`Job ${jobId}: Progress: ${job.progress}% (${job.batchesCompleted}/${job.totalBatches} batches)`);
+        
+      } catch (batchError) {
+        console.error(`Job ${jobId}: Error processing batch ${i+1}:`, batchError.message);
+        
+        // If first batch fails, stop everything
+        if (i === 0) {
+          console.error(`Job ${jobId}: First batch failed - stopping all processing`);
+          job.status = 'failed';
+          job.error = `First batch failed: ${batchError.message}`;
+          return;
         }
         
-        continue; // Continue with next batch
+        // For subsequent batches, continue processing
+        console.log(`Job ${jobId}: Continuing with remaining batches despite error in batch ${i+1}`);
+        continue;
       }
     }
     
-    // Merge extracted topics
+    // Process completed successfully
     const mergedTopics = Array.from(allExtractedTopics).map(topicStr => {
       try {
         return JSON.parse(topicStr);
@@ -589,25 +745,27 @@ Return ONLY this JSON structure (no other text):
     
     mergedTopics.sort((a, b) => (b.count || 0) - (a.count || 0));
     
-    const finalResult = {
-      categorizedComments: allCategorizedComments,
-      extractedTopics: mergedTopics
-    };
+    // Update final results
+    job.categorizedComments = allCategorizedComments;
+    job.extractedTopics = mergedTopics;
+    job.status = 'completed';
+    job.progress = 100;
     
-    console.log(`Categorization complete. Processed ${allCategorizedComments.length} comments out of ${comments.length} (${Math.round(allCategorizedComments.length/comments.length*100)}%)`);
+    const successRate = Math.round((allCategorizedComments.length / comments.length) * 100);
+    console.log(`Job ${jobId}: Categorization complete. Processed ${allCategorizedComments.length} comments out of ${comments.length} (${successRate}%)`);
     
-    // Return success even if we only got partial results
-    res.json(finalResult);
+    // Clean up job after 1 hour
+    setTimeout(() => {
+      processingJobs.delete(jobId);
+      console.log(`Job ${jobId}: Cleaned up after 1 hour`);
+    }, 3600000);
     
   } catch (error) {
-    console.error('Error in /api/categorize endpoint:', error);
-    
-    res.status(500).json({
-      error: 'Failed to categorize with Claude API',
-      details: error.response?.data?.error || error.message
-    });
+    console.error(`Job ${jobId}: Fatal error:`, error);
+    job.status = 'failed';
+    job.error = error.message;
   }
-});
+}
 
 // Improved response parser
 // Replace your parseClaudeResponseImproved function with this enhanced version:

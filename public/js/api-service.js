@@ -208,7 +208,15 @@ export async function checkServerAvailability() {
  * @param {string} apiKey - Claude API key
  * @returns {Promise<Object>} Promise resolving to categorization results
  */
-export async function categorizeComments(comments, apiKey) {
+// Add this to your api-service.js - Replace the existing categorizeComments function
+
+/**
+ * Start async categorization job
+ * @param {Array<string>} comments - List of comments to categorize
+ * @param {string} apiKey - Claude API key
+ * @returns {Promise<Object>} Promise resolving to job details
+ */
+export async function startCategorizationJob(comments, apiKey) {
   if (!comments || !comments.length) {
     throw new Error('No comments provided');
   }
@@ -217,17 +225,11 @@ export async function categorizeComments(comments, apiKey) {
     throw new Error('API key is required');
   }
   
-  addLogEntry(`Categorizing ${comments.length} comments...`, 'info');
+  addLogEntry(`Starting categorization job for ${comments.length} comments...`, 'info');
   
   try {
-    // Check if server is available first
-    const isServerAvailable = await checkServerAvailability();
-    if (!isServerAvailable) {
-      throw new Error('Server is currently unavailable. Please try again later or use simulation mode.');
-    }
-    
     const categorizeUrl = `${SERVER_URL}${API_ENDPOINTS.CATEGORIZE}`;
-    addLogEntry(`Sending request to: ${categorizeUrl}`, 'info');
+    addLogEntry(`Sending job start request to: ${categorizeUrl}`, 'info');
     
     const response = await fetchWithRetry(categorizeUrl, {
       method: 'POST',
@@ -239,11 +241,10 @@ export async function categorizeComments(comments, apiKey) {
         comments: comments,
         apiKey: apiKey
       }),
-      timeout: TIMEOUTS.EXTENDED || 120000
+      timeout: 30000 // Short timeout since this just starts the job
     });
     
     if (!response.ok) {
-      // Get error details if available
       let errorText;
       try {
         const errorData = await response.json();
@@ -251,24 +252,217 @@ export async function categorizeComments(comments, apiKey) {
       } catch {
         errorText = await response.text() || `Status ${response.status}`;
       }
-      
       throw new Error(errorText);
     }
     
     const result = await response.json();
-    
-    const successRate = Math.round((result.categorizedComments?.length || 0) / comments.length * 100);
-    addLogEntry(`Categorization successful: ${result.categorizedComments?.length || 0} of ${comments.length} comments (${successRate}%)`, 'success');
-    
-    if (result.extractedTopics?.length) {
-      addLogEntry(`Extracted ${result.extractedTopics.length} topics`, 'success');
-    }
+    addLogEntry(`Categorization job started successfully: ${result.jobId}`, 'success');
+    addLogEntry(`Estimated processing time: ${result.estimatedTimeMinutes} minutes`, 'info');
     
     return result;
   } catch (error) {
-    addLogEntry(`Categorization error: ${error.message}`, 'error');
+    addLogEntry(`Failed to start categorization job: ${error.message}`, 'error');
     throw error;
   }
+}
+
+/**
+ * Check job status
+ * @param {string} jobId - Job ID to check
+ * @returns {Promise<Object>} Promise resolving to job status
+ */
+export async function checkJobStatus(jobId) {
+  try {
+    const statusUrl = `${SERVER_URL}/api/categorize/${jobId}/status`;
+    
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Job not found or expired');
+      }
+      throw new Error(`Status check failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    addLogEntry(`Status check failed: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+/**
+ * Get job results
+ * @param {string} jobId - Job ID to get results for
+ * @returns {Promise<Object>} Promise resolving to job results
+ */
+export async function getJobResults(jobId) {
+  try {
+    const resultsUrl = `${SERVER_URL}/api/categorize/${jobId}/results`;
+    
+    const response = await fetch(resultsUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Job not found or expired');
+      }
+      if (response.status === 425) {
+        const statusData = await response.json();
+        throw new Error(`Job not completed yet (${statusData.progress}% done)`);
+      }
+      throw new Error(`Failed to get results: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    addLogEntry(`Failed to get results: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+/**
+ * Process comments with API using new async approach
+ * @param {Array<string>} comments - List of comments to process
+ * @param {string} apiKey - Claude API key 
+ * @returns {Promise<Object>} Promise resolving to processing results
+ */
+export async function processCommentsWithAPI(comments, apiKey) {
+  try {
+    // Step 1: Start the categorization job
+    const jobInfo = await startCategorizationJob(comments, apiKey);
+    const jobId = jobInfo.jobId;
+    
+    addLogEntry(`Job started with ID: ${jobId}`, 'success');
+    addLogEntry(`Estimated processing time: ${jobInfo.estimatedTimeMinutes} minutes`, 'info');
+    
+    // Step 2: Poll for status updates
+    let attempts = 0;
+    const maxAttempts = 120; // 10 minutes max (5-second intervals)
+    
+    while (attempts < maxAttempts) {
+      await delay(5000); // Wait 5 seconds between checks
+      attempts++;
+      
+      try {
+        const status = await checkJobStatus(jobId);
+        
+        addLogEntry(`Progress: ${status.progress}% (${status.batchesCompleted}/${status.totalBatches} batches, ${status.elapsedMinutes}min elapsed)`, 'info');
+        
+        if (status.status === 'completed') {
+          addLogEntry('Job completed successfully!', 'success');
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(`Job failed: ${status.error}`);
+        }
+        
+        // Update UI with progress if available
+        updateProgressDisplay(status.progress, `Processing batch ${status.batchesCompleted}/${status.totalBatches}...`);
+        
+      } catch (statusError) {
+        addLogEntry(`Status check error: ${statusError.message}`, 'warning');
+        // Continue polling unless it's a fatal error
+        if (statusError.message.includes('not found')) {
+          throw statusError;
+        }
+      }
+    }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Job timed out after 10 minutes');
+    }
+    
+    // Step 3: Get the results
+    addLogEntry('Retrieving final results...', 'info');
+    const results = await getJobResults(jobId);
+    
+    addLogEntry(`Results retrieved: ${results.categorizedComments.length} comments categorized (${results.processingStats.successRate}% success rate)`, 'success');
+    
+    // Step 4: Get summaries (if categorization was successful)
+    if (results.categorizedComments.length > 0) {
+      try {
+        addLogEntry('Generating summaries...', 'info');
+        const summaryResult = await summarizeComments(
+          results.categorizedComments,
+          results.extractedTopics,
+          apiKey
+        );
+        
+        // Convert to expected format
+        const processedResult = {
+          categories: (summaryResult.summaries || []).map(summary => {
+            const categoryComments = results.categorizedComments
+              .filter(item => item.category === summary.category)
+              .map(item => item.id);
+            
+            return {
+              name: summary.category,
+              comments: categoryComments,
+              summary: summary.summary,
+              sentiment: summary.sentiment || 0,
+              commonIssues: summary.commonIssues,
+              suggestedActions: summary.suggestedActions
+            };
+          }),
+          topTopics: summaryResult.topTopics || [],
+          extractedTopics: results.extractedTopics
+        };
+        
+        return processedResult;
+      } catch (summaryError) {
+        addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'warning');
+        
+        // Return just categorization results if summary fails
+        return {
+          categories: [{
+            name: 'Categorized Comments',
+            comments: results.categorizedComments.map(item => item.id),
+            summary: `Successfully categorized ${results.categorizedComments.length} comments.`,
+            sentiment: 0
+          }],
+          extractedTopics: results.extractedTopics
+        };
+      }
+    } else {
+      throw new Error('No comments were successfully categorized');
+    }
+    
+  } catch (error) {
+    addLogEntry(`API processing error: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+// Helper function to update progress display (add to ui-handlers.js)
+function updateProgressDisplay(percentage, message) {
+  // Update progress bar if it exists
+  const progressBar = document.querySelector('.progress-bar');
+  if (progressBar) {
+    progressBar.style.width = `${percentage}%`;
+  }
+  
+  // Update progress text if it exists
+  const progressText = document.querySelector('.progress-text');
+  if (progressText) {
+    progressText.textContent = `${percentage}% - ${message}`;
+  }
+  
+  // Update any other progress indicators
+  const progressMessage = document.getElementById('progress-message');
+  if (progressMessage) {
+    progressMessage.textContent = message;
+  }
+  
+  console.log(`Progress: ${percentage}% - ${message}`);
 }
 
 /**

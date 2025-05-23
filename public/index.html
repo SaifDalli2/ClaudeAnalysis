@@ -89,6 +89,45 @@
       <div class="comment-list" id="commentsList"></div>
       <button id="clearCommentsBtn" data-lang-key="clear-comments">Clear All Comments</button>
       <button id="processCommentsBtn" data-lang-key="process-comments">Process Comments</button>
+      <!-- Add this HTML snippet after the processCommentsBtn in your index.html -->
+
+<!-- Progress Indicator (add after the process button) -->
+<div id="processingProgress" class="processing-progress">
+  <div class="progress-header">
+    <span class="progress-title">Processing Comments...</span>
+    <span class="progress-percentage" id="progressPercentage">0%</span>
+  </div>
+  
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  
+  <div class="progress-details">
+    <div class="progress-stat">
+      <span>Batches:</span>
+      <span id="batchProgress">0/0</span>
+    </div>
+    <div class="progress-stat">
+      <span>Elapsed:</span>
+      <span id="elapsedTime">0 min</span>
+    </div>
+    <div class="progress-stat">
+      <span>Comments:</span>
+      <span id="commentProgress">0/0</span>
+    </div>
+    <div class="progress-stat">
+      <span>Success Rate:</span>
+      <span id="successRate">0%</span>
+    </div>
+  </div>
+  
+  <div class="progress-message" id="progressMessage">Starting job...</div>
+  
+  <button class="cancel-job-btn" id="cancelJobBtn">Cancel Job</button>
+</div>
+
+<!-- Update your existing loader to be hidden when progress indicator is shown -->
+<div class="loader" id="loader"></div>
       <div class="loader" id="loader"></div>
       
       <div class="debug-log" id="debugLog"></div>

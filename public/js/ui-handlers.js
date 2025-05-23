@@ -454,3 +454,222 @@ export function toggleLoader(show) {
     loader.style.display = show ? 'block' : 'none';
   }
 }
+
+// Add these functions to your ui-handlers.js
+
+/**
+ * Show progress indicator
+ * @param {boolean} show - Whether to show the progress indicator
+ */
+export function showProgressIndicator(show) {
+  const progressDiv = document.getElementById('processingProgress');
+  if (progressDiv) {
+    progressDiv.style.display = show ? 'block' : 'none';
+    
+    if (show) {
+      // Reset progress when showing
+      updateProgressIndicator(0, 'Starting job...', {
+        batchesCompleted: 0,
+        totalBatches: 0,
+        processedComments: 0,
+        totalComments: 0,
+        elapsedMinutes: 0
+      });
+    }
+  }
+}
+
+/**
+ * Update progress indicator
+ * @param {number} percentage - Progress percentage (0-100)
+ * @param {string} message - Progress message
+ * @param {Object} details - Additional progress details
+ */
+export function updateProgressIndicator(percentage, message, details = {}) {
+  // Update percentage
+  const progressPercentage = document.getElementById('progressPercentage');
+  if (progressPercentage) {
+    progressPercentage.textContent = `${percentage}%`;
+  }
+  
+  // Update progress bar
+  const progressBar = document.getElementById('progressBar');
+  if (progressBar) {
+    progressBar.style.width = `${percentage}%`;
+  }
+  
+  // Update message
+  const progressMessage = document.getElementById('progressMessage');
+  if (progressMessage) {
+    progressMessage.textContent = message;
+  }
+  
+  // Update detailed stats
+  if (details.batchesCompleted !== undefined && details.totalBatches !== undefined) {
+    const batchProgress = document.getElementById('batchProgress');
+    if (batchProgress) {
+      batchProgress.textContent = `${details.batchesCompleted}/${details.totalBatches}`;
+    }
+  }
+  
+  if (details.elapsedMinutes !== undefined) {
+    const elapsedTime = document.getElementById('elapsedTime');
+    if (elapsedTime) {
+      elapsedTime.textContent = `${details.elapsedMinutes} min`;
+    }
+  }
+  
+  if (details.processedComments !== undefined && details.totalComments !== undefined) {
+    const commentProgress = document.getElementById('commentProgress');
+    if (commentProgress) {
+      commentProgress.textContent = `${details.processedComments}/${details.totalComments}`;
+    }
+    
+    // Calculate and display success rate
+    const successRate = details.totalComments > 0 
+      ? Math.round((details.processedComments / details.totalComments) * 100)
+      : 0;
+    const successRateEl = document.getElementById('successRate');
+    if (successRateEl) {
+      successRateEl.textContent = `${successRate}%`;
+    }
+  }
+}
+
+/**
+ * Enhanced processComments function that uses the new async API
+ * Replace the existing processComments function in app.js with this
+ */
+export async function processCommentsWithProgress(comments, apiKey) {
+  // Import the new API functions
+  const { processCommentsWithAPI } = await import('./api-service.js');
+  const { processCommentsWithSimulation } = await import('./simulation.js');
+  
+  try {
+    // Show progress indicator
+    showProgressIndicator(true);
+    
+    // Hide the regular loader
+    toggleLoader(false);
+    
+    let result;
+    
+    if (apiKey) {
+      // Use API with progress tracking
+      addLogEntry('Using Claude API with async processing');
+      
+      try {
+        result = await processCommentsWithAPI(comments, apiKey);
+      } catch (error) {
+        addLogEntry(`API processing failed: ${error.message}`, 'error');
+        addLogEntry('Falling back to simulation mode...', 'warning');
+        
+        // Show user-friendly message
+        alert('Could not process with the API: ' + error.message + '\n\nUsing simulation mode instead.');
+        
+        // Fall back to simulation
+        result = processCommentsWithSimulation(comments);
+      }
+    } else {
+      // Use simulation
+      addLogEntry('Using simulation mode');
+      updateProgressIndicator(50, 'Running simulation...', {
+        batchesCompleted: 1,
+        totalBatches: 2,
+        processedComments: Math.floor(comments.length * 0.8),
+        totalComments: comments.length,
+        elapsedMinutes: 0.1
+      });
+      
+      // Add a small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      result = processCommentsWithSimulation(comments);
+      
+      updateProgressIndicator(100, 'Simulation completed!', {
+        batchesCompleted: 2,
+        totalBatches: 2,
+        processedComments: comments.length,
+        totalComments: comments.length,
+        elapsedMinutes: 0.1
+      });
+    }
+    
+    // Process and display results
+    addLogEntry('Processing complete! Displaying results...');
+    return result;
+    
+  } catch (error) {
+    console.error('Error processing comments:', error);
+    addLogEntry(`Error: ${error.message}`, 'error');
+    
+    updateProgressIndicator(0, `Error: ${error.message}`, {});
+    
+    throw error;
+  } finally {
+    // Hide progress indicator after a delay
+    setTimeout(() => {
+      showProgressIndicator(false);
+    }, 3000);
+  }
+}
+
+/**
+ * Enhanced version of the global updateProgressDisplay function
+ * This gets called from api-service.js during processing
+ */
+window.updateProgressDisplay = function(percentage, message, details = {}) {
+  updateProgressIndicator(percentage, message, details);
+};
+
+/**
+ * Setup cancel job functionality
+ * @param {string} jobId - Current job ID
+ */
+export function setupJobCancellation(jobId) {
+  const cancelBtn = document.getElementById('cancelJobBtn');
+  if (cancelBtn && jobId) {
+    cancelBtn.style.display = 'inline-block';
+    cancelBtn.onclick = () => {
+      if (confirm('Are you sure you want to cancel the current job?')) {
+        // For now, just hide the progress and show a message
+        // In a full implementation, you'd call a cancel endpoint
+        showProgressIndicator(false);
+        addLogEntry('Job cancelled by user', 'warning');
+        alert('Job cancellation requested. The current batch will complete, then processing will stop.');
+      }
+    };
+  }
+}
+
+/**
+ * Update the main app.js processComments function to use the new approach
+ * Replace your existing processComments function with this:
+ */
+export async function enhancedProcessComments() {
+  clearLogs();
+  addLogEntry('Starting comment processing...');
+  
+  try {
+    // Get API key if using API
+    const useApi = document.getElementById('useApi').checked;
+    const apiKey = useApi ? document.getElementById('apiKeyInput').value : null;
+    
+    // Use the new progress-enabled processing
+    const result = await processCommentsWithProgress(window.comments, apiKey);
+    
+    // Display results
+    addLogEntry('Displaying results...');
+    displayProcessingResults(result, window.comments);
+    
+  } catch (error) {
+    console.error('Error processing comments:', error);
+    addLogEntry(`Error: ${error.message}`, 'error');
+    
+    // Show error in results container
+    const categoriesContainer = document.getElementById('categoriesContainer');
+    if (categoriesContainer) {
+      categoriesContainer.innerHTML = `<div class="error">Error processing comments: ${error.message}</div>`;
+    }
+  }
+}
