@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register - Comment Categorization System</title>
+  <title>Login - Comment Categorization System</title>
   <link rel="stylesheet" href="styles.css">
   <style>
     .auth-container {
@@ -22,7 +22,7 @@
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       border: 1px solid var(--dark-border);
       width: 100%;
-      max-width: 450px;
+      max-width: 400px;
     }
     
     .auth-header {
@@ -41,14 +41,8 @@
       margin: 0;
     }
     
-    .form-row {
-      display: flex;
-      gap: 15px;
-    }
-    
     .form-group {
       margin-bottom: 20px;
-      flex: 1;
     }
     
     .form-group label {
@@ -58,8 +52,7 @@
       font-weight: 500;
     }
     
-    .form-group input,
-    .form-group select {
+    .form-group input {
       width: 100%;
       padding: 12px;
       border: 1px solid var(--dark-border);
@@ -70,21 +63,10 @@
       transition: border-color 0.3s ease;
     }
     
-    .form-group input:focus,
-    .form-group select:focus {
+    .form-group input:focus {
       outline: none;
       border-color: var(--dark-primary);
       box-shadow: 0 0 0 2px rgba(226, 255, 102, 0.2);
-    }
-    
-    .form-group select {
-      cursor: pointer;
-    }
-    
-    .form-group .help-text {
-      font-size: 12px;
-      color: var(--dark-text-secondary);
-      margin-top: 5px;
     }
     
     .auth-button {
@@ -162,107 +144,55 @@
       border-color: var(--dark-primary) transparent var(--dark-primary) transparent;
       animation: loader 1.2s linear infinite;
     }
-    
-    .password-requirements {
-      font-size: 12px;
-      color: var(--dark-text-secondary);
-      margin-top: 5px;
-    }
-    
-    .requirement {
-      margin: 2px 0;
-    }
-    
-    .requirement.valid {
-      color: var(--dark-success);
-    }
-    
-    .requirement.invalid {
-      color: var(--dark-error);
-    }
   </style>
 </head>
 <body>
   <div class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <h1>Create Account</h1>
-        <p>Join the Comment Categorization platform</p>
+        <h1>Welcome Back</h1>
+        <p>Sign in to your Comment Categorization account</p>
       </div>
       
       <div id="errorMessage" class="error-message"></div>
       <div id="successMessage" class="success-message"></div>
       
-      <form id="registerForm">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="firstName">First Name</label>
-            <input type="text" id="firstName" name="firstName">
-          </div>
-          
-          <div class="form-group">
-            <label for="lastName">Last Name</label>
-            <input type="text" id="lastName" name="lastName">
-          </div>
-        </div>
-        
+      <form id="loginForm">
         <div class="form-group">
-          <label for="email">Email Address *</label>
+          <label for="email">Email Address</label>
           <input type="email" id="email" name="email" required>
         </div>
         
         <div class="form-group">
-          <label for="password">Password *</label>
+          <label for="password">Password</label>
           <input type="password" id="password" name="password" required>
-          <div class="password-requirements">
-            <div class="requirement" id="lengthReq">• At least 6 characters</div>
-          </div>
         </div>
         
-        <div class="form-group">
-          <label for="company">Company</label>
-          <input type="text" id="company" name="company">
-        </div>
-        
-        <div class="form-group">
-          <label for="industry">Industry</label>
-          <select id="industry" name="industry">
-            <option value="">Select your industry</option>
-            <option value="SaaS/Technology">SaaS/Technology</option>
-            <option value="E-commerce/Retail">E-commerce/Retail</option>
-            <option value="Healthcare">Healthcare</option>
-            <option value="Financial Services">Financial Services</option>
-            <option value="Other">Other</option>
-          </select>
-          <div class="help-text">This helps us customize categories for your feedback analysis</div>
-        </div>
-        
-        <button type="submit" class="auth-button" id="registerButton">
-          Create Account
+        <button type="submit" class="auth-button" id="loginButton">
+          Sign In
         </button>
       </form>
       
       <div class="loading-spinner" id="loadingSpinner"></div>
       
       <div class="auth-links">
-        <p>Already have an account? <a href="/login">Sign in here</a></p>
+        <p>Don't have an account? <a href="/register">Create one here</a></p>
       </div>
     </div>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const registerForm = document.getElementById('registerForm');
-      const registerButton = document.getElementById('registerButton');
+      const loginForm = document.getElementById('loginForm');
+      const loginButton = document.getElementById('loginButton');
       const loadingSpinner = document.getElementById('loadingSpinner');
       const errorMessage = document.getElementById('errorMessage');
       const successMessage = document.getElementById('successMessage');
-      const passwordInput = document.getElementById('password');
-      const lengthReq = document.getElementById('lengthReq');
-      
+
       // Check if user is already logged in
       const token = localStorage.getItem('authToken');
       if (token) {
+        // Verify token is still valid
         fetch('/api/auth/verify', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -270,124 +200,73 @@
         })
         .then(response => {
           if (response.ok) {
+            // User is still logged in, redirect to main app
             window.location.href = '/';
           }
         })
         .catch(() => {
+          // Token is invalid, remove it
           localStorage.removeItem('authToken');
         });
       }
-      
-      // Load available industries
-      loadIndustries();
-      
-      // Password validation
-      passwordInput.addEventListener('input', function() {
-        const password = this.value;
-        
-        if (password.length >= 6) {
-          lengthReq.classList.add('valid');
-          lengthReq.classList.remove('invalid');
-        } else {
-          lengthReq.classList.add('invalid');
-          lengthReq.classList.remove('valid');
-        }
-      });
 
-      registerForm.addEventListener('submit', async function(e) {
+      loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
+        // Clear previous messages
         hideMessages();
         
-        const formData = {
-          email: document.getElementById('email').value,
-          password: document.getElementById('password').value,
-          firstName: document.getElementById('firstName').value,
-          lastName: document.getElementById('lastName').value,
-          company: document.getElementById('company').value,
-          industry: document.getElementById('industry').value
-        };
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
         
-        if (!formData.email || !formData.password) {
-          showError('Email and password are required');
+        if (!email || !password) {
+          showError('Please fill in all fields');
           return;
         }
         
-        if (formData.password.length < 6) {
-          showError('Password must be at least 6 characters long');
-          return;
-        }
-        
+        // Show loading state
         setLoading(true);
         
         try {
-          const response = await fetch('/api/auth/register', {
+          const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({ email, password })
           });
           
           const data = await response.json();
           
           if (response.ok) {
+            // Save token and user info
             localStorage.setItem('authToken', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
             
-            showSuccess('Account created successfully! Redirecting...');
+            showSuccess('Login successful! Redirecting...');
             
+            // Redirect to main application
             setTimeout(() => {
               window.location.href = '/';
             }, 1000);
             
           } else {
-            showError(data.message || 'Registration failed');
+            showError(data.message || 'Login failed');
           }
           
         } catch (error) {
-          console.error('Registration error:', error);
+          console.error('Login error:', error);
           showError('Network error. Please try again.');
         } finally {
           setLoading(false);
         }
       });
       
-      async function loadIndustries() {
-        try {
-          const response = await fetch('/api/auth/industries');
-          const data = await response.json();
-          
-          if (response.ok && data.industries) {
-            const industrySelect = document.getElementById('industry');
-            
-            // Clear existing options except the first one
-            industrySelect.innerHTML = '<option value="">Select your industry</option>';
-            
-            // Add industries from database
-            data.industries.forEach(industry => {
-              const option = document.createElement('option');
-              option.value = industry.name;
-              option.textContent = industry.name;
-              industrySelect.appendChild(option);
-            });
-            
-            // Add "Other" option
-            const otherOption = document.createElement('option');
-            otherOption.value = 'Other';
-            otherOption.textContent = 'Other';
-            industrySelect.appendChild(otherOption);
-          }
-        } catch (error) {
-          console.error('Failed to load industries:', error);
-        }
-      }
-      
       function setLoading(loading) {
-        registerButton.disabled = loading;
-        registerButton.textContent = loading ? 'Creating Account...' : 'Create Account';
+        loginButton.disabled = loading;
+        loginButton.textContent = loading ? 'Signing In...' : 'Sign In';
         loadingSpinner.style.display = loading ? 'block' : 'none';
-        registerForm.style.display = loading ? 'none' : 'block';
+        loginForm.style.display = loading ? 'none' : 'block';
       }
       
       function showError(message) {
