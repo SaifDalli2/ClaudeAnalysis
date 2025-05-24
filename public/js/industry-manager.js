@@ -12,8 +12,6 @@ class IndustryManager {
     this.initialized = false;
   }
 
-
-  
   /**
    * Initialize the industry manager
    */
@@ -354,13 +352,32 @@ class IndustryManager {
   }
 }
 
+// ===== INITIALIZATION CODE - MUST BE AFTER CLASS DEFINITION =====
+
 // Initialize industry manager when script loads
 console.log('🏭 Creating Industry Manager instance...');
 
-// Create the global instance safely
-window.industryManager = new IndustryManager();
+// Wait for DOM to be ready before creating instance
+function initializeIndustryManager() {
+  try {
+    // Create the global instance safely
+    window.industryManager = new IndustryManager();
+    console.log('✅ Industry Manager instance created successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to create Industry Manager:', error);
+    return false;
+  }
+}
 
-console.log('🏭 Industry Manager loaded and ready');
+// Initialize immediately if DOM is ready, otherwise wait
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeIndustryManager);
+} else {
+  initializeIndustryManager();
+}
+
+console.log('🏭 Industry Manager script loaded and ready');
 
 // Export for module use if needed
 if (typeof module !== 'undefined' && module.exports) {
