@@ -1,6 +1,8 @@
+// services/categorization.js - Updated with industry-specific categories
 const axios = require('axios');
 const { detectLanguage, delay } = require('../utils/helpers');
 const { parseClaudeResponse, generateJobId } = require('../utils/processing');
+const { getCategoriesForIndustry } = require('./industry-categories');
 
 // In-memory storage for processing jobs (use Redis in production)
 const processingJobs = new Map();
@@ -8,8 +10,8 @@ const processingJobs = new Map();
 function startCategorization(comments, apiKey, options = {}) {
   const jobId = generateJobId();
   
-  // Extract options
-  const { industry, categories, userId } = options;
+  // Extract options with industry support
+  const { industry, categories, userId, userEmail } = options;
   
   // Calculate estimates
   const estimatedBatches = Math.ceil(comments.length / 30);
@@ -31,19 +33,22 @@ function startCategorization(comments, apiKey, options = {}) {
     retryCount: 0,
     successfulBatches: 0,
     failedBatches: 0,
-    industry: industry || 'default',
-    categoriesUsed: categories ? categories.length : 'default'
+    industry: industry || 'Default',
+    categoriesUsed: categories ? categories.length : 'default',
+    userId: userId || null,
+    userEmail: userEmail || null
   });
   
-  console.log(`🏭 Job ${jobId} - Industry: ${industry || 'default'}`);
-  console.log(`📊 Job ${jobId} - Categories: ${categories ? categories.length + ' industry-specific' : 'default set'}`);
+  console.log(`🏭 Job ${jobId} - Industry: ${industry || 'Default'}`);
+  console.log(`📊 Job ${jobId} - User: ${userEmail || 'Anonymous'}`);
+  console.log(`📋 Job ${jobId} - Categories: ${categories ? categories.length + ' industry-specific' : 'default set'}`);
   
   if (categories && categories.length > 0) {
-    console.log(`📋 Job ${jobId} - Category list: ${categories.slice(0, 3).join(', ')}${categories.length > 3 ? '...' : ''}`);
+    console.log(`📋 Job ${jobId} - Sample categories: ${categories.slice(0, 3).join(', ')}${categories.length > 3 ? '...' : ''}`);
   }
   
-  // Start processing asynchronously
-  processCommentsAsync(jobId, comments, apiKey, { industry, categories, userId });
+  // Start processing asynchronously with industry-specific categories
+  processCommentsAsync(jobId, comments, apiKey, { industry, categories, userId, userEmail });
 
   // Set up cleanup (4 hours)
   setTimeout(() => {
@@ -56,7 +61,8 @@ function startCategorization(comments, apiKey, options = {}) {
   return {
     jobId: jobId,
     status: 'started',
-    message: 'Processing started successfully. Use the job ID to check status.',
+    message: 'Processing started successfully with industry-specific categories.',
+    industry: industry || 'Default',
     totalComments: comments.length,
     estimatedBatches: estimatedBatches,
     estimatedTimeMinutes: estimatedTimeMinutes,
@@ -64,7 +70,7 @@ function startCategorization(comments, apiKey, options = {}) {
     resultsEndpoint: `/api/categorize/${jobId}/results`,
     cancelEndpoint: `/api/categorize/${jobId}/cancel`,
     tips: [
-      'Processing happens in the background',
+      'Processing uses your industry-specific categories',
       'Check status every 30-60 seconds',
       'Partial results are available as processing continues',
       'Large datasets may take 1-3 hours to complete'
@@ -93,6 +99,8 @@ function getJobStatus(jobId) {
     totalComments: job.totalComments,
     elapsedMinutes: elapsedMinutes,
     error: job.error,
+    industry: job.industry,
+    categoriesUsed: job.categoriesUsed,
     hasPartialResults: !!(job.categorizedComments && job.categorizedComments.length > 0),
     partialResultsCount: job.categorizedComments ? job.categorizedComments.length : 0
   };
@@ -101,7 +109,7 @@ function getJobStatus(jobId) {
   if (job.categorizedComments && job.categorizedComments.length > 0) {
     response.categorizedComments = job.categorizedComments;
     response.extractedTopics = job.extractedTopics || [];
-    console.log(`Job ${jobId} status: Including ${job.categorizedComments.length} partial results`);
+    console.log(`Job ${jobId} status: Including ${job.categorizedComments.length} partial results for ${job.industry} industry`);
   }
   
   return response;
@@ -123,11 +131,13 @@ function getJobResults(jobId) {
     status: job.status,
     processedComments: job.processedComments || 0,
     totalComments: job.totalComments || 0,
+    industry: job.industry,
+    categoriesUsed: job.categoriesUsed,
     error: job.error,
     isPartial: job.status !== 'completed' || (job.processedComments || 0) < (job.totalComments || 0)
   };
   
-  console.log(`Job ${jobId} results retrieved: ${results.categorizedComments.length} categorized comments, status: ${results.status}`);
+  console.log(`Job ${jobId} results retrieved: ${results.categorizedComments.length} categorized comments for ${job.industry} industry, status: ${results.status}`);
   
   return results;
 }
@@ -139,10 +149,11 @@ function cancelJob(jobId) {
   job.status = 'cancelled';
   job.error = 'Job cancelled by user';
   
-  console.log(`Job ${jobId} cancelled by user. Processed ${job.processedComments || 0}/${job.totalComments} comments.`);
+  console.log(`Job ${jobId} cancelled by user. Processed ${job.processedComments || 0}/${job.totalComments} comments using ${job.industry} categories.`);
   
   return {
     message: 'Job cancelled successfully',
+    industry: job.industry,
     partialResults: {
       categorizedComments: job.categorizedComments || [],
       extractedTopics: job.extractedTopics || [],
@@ -156,13 +167,13 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
   const job = processingJobs.get(jobId);
   if (!job) return;
   
-  const { industry, categories, userId } = options;
+  const { industry, categories, userId, userEmail } = options;
   
   // Set up timeout handling
   const timeoutDuration = 25 * 60 * 1000; // 25 minutes
   const timeoutHandler = setTimeout(() => {
     if (job && job.status === 'processing') {
-      console.log(`Job ${jobId} timed out after 25 minutes, but ${job.processedComments || 0} comments were successfully processed`);
+      console.log(`Job ${jobId} timed out after 25 minutes, but ${job.processedComments || 0} comments were successfully processed using ${job.industry} categories`);
       job.status = 'completed'; // Mark as completed with partial results
       job.error = `Processing timed out after 25 minutes. Successfully processed ${job.processedComments || 0}/${comments.length} comments.`;
       
@@ -182,6 +193,17 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
     }
     if (categories && categories.length > 0) {
       console.log(`📊 Using ${categories.length} industry-specific categories`);
+    } else {
+      console.log(`📊 Loading categories for industry: ${industry || 'Default'}`);
+      // Load categories if not provided
+      try {
+        const loadedCategories = await getCategoriesForIndustry(industry || 'Default');
+        options.categories = loadedCategories;
+        job.categoriesUsed = loadedCategories.length;
+        console.log(`📋 Loaded ${loadedCategories.length} categories for ${industry || 'Default'}`);
+      } catch (categoryError) {
+        console.warn(`Failed to load categories for ${industry}:`, categoryError.message);
+      }
     }
     
     job.status = 'processing';
@@ -211,12 +233,12 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
       timeoutMs: 90000
     };
     
-    // Process each batch with industry context
+    // Process each batch with industry-specific categories
     for (let i = 0; i < batches.length; i++) {
       const batchComments = batches[i];
       const batchStartIndex = i * batchSize;
       
-      console.log(`Job ${jobId}: Processing batch ${i+1}/${batches.length}`);
+      console.log(`Job ${jobId}: Processing batch ${i+1}/${batches.length} with ${job.industry} categories`);
       
       let batchSuccess = false;
       let lastError = null;
@@ -242,7 +264,10 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
           }
           
           // Pass industry categories to batch processing
-          const result = await processBatch(batchComments, batchStartIndex, apiKey, { categories });
+          const result = await processBatch(batchComments, batchStartIndex, apiKey, { 
+            categories: options.categories,
+            industry: industry
+          });
           const validResults = result.categorizedComments?.length || 0;
           const expectedResults = batchComments.length;
           const batchSuccessRate = validResults / expectedResults;
@@ -334,7 +359,7 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
     job.progress = 100;
     
     const successRate = Math.round((allCategorizedComments.length / comments.length) * 100);
-    console.log(`Job ${jobId}: Processing complete. Processed ${allCategorizedComments.length}/${comments.length} comments (${successRate}%)`);
+    console.log(`Job ${jobId}: Processing complete using ${job.industry} categories. Processed ${allCategorizedComments.length}/${comments.length} comments (${successRate}%)`);
     
   } catch (error) {
     clearTimeout(timeoutHandler); // Clear the timeout on error
@@ -352,14 +377,14 @@ async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
 }
 
 async function processBatch(batchComments, batchStartIndex, apiKey, options = {}) {
-  const { categories } = options;
+  const { categories, industry } = options;
   const language = detectLanguage(batchComments);
   
   let promptContent;
   if (language === 'ar') {
-    promptContent = createArabicPrompt(batchComments, batchStartIndex, categories);
+    promptContent = createArabicPrompt(batchComments, batchStartIndex, categories, industry);
   } else {
-    promptContent = createEnglishPrompt(batchComments, batchStartIndex, categories);
+    promptContent = createEnglishPrompt(batchComments, batchStartIndex, categories, industry);
   }
   
   const response = await axios.post('https://api.anthropic.com/v1/messages', {
@@ -396,7 +421,7 @@ async function processBatch(batchComments, batchStartIndex, apiKey, options = {}
   return parseClaudeResponse(response);
 }
 
-function createArabicPrompt(batchComments, batchStartIndex, categories) {
+function createArabicPrompt(batchComments, batchStartIndex, categories, industry) {
   // Use industry-specific categories if provided, otherwise use default
   const categoryList = categories && categories.length > 0 ? categories : [
     'مشكلات تقنية: تحديث التطبيق',
@@ -415,9 +440,13 @@ function createArabicPrompt(batchComments, batchStartIndex, categories) {
     'مالية: طلب استرداد'
   ];
 
+  const industryContext = industry && industry !== 'Default' 
+    ? `هذه التعليقات من صناعة ${industry}. `
+    : '';
+
   return `أرجع فقط JSON صالح. لا تكتب أي نص آخر.
 
-صنف كل تعليق إلى فئة واحدة من هذه القائمة:
+${industryContext}صنف كل تعليق إلى فئة واحدة من هذه القائمة:
 ${categoryList.map(cat => `- ${cat}`).join('\n')}
 
 التعليقات:
@@ -427,7 +456,7 @@ ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comme
 {"categorizedComments":[{"id":1,"comment":"النص","category":"اسم الفئة","topics":["موضوع"]}],"extractedTopics":[]}`;
 }
 
-function createEnglishPrompt(batchComments, batchStartIndex, categories) {
+function createEnglishPrompt(batchComments, batchStartIndex, categories, industry) {
   // Use industry-specific categories if provided, otherwise use default
   const categoryList = categories && categories.length > 0 ? categories : [
     'Technical issues: App update',
@@ -446,9 +475,13 @@ function createEnglishPrompt(batchComments, batchStartIndex, categories) {
     'Monetary: Refund Request'
   ];
 
+  const industryContext = industry && industry !== 'Default' 
+    ? `These comments are from the ${industry} industry. `
+    : '';
+
   return `Return only valid JSON. No other text.
 
-Categorize each comment into one category from this list:
+${industryContext}Categorize each comment into one category from this list:
 ${categoryList.map(cat => `- ${cat}`).join('\n')}
 
 Comments:

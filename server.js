@@ -199,6 +199,16 @@ app.get('/api/auth-status', optionalAuth, (req, res) => {
   });
 });
 
+const industryRoutes = require('./routes/industry');
+try {
+  app.use('/api', industryRoutes);
+  console.log('✅ Industry routes loaded');
+} catch (error) {
+  console.warn('Industry routes failed to load:', error.message);
+}
+
+
+
 // Catch-all route
 app.get('*', (req, res) => {
   console.log(`Catch-all route: ${req.url} - serving main page`);

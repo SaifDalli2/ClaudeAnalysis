@@ -32,9 +32,10 @@ router.post('/categorize', async (req, res) => {
       console.warn(`Large dataset detected: ${comments.length} comments. This may take a very long time to process.`);
     }
 
-    // Get user information if authenticated
+    // Get user information and industry
     let userInfo = null;
     let selectedIndustry = industry;
+    let userEmail = null;
     
     // Check if request has authentication
     const authHeader = req.headers['authorization'];
@@ -59,7 +60,8 @@ router.post('/categorize', async (req, res) => {
         });
         
         if (authenticated && userInfo) {
-          console.log(`Processing request for authenticated user: ${userInfo.email}`);
+          userEmail = userInfo.email;
+          console.log(`Processing request for authenticated user: ${userEmail}`);
           
           // Use user's industry if not explicitly provided
           if (!selectedIndustry && userInfo.industry) {
@@ -72,34 +74,50 @@ router.post('/categorize', async (req, res) => {
       }
     }
 
-    // Load industry-specific categories if industry is provided
+    // Load industry-specific categories
     let industryCategories = null;
     if (selectedIndustry) {
       try {
-        const { getIndustryConfig } = require('../utils/database');
-        const industryConfig = await getIndustryConfig(selectedIndustry);
+        const { getCategoriesForIndustry } = require('../services/industry-categories');
+        industryCategories = await getCategoriesForIndustry(selectedIndustry);
         
-        if (industryConfig) {
-          industryCategories = industryConfig.categories;
-          console.log(`Loaded ${industryCategories.length} categories for ${selectedIndustry} industry`);
+        if (industryCategories && industryCategories.length > 0) {
+          console.log(`✅ Loaded ${industryCategories.length} categories for ${selectedIndustry} industry`);
         } else {
-          console.log(`Industry config not found for: ${selectedIndustry}, using default categories`);
+          console.log(`⚠️ No categories found for: ${selectedIndustry}, using default categories`);
+          selectedIndustry = 'Default';
         }
       } catch (industryError) {
         console.error('Failed to load industry categories:', industryError);
+        selectedIndustry = 'Default';
       }
+    } else {
+      selectedIndustry = 'Default';
+      console.log('No industry specified, using default categories');
     }
 
-    // Start categorization with industry context
+    // Start categorization with enhanced industry context
     const result = await startCategorization(comments, apiKey, {
       industry: selectedIndustry,
       categories: industryCategories,
-      userId: userInfo?.id
+      userId: userInfo?.id,
+      userEmail: userEmail
     });
     
     // Add industry information to response
     result.industry = selectedIndustry;
     result.categoriesUsed = industryCategories ? industryCategories.length : 'default';
+    result.userIndustry = userInfo?.industry || null;
+    result.isUserIndustry = userInfo?.industry === selectedIndustry;
+    
+    // Add helpful messaging
+    if (selectedIndustry === 'Default') {
+      result.message = 'Using general categories. Set your industry in your profile for specialized categorization.';
+    } else {
+      result.message = `Using ${selectedIndustry} industry-specific categories for enhanced accuracy.`;
+    }
+    
+    console.log(`🚀 Categorization job started for ${selectedIndustry} industry with ${result.totalComments} comments`);
     
     res.json(result);
     
