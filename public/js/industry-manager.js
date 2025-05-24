@@ -352,8 +352,10 @@ class IndustryManager {
   }
 }
 
-// Create global instance
-window.industryManager = new window.industryManager || new IndustryManager();
+// Create global instance with proper initialization
+if (!window.industryManager) {
+  window.industryManager = new IndustryManager();
+}
 
 // Export for module use
 if (typeof module !== 'undefined' && module.exports) {
