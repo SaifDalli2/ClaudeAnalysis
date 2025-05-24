@@ -536,124 +536,8 @@
     }, 2000);
   </script>
 
-  <!-- User Authentication Integration Script -->
-   <script>
-    // Check initial state
-    window.addEventListener('load', function() {
-      checkCurrentState();
-      loadFixedScript();
-    });
-    
-    function checkCurrentState() {
-      const token = localStorage.getItem('authToken');
-      const userStr = localStorage.getItem('user');
-      
-      // Update token status
-      const tokenStatus = document.getElementById('tokenStatus');
-      if (token) {
-        tokenStatus.textContent = `Token found: ${token.substring(0, 20)}...`;
-        tokenStatus.className = 'status success';
-      } else {
-        tokenStatus.textContent = 'No token found';
-        tokenStatus.className = 'status error';
-      }
-      
-      // Update user status
-      const userStatus = document.getElementById('userStatus');
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          userStatus.textContent = `User found: ${user.email}`;
-          userStatus.className = 'status success';
-          document.getElementById('storedUser').textContent = JSON.stringify(user, null, 2);
-        } catch (e) {
-          userStatus.textContent = 'Invalid user data format';
-          userStatus.className = 'status error';
-          document.getElementById('storedUser').textContent = userStr;
-        }
-      } else {
-        userStatus.textContent = 'No user data found';
-        userStatus.className = 'status error';
-        document.getElementById('storedUser').textContent = 'None';
-      }
-      
-      // Update stored token display
-      document.getElementById('storedToken').textContent = token || 'None';
-      
-      // Update overall auth status
-      const authStatus = document.getElementById('authStatus');
-      if (token && userStr) {
-        authStatus.textContent = '✅ Authentication data present';
-        authStatus.className = 'status success';
-      } else {
-        authStatus.textContent = '❌ Authentication incomplete';
-        authStatus.className = 'status error';
-      }
-    }
-    
-    async function testAPI() {
-      const apiVerification = document.getElementById('apiVerification');
-      const token = localStorage.getItem('authToken');
-      
-      if (!token) {
-        apiVerification.textContent = '❌ No token to test';
-        apiVerification.className = 'status error';
-        return;
-      }
-      
-      apiVerification.textContent = '🔄 Testing API...';
-      apiVerification.className = 'status warning';
-      
-      try {
-        const response = await fetch('/api/auth/verify', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          apiVerification.textContent = `✅ API verification successful: ${data.user.email}`;
-          apiVerification.className = 'status success';
-        } else {
-          apiVerification.textContent = `❌ API verification failed: ${response.status}`;
-          apiVerification.className = 'status error';
-        }
-      } catch (error) {
-        apiVerification.textContent = `❌ API test error: ${error.message}`;
-        apiVerification.className = 'status error';
-      }
-    }
-    
-    function clearAuth() {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      checkCurrentState();
-      alert('Authentication data cleared. Refresh the main page.');
-    }
-    
-    function refreshAuth() {
-      checkCurrentState();
-      testAPI();
-    }
-    
-    function debugConsole() {
-      console.group('🔍 Authentication Debug Info');
-      console.log('Token:', localStorage.getItem('authToken'));
-      console.log('User:', localStorage.getItem('user'));
-      console.log('Parsed User:', JSON.parse(localStorage.getItem('user') || 'null'));
-      console.log('Window objects:');
-      console.log('- window.currentUser:', window.currentUser);
-      console.log('- window.authToken:', window.authToken);
-      console.log('- window.isAuthenticated:', typeof window.isAuthenticated);
-      console.log('- window.getCurrentUser:', typeof window.getCurrentUser);
-      console.groupEnd();
-    }
-    
-    function loadFixedScript() {
-      const fixedScript = `
-<!-- FIXED Authentication Integration Script -->
-<scr` + `ipt>
+   <!-- FIXED Authentication Integration Script -->
+<script>
 // Global authentication state
 window.currentUser = null;
 window.authToken = null;
@@ -673,7 +557,7 @@ window.getAuthHeaders = function() {
   };
   
   if (window.authToken) {
-    headers['Authorization'] = \`Bearer \${window.authToken}\`;
+    headers['Authorization'] = `Bearer ${window.authToken}`;
   }
   
   return headers;
@@ -696,7 +580,7 @@ async function initializeAuthentication() {
       // Verify token is still valid
       const response = await fetch('/api/auth/verify', {
         headers: {
-          'Authorization': \`Bearer \${token}\`
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -780,7 +664,7 @@ function updateUserDisplay(user) {
   const welcomeMessage = document.getElementById('welcomeMessage');
   if (welcomeMessage) {
     const firstName = user.firstName || user.email.split('@')[0];
-    welcomeMessage.textContent = \`Welcome, \${firstName}!\`;
+    welcomeMessage.textContent = `Welcome, ${firstName}!`;
     console.log('Updated welcome message');
   }
 
@@ -869,7 +753,7 @@ function setupUserInterface() {
         await fetch('/api/auth/logout', {
           method: 'POST',
           headers: {
-            'Authorization': \`Bearer \${window.authToken}\`
+            'Authorization': `Bearer ${window.authToken}`
           }
         });
       } catch (error) {
@@ -913,11 +797,7 @@ if (document.readyState === 'loading') {
   setupUserInterface();
   initializeAuthentication();
 }
-</scr` + `ipt>`;
-      
-      document.getElementById('fixedScript').textContent = fixedScript;
-    }
-  </script>
+</script>
   
 </body>
 </html>
