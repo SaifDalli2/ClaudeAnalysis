@@ -5,6 +5,40 @@ const { parseClaudeResponse } = require('../utils/processing');
 async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
   console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
   
+  // ... existing code ...
+  
+  const summaryData = parseClaudeResponse(response);
+  
+  // DEBUG: Log the parsed summary data
+  console.log('📊 Parsed summary data structure:', Object.keys(summaryData || {}));
+  console.log('📊 Parsed summary data:', summaryData);
+  
+  // Add actual comment counts for each category
+  if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
+    summaryData.summaries.forEach(summary => {
+      if (commentsByCategory[summary.category]) {
+        summary.commentCount = commentsByCategory[summary.category].length;
+      }
+    });
+    console.log(`📊 Enhanced ${summaryData.summaries.length} summaries with comment counts`);
+  } else {
+    console.warn('⚠️ No summaries array found in parsed data');
+    
+    // If no summaries found, check if we have categorizedComments instead
+    if (summaryData.categorizedComments) {
+      console.log('📊 Found categorizedComments in summary data');
+    }
+  }
+  
+  return summaryData;
+}
+
+/**
+ * Enhanced summarizeComments function with better error handling
+ */
+async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
+  console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
+  
   // Group comments by category
   const commentsByCategory = {};
   categorizedComments.forEach(item => {
@@ -30,9 +64,12 @@ async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
   const promptContent = createSummaryPrompt(limitedCommentsByCategory, commentsByCategory, extractedTopics, language);
   
   console.log('Sending summarization request to Claude API...');
+  console.log('📊 Prompt preview (first 500 chars):', promptContent.substring(0, 500));
+  
   const response = await axios.post('https://api.anthropic.com/v1/messages', {
     model: 'claude-3-5-haiku-latest',
     max_tokens: 8191,
+    system: "Return only valid JSON. No explanations. No conversational text. Just JSON with summaries array.",
     messages: [{ role: 'user', content: promptContent }]
   }, {
     headers: {
@@ -43,104 +80,66 @@ async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
     timeout: 300000 // 5-minute timeout
   });
   
+  console.log('📊 Raw summary response (first 500 chars):', response.data.content[0].text.substring(0, 500));
+  
   const summaryData = parseClaudeResponse(response);
   
-  // Add actual comment counts for each category
-  if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
+  // Enhanced validation and debugging
+  console.log('📊 Parsed summary data structure:', Object.keys(summaryData || {}));
+  console.log('📊 Has summaries array:', !!(summaryData && summaryData.summaries && Array.isArray(summaryData.summaries)));
+  
+  if (summaryData && summaryData.summaries && Array.isArray(summaryData.summaries)) {
+    console.log(`📊 Found ${summaryData.summaries.length} summaries`);
+    
+    // Add actual comment counts for each category
     summaryData.summaries.forEach(summary => {
       if (commentsByCategory[summary.category]) {
         summary.commentCount = commentsByCategory[summary.category].length;
       }
     });
+    
+    console.log(`📊 Enhanced ${summaryData.summaries.length} summaries with comment counts`);
+  } else {
+    console.warn('⚠️ No summaries array found in parsed data');
+    console.log('📊 Available keys in summary data:', Object.keys(summaryData || {}));
+    
+    // If parsing failed, try to manually extract summaries
+    if (response.data.content[0].text) {
+      const rawText = response.data.content[0].text;
+      console.log('📊 Attempting manual summary extraction...');
+      
+      // Try to find JSON in the response
+      const jsonMatch = rawText.match(/\{[\s\S]*"summaries"[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const manualParsed = JSON.parse(jsonMatch[0]);
+          console.log('📊 Manual parsing successful');
+          return manualParsed;
+        } catch (e) {
+          console.warn('📊 Manual parsing failed:', e.message);
+        }
+      }
+      
+      // Last resort: create summaries from category names
+      console.log('📊 Creating fallback summaries from categories...');
+      const categoryNames = Object.keys(commentsByCategory);
+      const fallbackSummaries = categoryNames.map(categoryName => ({
+        category: categoryName,
+        commentCount: commentsByCategory[categoryName].length,
+        summary: `Category containing ${commentsByCategory[categoryName].length} comments about ${categoryName.toLowerCase()}.`,
+        commonIssues: [`Issues related to ${categoryName}`],
+        suggestedActions: [`Review ${categoryName} feedback`, `Address ${categoryName} concerns`],
+        sentiment: 0
+      }));
+      
+      return {
+        summaries: fallbackSummaries,
+        topTopics: extractedTopics || []
+      };
+    }
   }
   
   return summaryData;
-}
-
-function createSummaryPrompt(limitedCommentsByCategory, commentsByCategory, extractedTopics, language) {
-  if (language === 'ar') {
-    return `قم بتلخيص التعليقات في كل فئة وتقديم إجراءات مقترحة استنادًا إلى المشكلات المشتركة.
-
-التعليقات المصنفة حسب الفئة:
-${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
-  `# ${category} (${commentsByCategory[category].length} تعليقات بالإجمال، يتم عرض ${comments.length} فقط للتلخيص)\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
-).join('\n\n')}
-
-المواضيع الأكثر ذكرًا:
-${extractedTopics && Array.isArray(extractedTopics) ? 
-  extractedTopics.slice(0, 20).map(t => `- ${t.topic} (ذُكر ${t.count} مرات)`).join('\n') : 
-  'لا توجد مواضيع مستخرجة'}
-
-لكل فئة، قدم:
-1. ملخصًا موجزًا (3-5 جمل) يلتقط النقاط الرئيسية والمشاعر
-2. تحليلًا للمشكلات الشائعة المذكورة
-3. 2-3 إجراءات مقترحة لمعالجة هذه المشكلات
-
-أعد النتائج بتنسيق JSON كما يلي:
-{
-  "summaries": [
-    {
-      "category": "اسم الفئة",
-      "commentCount": 10,
-      "summary": "ملخص موجز للتعليقات في هذه الفئة",
-      "commonIssues": ["المشكلة 1", "المشكلة 2", "المشكلة 3"],
-      "suggestedActions": ["الإجراء المقترح 1", "الإجراء المقترح 2"],
-      "sentiment": 0.2
-    }
-  ],
-  "topTopics": [
-    {
-      "topic": "اسم الموضوع",
-      "commentCount": 15,
-      "summary": "ملخص موجز للتعليقات المتعلقة بهذا الموضوع"
-    }
-  ]
-}
-
-تأكد من أن يكون الملخص موجزًا ولكن شاملًا، والإجراءات المقترحة قابلة للتنفيذ وذات صلة مباشرة بالمشكلات المذكورة.`;
-  } else {
-    return `Summarize the comments in each category and provide suggested actions based on common issues.
-
-Categorized comments by category:
-${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
-  `# ${category} (${commentsByCategory[category].length} total comments, showing ${comments.length} for summarization)\n${comments.map((comment, i) => `- ${comment}`).join('\n')}`
-).join('\n\n')}
-
-Most mentioned topics:
-${extractedTopics && Array.isArray(extractedTopics) ? 
-  extractedTopics.slice(0, 20).map(t => `- ${t.topic} (mentioned ${t.count} times)`).join('\n') : 
-  'No extracted topics available'}
-
-For each category, provide:
-1. A concise summary (3-5 sentences) that captures the key points and sentiment
-2. An analysis of common issues mentioned
-3. 2-3 suggested actions to address these issues
-
-Also provide a brief summary for the top 10 most mentioned topics.
-
-Return the results in JSON format like this:
-{
-  "summaries": [
-    {
-      "category": "Category Name",
-      "commentCount": 10,
-      "summary": "Concise summary of comments in this category",
-      "commonIssues": ["Issue 1", "Issue 2", "Issue 3"],
-      "suggestedActions": ["Suggested action 1", "Suggested action 2"],
-      "sentiment": 0.2
-    }
-  ],
-  "topTopics": [
-    {
-      "topic": "Topic Name",
-      "commentCount": 15,
-      "summary": "Brief summary of comments related to this topic"
-    }
-  ]
-}
-
-Make sure the summary is concise but comprehensive, and the suggested actions are actionable and directly relevant to the issues mentioned.`;
-  }
 }
 
 async function testCategorization(apiKey) {

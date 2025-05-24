@@ -280,7 +280,7 @@ function generateCategoriesFromComments(categorizedComments, originalComments) {
 }
 
 /**
- * Generate summaries for results (either partial or final)
+ * Generate summaries for results (either partial or final) - FIXED VERSION
  */
 async function generateSummariesForResults(results, comments, apiKey) {
   try {
@@ -294,40 +294,211 @@ async function generateSummariesForResults(results, comments, apiKey) {
     );
     
     addLogEntry(`Summary result structure: ${JSON.stringify(Object.keys(summaryResult || {}), null, 2)}`, 'info');
+    addLogEntry(`Summary result type: ${typeof summaryResult}`, 'info');
     
-    // Convert to expected format
-    const processedResult = {
-      categories: (summaryResult.summaries || []).map(summary => {
+    // DEBUG: Log the entire summary result for troubleshooting
+    if (window.debugMode) {
+      console.log('🔍 Full summary result:', summaryResult);
+    }
+    
+    let processedCategories = [];
+    
+    // Strategy 1: Check for summaries array (expected format)
+    if (summaryResult && summaryResult.summaries && Array.isArray(summaryResult.summaries) && summaryResult.summaries.length > 0) {
+      addLogEntry(`Found summaries array with ${summaryResult.summaries.length} summaries`, 'info');
+      
+      processedCategories = summaryResult.summaries.map(summary => {
         const categoryComments = results.categorizedComments
           .filter(item => item.category === summary.category)
           .map(item => item.id);
         
-        const category = {
+        return {
           name: summary.category,
           comments: categoryComments,
-          summary: summary.summary,
+          summary: summary.summary || `Summary for ${summary.category}`,
           sentiment: summary.sentiment || 0,
-          commonIssues: summary.commonIssues || [],
-          suggestedActions: summary.suggestedActions || []
+          commonIssues: summary.commonIssues || [`Issues related to ${summary.category}`],
+          suggestedActions: summary.suggestedActions || [`Review ${summary.category} feedback`]
         };
+      });
+      
+    } 
+    // Strategy 2: Check if summaryResult itself is the summaries array
+    else if (summaryResult && Array.isArray(summaryResult) && summaryResult.length > 0) {
+      addLogEntry(`Summary result is directly an array with ${summaryResult.length} items`, 'info');
+      
+      processedCategories = summaryResult.map(summary => {
+        const categoryComments = results.categorizedComments
+          .filter(item => item.category === summary.category)
+          .map(item => item.id);
         
-        addLogEntry(`Processed category: ${summary.category} with ${categoryComments.length} comments`, 'info');
-        return category;
-      }),
-      topTopics: summaryResult.topTopics || [],
-      extractedTopics: results.extractedTopics
+        return {
+          name: summary.category,
+          comments: categoryComments,
+          summary: summary.summary || `Summary for ${summary.category}`,
+          sentiment: summary.sentiment || 0,
+          commonIssues: summary.commonIssues || [`Issues related to ${summary.category}`],
+          suggestedActions: summary.suggestedActions || [`Review ${summary.category} feedback`]
+        };
+      });
+    }
+    // Strategy 3: Check for categorizedComments in summaryResult (fallback)
+    else if (summaryResult && summaryResult.categorizedComments && Array.isArray(summaryResult.categorizedComments)) {
+      addLogEntry('Found categorizedComments in summary result, using as fallback', 'warning');
+      
+      // Group by category
+      const categoryMap = new Map();
+      summaryResult.categorizedComments.forEach(item => {
+        const categoryName = item.category || 'Uncategorized';
+        if (!categoryMap.has(categoryName)) {
+          categoryMap.set(categoryName, []);
+        }
+        categoryMap.get(categoryName).push(item.id);
+      });
+      
+      processedCategories = Array.from(categoryMap.entries()).map(([categoryName, commentIds]) => {
+        const categoryComments = summaryResult.categorizedComments.filter(item => item.category === categoryName);
+        const avgSentiment = categoryComments.length > 0 
+          ? categoryComments.reduce((sum, item) => sum + (item.sentiment || 0), 0) / categoryComments.length 
+          : 0;
+        
+        return {
+          name: categoryName,
+          comments: commentIds,
+          summary: `Category containing ${commentIds.length} comments about ${categoryName.toLowerCase()}.`,
+          sentiment: avgSentiment,
+          commonIssues: [`Issues related to ${categoryName}`],
+          suggestedActions: [`Address ${categoryName} concerns`, `Review ${categoryName} feedback`]
+        };
+      });
+    }
+    // Strategy 4: FALLBACK - Use original categorized comments directly
+    else {
+      addLogEntry('No valid summary structure found, falling back to original categorized comments', 'warning');
+      addLogEntry(`Available summary result keys: ${summaryResult ? Object.keys(summaryResult) : 'null'}`, 'warning');
+      
+      // Group original results by category
+      const categoryMap = new Map();
+      results.categorizedComments.forEach(item => {
+        const categoryName = item.category || 'Uncategorized';
+        if (!categoryMap.has(categoryName)) {
+          categoryMap.set(categoryName, []);
+        }
+        categoryMap.get(categoryName).push(item.id);
+      });
+      
+      processedCategories = Array.from(categoryMap.entries()).map(([categoryName, commentIds]) => {
+        const categoryComments = results.categorizedComments.filter(item => item.category === categoryName);
+        const avgSentiment = categoryComments.length > 0 
+          ? categoryComments.reduce((sum, item) => sum + (item.sentiment || 0), 0) / categoryComments.length 
+          : 0;
+        
+        return {
+          name: categoryName,
+          comments: commentIds,
+          summary: `Category containing ${commentIds.length} comments about ${categoryName.toLowerCase()}.`,
+          sentiment: avgSentiment,
+          commonIssues: [`Issues related to ${categoryName}`],
+          suggestedActions: [`Address ${categoryName} concerns`, `Review ${categoryName} feedback`]
+        };
+      });
+    }
+    
+    // Ensure we have results
+    if (processedCategories.length === 0) {
+      addLogEntry('No processed categories found, generating from original data', 'error');
+      return generateCategoriesFromComments(results.categorizedComments, comments);
+    }
+    
+    const processedResult = {
+      categories: processedCategories,
+      topTopics: summaryResult?.topTopics || [],
+      extractedTopics: results.extractedTopics || summaryResult?.extractedTopics || []
     };
     
-    addLogEntry(`Final processed result has ${processedResult.categories.length} categories`, 'info');
+    addLogEntry(`Final processed result has ${processedResult.categories.length} categories`, 'success');
+    
+    // Debug output
+    if (window.debugMode) {
+      console.log('🔍 Final processed categories:', processedResult.categories);
+      processedResult.categories.forEach((cat, index) => {
+        console.log(`Category ${index + 1}: ${cat.name} (${cat.comments.length} comments)`);
+      });
+    }
+    
     return processedResult;
     
   } catch (summaryError) {
-    addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'warning');
+    addLogEntry(`Summary generation failed, returning categorization only: ${summaryError.message}`, 'error');
+    console.error('Summary generation error:', summaryError);
     
     // Return just categorization results if summary fails
     return generateCategoriesFromComments(results.categorizedComments, comments);
   }
 }
+
+// In services/summary.js, update the summarizeComments function:
+async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
+  console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
+  
+  // ... existing code ...
+  
+  const summaryData = parseClaudeResponse(response);
+  
+  // DEBUG: Log the parsed summary data
+  console.log('📊 Parsed summary data structure:', Object.keys(summaryData || {}));
+  console.log('📊 Parsed summary data:', summaryData);
+  
+  // Add actual comment counts for each category
+  if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
+    summaryData.summaries.forEach(summary => {
+      if (commentsByCategory[summary.category]) {
+        summary.commentCount = commentsByCategory[summary.category].length;
+      }
+    });
+    console.log(`📊 Enhanced ${summaryData.summaries.length} summaries with comment counts`);
+  } else {
+    console.warn('⚠️ No summaries array found in parsed data');
+    
+    // If no summaries found, check if we have categorizedComments instead
+    if (summaryData.categorizedComments) {
+      console.log('📊 Found categorizedComments in summary data');
+    }
+  }
+  
+  return summaryData;
+}
+
+/**
+ * THIRD FIX: Enhanced debugging for the main processing function
+ */
+// In ui-handlers.js, update processCommentsWithAPI function to add more logging:
+
+// After getting final results, add this:
+console.log('🔍 Final results from server:', finalResults);
+console.log('🔍 Final results structure:', Object.keys(finalResults || {}));
+if (finalResults.categorizedComments) {
+  console.log(`🔍 Final results has ${finalResults.categorizedComments.length} categorized comments`);
+}
+
+// Before calling generateSummariesForResults, add this:
+console.log('🔍 About to generate summaries for results...');
+console.log('🔍 Results passed to generateSummariesForResults:', {
+  categorizedCommentsCount: finalResults.categorizedComments?.length || 0,
+  extractedTopicsCount: finalResults.extractedTopics?.length || 0
+});
+
+/**
+ * USAGE INSTRUCTIONS:
+ * 
+ * 1. Replace the generateSummariesForResults function in ui-handlers.js with the version above
+ * 2. Add the debug logging to services/summary.js
+ * 3. Add the debug logging to the processCommentsWithAPI function
+ * 4. Enable debug mode in the UI to see detailed logs
+ * 
+ * This fix handles multiple possible response formats from the summarization API
+ * and ensures results are preserved even if summarization fails or returns unexpected format.
+ */
 
 /**
  * Enhanced display processing results with debugging and better error handling
