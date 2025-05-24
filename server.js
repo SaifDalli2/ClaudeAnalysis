@@ -45,6 +45,16 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// In your server.js or main route file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html')); // Main dashboard
+});
+
+app.get('/comment-analysis', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html')); // Your existing tool
+});
+
+
 // NEW: Login and register pages
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
