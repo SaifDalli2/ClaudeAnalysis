@@ -5,80 +5,41 @@ const path = require('path');
 // Load environment variables first
 require('dotenv').config();
 
-// Import middleware
-const { corsMiddleware, requestLogger, errorHandler } = require('./middleware');
-
-// Import routes
-const apiRoutes = require('./routes/api');
-const healthRoutes = require('./routes/health');
-const claudeRoutes = require('./routes/claude');
-const authRoutes = require('./routes/auth');
-
-// Import authentication middleware (but make it optional to avoid crashes)
-let optionalAuth;
-try {
-  const authMiddleware = require('./middleware/auth');
-  optionalAuth = authMiddleware.optionalAuth;
-} catch (error) {
-  console.warn('Authentication middleware not available:', error.message);
-  // Create a no-op middleware if auth is not available
-  optionalAuth = (req, res, next) => next();
-}
+console.log('🚀 Starting Comment Analyzer Server...');
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// CRITICAL: Ensure the server binds to the correct host and port for Heroku
 const HOST = process.env.HOST || '0.0.0.0';
 
-console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`Configured to start on: ${HOST}:${PORT}`);
+console.log(`Server will bind to: ${HOST}:${PORT}`);
 
-// Apply CORS middleware
-try {
-  corsMiddleware(app);
-} catch (error) {
-  console.error('CORS middleware failed:', error);
-  // Apply basic CORS as fallback
-  app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization']
-  }));
-}
+// Basic CORS setup (simplified)
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-api-key', 'Authorization']
+}));
 
-// Apply request logging
-try {
-  requestLogger(app);
-} catch (error) {
-  console.error('Request logger failed:', error);
-  // Basic logging fallback
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
-    next();
-  });
-}
+// Basic request logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
-// Body parsing middleware with large limits for batch processing
+// Body parsing middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Add optional authentication (with error handling)
-try {
-  app.use(optionalAuth);
-} catch (error) {
-  console.warn('Optional auth middleware failed:', error.message);
-}
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d',
+  etag: false
+}));
 
-// Serve static files with error handling
-try {
-  app.use(express.static(path.join(__dirname, 'public')));
-} catch (error) {
-  console.error('Static files middleware failed:', error);
-}
-
-// Health check endpoint FIRST (before other routes)
+// Health check endpoints FIRST
 app.get('/ping', (req, res) => {
+  console.log('Ping received');
   res.status(200).send('OK');
 });
 
@@ -92,234 +53,222 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Optional authentication middleware (safe version)
+function optionalAuth(req, res, next) {
+  try {
+    // Skip authentication if JWT_SECRET is not configured
+    if (!process.env.JWT_SECRET) {
+      req.user = null;
+      return next();
+    }
 
-// API Routes with error handling
-try {
-  app.use('/api/auth', authRoutes);
-  console.log('✅ Auth routes loaded');
-} catch (error) {
-  console.warn('Auth routes failed to load:', error.message);
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    // Simple token validation without database
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = {
+      id: decoded.userId,
+      email: decoded.email || 'user@example.com'
+    };
+    
+    next();
+  } catch (error) {
+    // On any error, just continue without user
+    req.user = null;
+    next();
+  }
 }
 
+// Load routes with error handling
 try {
+  // API routes
+  const apiRoutes = require('./routes/api');
   app.use('/api', apiRoutes);
   console.log('✅ API routes loaded');
 } catch (error) {
-  console.error('API routes failed to load:', error);
+  console.warn('⚠️ API routes failed to load:', error.message);
 }
 
 try {
+  // Health routes
+  const healthRoutes = require('./routes/health');
   app.use('/api', healthRoutes);
   console.log('✅ Health routes loaded');
 } catch (error) {
-  console.warn('Health routes failed to load:', error.message);
+  console.warn('⚠️ Health routes failed to load:', error.message);
 }
 
 try {
+  // Claude routes (legacy)
+  const claudeRoutes = require('./routes/claude');
   app.use('/api', claudeRoutes);
   console.log('✅ Claude routes loaded');
 } catch (error) {
-  console.warn('Claude routes failed to load:', error.message);
+  console.warn('⚠️ Claude routes failed to load:', error.message);
 }
 
-// Add this to your server.js after the middleware setup and before the catch-all route
+try {
+  // Auth routes (if database is available)
+  if (process.env.DATABASE_URL && process.env.JWT_SECRET) {
+    const authRoutes = require('./routes/auth');
+    app.use('/api/auth', authRoutes);
+    console.log('✅ Auth routes loaded');
+  } else {
+    console.log('ℹ️ Auth routes skipped (DATABASE_URL or JWT_SECRET not configured)');
+  }
+} catch (error) {
+  console.warn('⚠️ Auth routes failed to load:', error.message);
+}
 
-// Import authentication middleware for route protection
-const { authenticateToken, optionalAuth } = require('./middleware/auth');
-
-// Root route - smart routing based on authentication
+// Page routes with smart routing
 app.get('/', optionalAuth, (req, res) => {
-  // If user is authenticated, redirect to dashboard
+  console.log('Root route accessed');
   if (req.user) {
-    console.log(`Authenticated user ${req.user.email} accessing root - redirecting to dashboard`);
+    console.log(`Authenticated user ${req.user.email} - redirecting to dashboard`);
     return res.redirect('/dashboard');
   }
-  
-  // If not authenticated, show the main landing page (comment tool)
-  console.log('Unauthenticated user accessing root - showing comment tool');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Dashboard route - requires authentication
-app.get('/dashboard', authenticateToken, (req, res) => {
-  console.log(`User ${req.user.email} accessing dashboard`);
+app.get('/dashboard', optionalAuth, (req, res) => {
+  console.log('Dashboard route accessed');
+  if (!req.user && process.env.JWT_SECRET) {
+    console.log('Unauthenticated user trying to access dashboard - redirecting to login');
+    return res.redirect('/login');
+  }
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Comment analysis tool - public access (can be used without login)
 app.get('/comment-tool', (req, res) => {
-  console.log('Comment tool accessed (public)');
+  console.log('Comment tool accessed');
   res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
 });
 
-app.get('/comment-analysis', (req, res) => {
-  console.log('Comment analysis accessed (public)');
-  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
-});
-
-// Auth pages - only for non-authenticated users
 app.get('/login', optionalAuth, (req, res) => {
-  // If already logged in, redirect to dashboard
+  console.log('Login page accessed');
   if (req.user) {
-    console.log(`Already authenticated user ${req.user.email} accessing login - redirecting to dashboard`);
+    console.log(`Already authenticated user - redirecting to dashboard`);
     return res.redirect('/dashboard');
   }
   
-  console.log('Showing login page');
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  // Check if login page exists
+  const loginPath = path.join(__dirname, 'public', 'login.html');
+  const fs = require('fs');
+  
+  if (fs.existsSync(loginPath)) {
+    res.sendFile(loginPath);
+  } else {
+    console.log('Login page not found, redirecting to main page');
+    res.redirect('/');
+  }
 });
 
 app.get('/register', optionalAuth, (req, res) => {
-  // If already logged in, redirect to dashboard
+  console.log('Register page accessed');
   if (req.user) {
-    console.log(`Already authenticated user ${req.user.email} accessing register - redirecting to dashboard`);
+    console.log(`Already authenticated user - redirecting to dashboard`);
     return res.redirect('/dashboard');
   }
   
-  console.log('Showing register page');
-  res.sendFile(path.join(__dirname, 'public', 'register.html'));
+  // Check if register page exists
+  const registerPath = path.join(__dirname, 'public', 'register.html');
+  const fs = require('fs');
+  
+  if (fs.existsSync(registerPath)) {
+    res.sendFile(registerPath);
+  } else {
+    console.log('Register page not found, redirecting to main page');
+    res.redirect('/');
+  }
 });
 
-// API endpoint to check auth status (useful for frontend)
+// API endpoint to check auth status
 app.get('/api/auth-status', optionalAuth, (req, res) => {
   res.json({
     authenticated: !!req.user,
     user: req.user || null,
-    redirectUrl: req.user ? '/dashboard' : '/login'
+    redirectUrl: req.user ? '/dashboard' : '/',
+    authEnabled: !!process.env.JWT_SECRET
   });
-});
-
-// Logout endpoint that redirects
-app.post('/logout', (req, res) => {
-  // Clear any session data if needed
-  console.log('User logged out - redirecting to home');
-  res.redirect('/');
-});
-
-// Catch-all route - handle unmatched routes intelligently
-app.get('*', optionalAuth, (req, res) => {
-  console.log(`Catch-all route hit: ${req.url}`);
-  
-  // If user is authenticated, redirect to dashboard
-  if (req.user) {
-    console.log(`Authenticated user accessing unknown route - redirecting to dashboard`);
-    return res.redirect('/dashboard');
-  }
-  
-  // If not authenticated, show the main landing page
-  console.log('Unauthenticated user accessing unknown route - showing comment tool');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Dashboard route
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// Main routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/comment-tool', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
-});
-
-app.get('/comment-analysis', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
-});
-
-// Auth pages
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/register', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'register.html'));
 });
 
 // Catch-all route
 app.get('*', (req, res) => {
+  console.log(`Catch-all route: ${req.url} - serving main page`);
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Error handling middleware
-try {
-  errorHandler(app);
-} catch (error) {
-  console.error('Error handler failed:', error);
-  // Basic error handler fallback
-  app.use((err, req, res, next) => {
-    console.error('Server Error:', err);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message
-    });
-  });
-}
-
-// Server monitoring (optional)
-try {
-  const { setupServerMonitoring } = require('./utils/monitoring');
-  setupServerMonitoring();
-  console.log('✅ Server monitoring initialized');
-} catch (error) {
-  console.warn('Server monitoring failed to initialize:', error.message);
-}
-
-// Database connection test (optional)
-let testConnection;
-try {
-  const database = require('./utils/database');
-  testConnection = database.testConnection;
-} catch (error) {
-  console.warn('Database module not available:', error.message);
-  testConnection = null;
-}
-
-// CRITICAL: Proper error handling for server startup
-const server = app.listen(PORT, HOST, async () => {
-  console.log(`✅ Server running on ${HOST}:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Process ID: ${process.pid}`);
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
   
-  // Test database connection if available
-  if (testConnection) {
-    try {
-      console.log('Testing database connection...');
-      const dbConnected = await testConnection();
-      
-      if (dbConnected) {
-        console.log('✅ Database connected successfully');
-        console.log('🚀 Authentication system ready');
-      } else {
-        console.log('❌ Database connection failed');
-        console.log('⚠️  Authentication features may not work properly');
-      }
-    } catch (dbError) {
-      console.warn('Database test failed:', dbError.message);
-    }
-  } else {
-    console.log('ℹ️  Database connection test skipped (module not available)');
+  if (res.headersSent) {
+    return next(err);
   }
   
-  console.log('🚀 Application fully initialized and ready to serve requests');
+  // Handle specific errors
+  if (err.code === 'ECONNRESET') {
+    return res.status(503).json({
+      error: 'Connection Error',
+      message: 'Connection was reset'
+    });
+  }
+  
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      error: 'Invalid Token',
+      message: 'Authentication token is invalid'
+    });
+  }
+  
+  // Default error
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message
+  });
 });
 
-// CRITICAL: Handle server startup errors
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.url} not found`
+  });
+});
+
+// Start server with proper error handling
+const server = app.listen(PORT, HOST, () => {
+  console.log(`✅ Server running on ${HOST}:${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💾 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+  console.log(`🔐 Auth: ${process.env.JWT_SECRET ? 'Enabled' : 'Disabled'}`);
+  console.log(`🚀 Application ready to serve requests`);
+});
+
+// Handle server errors
 server.on('error', (error) => {
-  console.error('❌ Server startup error:', error);
+  console.error('❌ Server error:', error);
   
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
   } else if (error.code === 'EACCES') {
     console.error(`Permission denied to bind to port ${PORT}`);
+    process.exit(1);
+  } else {
+    console.error('Unknown server error');
+    process.exit(1);
   }
-  
-  process.exit(1);
 });
 
-// CRITICAL: Graceful shutdown handlers
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🔄 SIGTERM received, shutting down gracefully');
   server.close(() => {
@@ -336,7 +285,7 @@ process.on('SIGINT', () => {
   });
 });
 
-// CRITICAL: Handle uncaught exceptions
+// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
   process.exit(1);

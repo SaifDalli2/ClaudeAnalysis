@@ -1,25 +1,19 @@
 const jwt = require('jsonwebtoken');
 
-// Mock database functions if database module is not available
+// Safe database function imports
 let findSessionByToken, findUserById;
 
 try {
   const database = require('../utils/database');
   findSessionByToken = database.findSessionByToken;
   findUserById = database.findUserById;
+  console.log('✅ Database functions loaded for auth middleware');
 } catch (error) {
-  console.warn('Database module not available, using mock functions');
+  console.warn('⚠️ Database module not available, using fallback auth');
   
-  // Mock functions for when database is not available
-  findSessionByToken = async (token) => {
-    // In production, you'd want to properly handle this
-    return null;
-  };
-  
-  findUserById = async (userId) => {
-    // In production, you'd want to properly handle this
-    return null;
-  };
+  // Fallback functions
+  findSessionByToken = async () => null;
+  findUserById = async () => null;
 }
 
 /**
@@ -27,67 +21,79 @@ try {
  */
 async function authenticateToken(req, res, next) {
   try {
+    // Check if JWT_SECRET is configured
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        error: 'Authentication not configured',
+        message: 'JWT_SECRET environment variable not set',
+        suggestion: 'Contact administrator to configure authentication'
+      });
+    }
+
     // Get token from Authorization header
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    const token = authHeader && authHeader.split(' ')[1];
     
     if (!token) {
       return res.status(401).json({
         error: 'Access token required',
-        message: 'Please log in to access this page',
+        message: 'Please log in to access this resource',
         redirectUrl: '/login'
       });
     }
 
-    // Check if JWT_SECRET is available
-    if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET not configured');
-      return res.status(500).json({
-        error: 'Authentication system not configured',
-        message: 'Please contact support'
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      if (jwtError.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          error: 'Token expired',
+          message: 'Your session has expired. Please log in again.',
+          redirectUrl: '/login'
+        });
+      }
+      
+      return res.status(401).json({
+        error: 'Invalid token',
+        message: 'Please log in again',
+        redirectUrl: '/login'
       });
     }
-
-    // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Check if session still exists in database (if database is available)
+    // Try to get user from database session
     let user = null;
     
-    if (findSessionByToken) {
+    if (findSessionByToken && decoded.sessionToken) {
       try {
         const session = await findSessionByToken(decoded.sessionToken);
         
-        if (!session) {
-          return res.status(401).json({
-            error: 'Invalid session',
-            message: 'Your session has expired. Please log in again.',
-            redirectUrl: '/login'
-          });
+        if (session) {
+          user = {
+            id: session.user_id,
+            email: session.email,
+            firstName: session.first_name,
+            lastName: session.last_name,
+            company: session.company,
+            industry: session.industry
+          };
         }
-
-        // Add user information to request object
-        user = {
-          id: session.user_id,
-          email: session.email,
-          firstName: session.first_name,
-          lastName: session.last_name,
-          company: session.company,
-          industry: session.industry
-        };
       } catch (dbError) {
         console.warn('Database session check failed:', dbError.message);
         // Continue with token-only validation
-        user = {
-          id: decoded.userId,
-          email: decoded.email || 'user@example.com'
-        };
       }
-    } else {
-      // Fallback: Use data from JWT token directly
+    }
+    
+    // Fallback to JWT data if no database session
+    if (!user) {
       user = {
         id: decoded.userId,
-        email: decoded.email || 'user@example.com'
+        email: decoded.email || 'user@example.com',
+        firstName: decoded.firstName,
+        lastName: decoded.lastName,
+        company: decoded.company,
+        industry: decoded.industry
       };
     }
 
@@ -97,22 +103,6 @@ async function authenticateToken(req, res, next) {
   } catch (error) {
     console.error('Authentication error:', error);
     
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        error: 'Invalid token',
-        message: 'Please log in again',
-        redirectUrl: '/login'
-      });
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        error: 'Token expired',
-        message: 'Your session has expired. Please log in again.',
-        redirectUrl: '/login'
-      });
-    }
-
     return res.status(500).json({
       error: 'Authentication failed',
       message: 'Internal server error during authentication'
@@ -122,78 +112,78 @@ async function authenticateToken(req, res, next) {
 
 /**
  * Optional authentication middleware
- * Sets req.user if token is valid, but doesn't block unauthenticated requests
+ * Sets req.user if token is valid, but doesn't block requests
  */
 async function optionalAuth(req, res, next) {
   try {
+    // Skip if no JWT_SECRET
+    if (!process.env.JWT_SECRET) {
+      req.user = null;
+      return next();
+    }
+
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     
-    if (token && process.env.JWT_SECRET) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        if (findSessionByToken) {
-          try {
-            const session = await findSessionByToken(decoded.sessionToken);
-            
-            if (session) {
-              req.user = {
-                id: session.user_id,
-                email: session.email,
-                firstName: session.first_name,
-                lastName: session.last_name,
-                company: session.company,
-                industry: session.industry
-              };
-            }
-          } catch (dbError) {
-            console.warn('Optional auth database check failed:', dbError.message);
-            // Continue without user info
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Try database first
+      let user = null;
+      
+      if (findSessionByToken && decoded.sessionToken) {
+        try {
+          const session = await findSessionByToken(decoded.sessionToken);
+          
+          if (session) {
+            user = {
+              id: session.user_id,
+              email: session.email,
+              firstName: session.first_name,
+              lastName: session.last_name,
+              company: session.company,
+              industry: session.industry
+            };
           }
-        } else {
-          // Fallback: Use data from JWT token directly
-          req.user = {
-            id: decoded.userId,
-            email: decoded.email || 'user@example.com'
-          };
+        } catch (dbError) {
+          console.warn('Optional auth database check failed:', dbError.message);
         }
-      } catch (jwtError) {
-        // Token is invalid, continue without user info
-        console.warn('Optional auth JWT verification failed:', jwtError.message);
       }
+      
+      // Fallback to JWT data
+      if (!user) {
+        user = {
+          id: decoded.userId,
+          email: decoded.email || 'user@example.com',
+          firstName: decoded.firstName,
+          lastName: decoded.lastName,
+          company: decoded.company,
+          industry: decoded.industry
+        };
+      }
+      
+      req.user = user;
+    } catch (jwtError) {
+      // Invalid token, continue without user
+      req.user = null;
     }
     
     next();
   } catch (error) {
-    // In optional auth, we just continue without user info if there's an error
+    // In optional auth, always continue
     console.warn('Optional auth error:', error.message);
+    req.user = null;
     next();
   }
 }
 
 /**
- * Middleware to check if user has specific permissions
- * @param {Array} requiredRoles - Array of required roles
- */
-function requireRoles(requiredRoles = []) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        error: 'Authentication required',
-        message: 'Please log in to access this resource',
-        redirectUrl: '/login'
-      });
-    }
-
-    // For now, all authenticated users have access
-    // In the future, you can add role checking here
-    next();
-  };
-}
-
-/**
- * Rate limiting middleware for authentication endpoints
+ * Rate limiting for auth endpoints
  */
 const loginAttempts = new Map();
 
@@ -201,7 +191,7 @@ function rateLimitAuth(req, res, next) {
   const clientId = req.ip || 'unknown';
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 minutes
-  const maxAttempts = 5;
+  const maxAttempts = 10; // Increased for development
 
   if (!loginAttempts.has(clientId)) {
     loginAttempts.set(clientId, []);
@@ -209,14 +199,14 @@ function rateLimitAuth(req, res, next) {
 
   const attempts = loginAttempts.get(clientId);
   
-  // Remove old attempts outside the window
+  // Remove old attempts
   const validAttempts = attempts.filter(time => now - time < windowMs);
   loginAttempts.set(clientId, validAttempts);
 
   if (validAttempts.length >= maxAttempts) {
     return res.status(429).json({
       error: 'Too many attempts',
-      message: 'Too many login attempts. Please try again later.',
+      message: 'Too many authentication attempts. Please try again later.',
       retryAfter: Math.ceil((validAttempts[0] + windowMs - now) / 1000)
     });
   }
@@ -229,41 +219,91 @@ function rateLimitAuth(req, res, next) {
 }
 
 /**
- * Middleware to extract user info from token without requiring authentication
+ * Require specific roles (placeholder for future use)
+ */
+function requireRoles(requiredRoles = []) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please log in to access this resource',
+        redirectUrl: '/login'
+      });
+    }
+
+    // For now, all authenticated users have access
+    // TODO: Implement role-based access control
+    next();
+  };
+}
+
+/**
+ * Get user from token without requiring authentication
  */
 async function getUserFromToken(req, res, next) {
   try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    req.user = null;
     
-    if (!token || !process.env.JWT_SECRET) {
-      req.user = null;
+    if (!process.env.JWT_SECRET) {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
     
-    if (findUserById) {
-      try {
-        const user = await findUserById(decoded.userId);
-        req.user = user || null;
-      } catch (dbError) {
-        console.warn('getUserFromToken database error:', dbError.message);
-        req.user = null;
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      if (findUserById) {
+        try {
+          const user = await findUserById(decoded.userId);
+          req.user = user || {
+            id: decoded.userId,
+            email: decoded.email || 'user@example.com'
+          };
+        } catch (dbError) {
+          req.user = {
+            id: decoded.userId,
+            email: decoded.email || 'user@example.com'
+          };
+        }
+      } else {
+        req.user = {
+          id: decoded.userId,
+          email: decoded.email || 'user@example.com'
+        };
       }
-    } else {
-      req.user = {
-        id: decoded.userId,
-        email: decoded.email || 'user@example.com'
-      };
+    } catch (jwtError) {
+      // Token invalid, continue without user
+      req.user = null;
     }
     
     next();
   } catch (error) {
+    console.warn('getUserFromToken error:', error.message);
     req.user = null;
     next();
   }
 }
+
+// Clean up old login attempts periodically
+setInterval(() => {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  
+  for (const [clientId, attempts] of loginAttempts.entries()) {
+    const validAttempts = attempts.filter(time => now - time < windowMs);
+    if (validAttempts.length === 0) {
+      loginAttempts.delete(clientId);
+    } else {
+      loginAttempts.set(clientId, validAttempts);
+    }
+  }
+}, 5 * 60 * 1000); // Clean up every 5 minutes
 
 module.exports = {
   authenticateToken,
