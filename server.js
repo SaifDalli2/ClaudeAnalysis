@@ -39,12 +39,6 @@ app.use('/api', healthRoutes);
 app.use('/api', claudeRoutes);
 
 // Root route - serve main app or login page
-app.get('/', (req, res) => {
-  // For now, serve the existing app
-  // Later we can add logic to redirect to login if not authenticated
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // In your server.js or main route file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html')); // Main dashboard
