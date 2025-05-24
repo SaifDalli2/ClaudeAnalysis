@@ -11,10 +11,10 @@ const {
 const { summarizeComments, testCategorization } = require('../services/summary');
 const { validateApiKey, validateComments } = require('../utils/validation');
 
-// Start categorization job
+// Start categorization job with industry-specific categories
 router.post('/categorize', async (req, res) => {
   try {
-    const { comments, apiKey } = req.body;
+    const { comments, apiKey, industry } = req.body;
     
     // Enhanced validation
     const apiKeyValidation = validateApiKey(apiKey);
@@ -32,7 +32,75 @@ router.post('/categorize', async (req, res) => {
       console.warn(`Large dataset detected: ${comments.length} comments. This may take a very long time to process.`);
     }
 
-    const result = await startCategorization(comments, apiKey);
+    // Get user information if authenticated
+    let userInfo = null;
+    let selectedIndustry = industry;
+    
+    // Check if request has authentication
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+      try {
+        const { authenticateToken } = require('../middleware/auth');
+        // Create a mock request object for authentication
+        const mockReq = { headers: req.headers };
+        let authenticated = false;
+        
+        await new Promise((resolve) => {
+          authenticateToken(mockReq, {
+            status: () => ({ json: () => {} }),
+            json: () => {}
+          }, () => {
+            authenticated = true;
+            userInfo = mockReq.user;
+            resolve();
+          });
+        }).catch(() => {
+          // Authentication failed, continue without user info
+        });
+        
+        if (authenticated && userInfo) {
+          console.log(`Processing request for authenticated user: ${userInfo.email}`);
+          
+          // Use user's industry if not explicitly provided
+          if (!selectedIndustry && userInfo.industry) {
+            selectedIndustry = userInfo.industry;
+            console.log(`Using user's industry: ${selectedIndustry}`);
+          }
+        }
+      } catch (authError) {
+        console.log('Authentication check failed, proceeding without user context');
+      }
+    }
+
+    // Load industry-specific categories if industry is provided
+    let industryCategories = null;
+    if (selectedIndustry) {
+      try {
+        const { getIndustryConfig } = require('../utils/database');
+        const industryConfig = await getIndustryConfig(selectedIndustry);
+        
+        if (industryConfig) {
+          industryCategories = industryConfig.categories;
+          console.log(`Loaded ${industryCategories.length} categories for ${selectedIndustry} industry`);
+        } else {
+          console.log(`Industry config not found for: ${selectedIndustry}, using default categories`);
+        }
+      } catch (industryError) {
+        console.error('Failed to load industry categories:', industryError);
+      }
+    }
+
+    // Start categorization with industry context
+    const result = await startCategorization(comments, apiKey, {
+      industry: selectedIndustry,
+      categories: industryCategories,
+      userId: userInfo?.id
+    });
+    
+    // Add industry information to response
+    result.industry = selectedIndustry;
+    result.categoriesUsed = industryCategories ? industryCategories.length : 'default';
+    
     res.json(result);
     
   } catch (error) {

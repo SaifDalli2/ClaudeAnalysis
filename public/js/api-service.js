@@ -155,7 +155,7 @@ export async function checkServerAvailability() {
 }
 
 /**
- * Start async categorization job
+ * Start async categorization job with user authentication and industry-specific categories
  */
 export async function startCategorizationJob(comments, apiKey) {
   if (!comments || !comments.length) {
@@ -172,16 +172,36 @@ export async function startCategorizationJob(comments, apiKey) {
     const categorizeUrl = `${SERVER_URL}${API_ENDPOINTS.CATEGORIZE}`;
     addLogEntry(`Sending job start request to: ${categorizeUrl}`, 'info');
     
+    // Get authentication headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    // Add authentication if user is logged in
+    if (window.isAuthenticated && window.isAuthenticated()) {
+      headers['Authorization'] = `Bearer ${window.authToken}`;
+      addLogEntry('Including user authentication in request', 'info');
+    }
+    
+    const requestBody = {
+      comments: comments,
+      apiKey: apiKey
+    };
+    
+    // Add user's industry for category selection
+    if (window.getCurrentUser && window.getCurrentUser()) {
+      const user = window.getCurrentUser();
+      if (user.industry) {
+        requestBody.industry = user.industry;
+        addLogEntry(`Using industry-specific categories: ${user.industry}`, 'info');
+      }
+    }
+    
     const response = await fetchWithTimeout(categorizeUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        comments: comments,
-        apiKey: apiKey
-      })
+      headers: headers,
+      body: JSON.stringify(requestBody)
     }, 30000);
     
     if (!response.ok) {
@@ -205,7 +225,6 @@ export async function startCategorizationJob(comments, apiKey) {
     throw error;
   }
 }
-
 
 /**
  * Get job results
@@ -296,10 +315,24 @@ export async function summarizeComments(categorizedComments, extractedTopics, ap
 // Add these fixes to your api-service.js file
 
 /**
- * Enhanced processCommentsWithAPI with better timeout and retry handling
+ * Enhanced processCommentsWithAPI with user authentication
  */
 export async function processCommentsWithAPI(comments, apiKey) {
   try {
+    // Check if user is authenticated and has an industry
+    if (window.isAuthenticated && window.isAuthenticated()) {
+      const user = window.getCurrentUser();
+      addLogEntry(`Processing comments for user: ${user.email}`, 'info');
+      
+      if (user.industry) {
+        addLogEntry(`Using ${user.industry} industry categories`, 'info');
+      } else {
+        addLogEntry('User has no industry set - using default categories', 'warning');
+      }
+    } else {
+      addLogEntry('Processing comments without user authentication', 'info');
+    }
+
     // Step 1: Start the categorization job
     const jobInfo = await startCategorizationJob(comments, apiKey);
     const jobId = jobInfo.jobId;

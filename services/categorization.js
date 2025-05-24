@@ -5,8 +5,11 @@ const { parseClaudeResponse, generateJobId } = require('../utils/processing');
 // In-memory storage for processing jobs (use Redis in production)
 const processingJobs = new Map();
 
-function startCategorization(comments, apiKey) {
+function startCategorization(comments, apiKey, options = {}) {
   const jobId = generateJobId();
+  
+  // Extract options
+  const { industry, categories, userId } = options;
   
   // Calculate estimates
   const estimatedBatches = Math.ceil(comments.length / 30);
