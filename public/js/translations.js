@@ -66,6 +66,13 @@ window.translations = {
     "app-title": "نظام تصنيف التعليقات",
     "app-description": "أدخل التعليقات لتصنيفها وتلخيصها. سيتم تخصيص كل تعليق لفئة واحدة بالضبط.",
     
+    // User interface
+    "welcome-user": "مرحباً، {name}!",
+    "edit-profile": "تعديل الملف الشخصي",
+    "logout": "تسجيل الخروج",
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    
     // Processing section
     "processing-method": "طريقة المعالجة",
     "use-simulation": "استخدام المحاكاة (لا يلزم مفتاح API)",

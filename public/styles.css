@@ -229,6 +229,87 @@ body.rtl {
   margin-bottom: 20px;
 }
 
+/* RTL-specific fixes for header */
+.rtl .logo-container {
+  direction: rtl;
+}
+
+.rtl .logo-section {
+  flex-direction: row-reverse;
+}
+
+.rtl .header-controls {
+  flex-direction: row-reverse;
+}
+
+.rtl .user-info {
+  flex-direction: row-reverse;
+}
+
+.rtl .login-prompt {
+  flex-direction: row-reverse;
+}
+
+.rtl .user-dropdown {
+  right: auto;
+  left: 0;
+}
+
+.rtl .dropdown-item {
+  text-align: right;
+  flex-direction: row-reverse;
+}
+
+.rtl .dropdown-header {
+  text-align: right;
+}
+
+/* Fix language selector in RTL */
+.rtl .language-switcher {
+  order: 1;
+}
+
+.rtl .user-menu {
+  order: 2;
+}
+
+.rtl .login-prompt {
+  order: 2;
+}
+
+/* User interface text fixes for RTL */
+.rtl .welcome-message {
+  direction: rtl;
+  text-align: right;
+}
+
+.rtl .industry-badge {
+  margin-right: 10px;
+  margin-left: 0;
+}
+
+/* Responsive RTL fixes */
+@media (max-width: 768px) {
+  .rtl .header-controls {
+    gap: 10px;
+    flex-direction: row-reverse;
+  }
+  
+  .rtl .user-dropdown {
+    left: -50px;
+    right: auto;
+  }
+}
+
+/* General RTL improvements */
+.rtl .app-info {
+  text-align: right;
+}
+
+.rtl .app-info h2 {
+  text-align: right;
+}
+
 .profile-modal-title {
   color: var(--dark-primary-hover);
   margin: 0;

@@ -53,12 +53,19 @@
             </div>
             <hr class="dropdown-divider">
             <button id="editProfileBtn" class="dropdown-item">
-              <span>Edit Profile</span>
+              <span data-lang-key="edit-profile">Edit Profile</span>
             </button>
             <button id="logoutBtn" class="dropdown-item logout">
-              <span>Logout</span>
+              <span data-lang-key="logout">Logout</span>
             </button>
           </div>
+        </div>
+        
+        <!-- Login Button (shown when not logged in) -->
+        <div id="loginPrompt" class="login-prompt">
+          <a href="/login" class="login-link" data-lang-key="login">Login</a>
+          <span class="separator">|</span>
+          <a href="/register" class="register-link" data-lang-key="register">Register</a>
         </div>
         
         <!-- Login Button (shown when not logged in) -->
@@ -568,12 +575,21 @@
     /**
      * Update user display information
      */
+    /**
+     * Update user display information with proper translations
+     */
     function updateUserDisplay(user) {
-      // Welcome message
+      // Welcome message with proper translation
       const welcomeMessage = document.getElementById('welcomeMessage');
       if (welcomeMessage) {
         const firstName = user.firstName || user.email.split('@')[0];
-        welcomeMessage.textContent = `Welcome, ${firstName}!`;
+        const currentLang = getCurrentLanguage ? getCurrentLanguage() : 'en';
+        
+        if (currentLang === 'ar') {
+          welcomeMessage.textContent = `مرحباً، ${firstName}!`;
+        } else {
+          welcomeMessage.textContent = `Welcome, ${firstName}!`;
+        }
       }
 
       // Industry badge
@@ -604,8 +620,64 @@
       if (userEmail) {
         userEmail.textContent = user.email;
       }
+
+      // Update dropdown button texts with translations
+      updateDropdownTranslations();
     }
 
+    /**
+     * Update dropdown translations based on current language
+     */
+    function updateDropdownTranslations() {
+      const editProfileBtn = document.getElementById('editProfileBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      
+      if (editProfileBtn && window.getTranslation) {
+        const editText = window.getTranslation('edit-profile', 'Edit Profile');
+        editProfileBtn.querySelector('span').textContent = editText;
+      }
+      
+      if (logoutBtn && window.getTranslation) {
+        const logoutText = window.getTranslation('logout', 'Logout');
+        logoutBtn.querySelector('span').textContent = logoutText;
+      }
+
+      // Update login/register links
+      const loginLink = document.querySelector('.login-link');
+      const registerLink = document.querySelector('.register-link');
+      
+      if (loginLink && window.getTranslation) {
+        loginLink.textContent = window.getTranslation('login', 'Login');
+      }
+      
+      if (registerLink && window.getTranslation) {
+        registerLink.textContent = window.getTranslation('register', 'Register');
+      }
+    }
+
+    /**
+     * Update interface when language changes
+     */
+    function handleLanguageChange() {
+      // Re-update user display with new language
+      if (window.currentUser) {
+        updateUserDisplay(window.currentUser);
+      }
+      
+      // Update other UI elements
+      updateDropdownTranslations();
+    }
+
+    // Listen for language changes
+    document.addEventListener('DOMContentLoaded', function() {
+      const languageSelector = document.getElementById('languageSelector');
+      if (languageSelector) {
+        languageSelector.addEventListener('change', function() {
+          // Small delay to ensure the new language is applied
+          setTimeout(handleLanguageChange, 100);
+        });
+      }
+    });
     /**
      * Get user initials for avatar
      */

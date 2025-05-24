@@ -152,11 +152,12 @@ function cancelJob(jobId) {
   };
 }
 
-async function processCommentsAsync(jobId, comments, apiKey) {
+async function processCommentsAsync(jobId, comments, apiKey, options = {}) {
   const job = processingJobs.get(jobId);
   if (!job) return;
   
   const { industry, categories, userId } = options;
+  
   // Set up timeout handling
   const timeoutDuration = 25 * 60 * 1000; // 25 minutes
   const timeoutHandler = setTimeout(() => {
@@ -174,6 +175,14 @@ async function processCommentsAsync(jobId, comments, apiKey) {
   
   try {
     console.log(`Starting async processing for job ${jobId} with ${comments.length} comments`);
+    
+    // Log industry context
+    if (industry) {
+      console.log(`🏭 Processing with industry: ${industry}`);
+    }
+    if (categories && categories.length > 0) {
+      console.log(`📊 Using ${categories.length} industry-specific categories`);
+    }
     
     job.status = 'processing';
     job.progress = 0;
@@ -202,7 +211,7 @@ async function processCommentsAsync(jobId, comments, apiKey) {
       timeoutMs: 90000
     };
     
-    // Process each batch
+    // Process each batch with industry context
     for (let i = 0; i < batches.length; i++) {
       const batchComments = batches[i];
       const batchStartIndex = i * batchSize;
@@ -232,7 +241,8 @@ async function processCommentsAsync(jobId, comments, apiKey) {
             return;
           }
           
-          const result = await processBatch(batchComments, batchStartIndex, apiKey);
+          // Pass industry categories to batch processing
+          const result = await processBatch(batchComments, batchStartIndex, apiKey, { categories });
           const validResults = result.categorizedComments?.length || 0;
           const expectedResults = batchComments.length;
           const batchSuccessRate = validResults / expectedResults;
@@ -341,14 +351,15 @@ async function processCommentsAsync(jobId, comments, apiKey) {
   }
 }
 
-async function processBatch(batchComments, batchStartIndex, apiKey) {
+async function processBatch(batchComments, batchStartIndex, apiKey, options = {}) {
+  const { categories } = options;
   const language = detectLanguage(batchComments);
   
   let promptContent;
   if (language === 'ar') {
-    promptContent = createArabicPrompt(batchComments, batchStartIndex);
+    promptContent = createArabicPrompt(batchComments, batchStartIndex, categories);
   } else {
-    promptContent = createEnglishPrompt(batchComments, batchStartIndex);
+    promptContent = createEnglishPrompt(batchComments, batchStartIndex, categories);
   }
   
   const response = await axios.post('https://api.anthropic.com/v1/messages', {
@@ -385,24 +396,29 @@ async function processBatch(batchComments, batchStartIndex, apiKey) {
   return parseClaudeResponse(response);
 }
 
-function createArabicPrompt(batchComments, batchStartIndex) {
+function createArabicPrompt(batchComments, batchStartIndex, categories) {
+  // Use industry-specific categories if provided, otherwise use default
+  const categoryList = categories && categories.length > 0 ? categories : [
+    'مشكلات تقنية: تحديث التطبيق',
+    'مشكلات تقنية: تجميد/بطء التطبيق',
+    'مشكلات تقنية: مشكلات التطبيق',
+    'مشكلات تقنية: لا يعمل',
+    'مشكلات تقنية: تسجيل الدخول والوصول',
+    'مشكلات تقنية: الأمان',
+    'ملاحظات العملاء: معقد',
+    'ملاحظات العملاء: خدمة العملاء',
+    'ملاحظات العملاء: التصميم',
+    'ملاحظات العملاء: مسيء',
+    'ملاحظات العملاء: شكرًا',
+    'مالية: احتيال',
+    'مالية: التسعير',
+    'مالية: طلب استرداد'
+  ];
+
   return `أرجع فقط JSON صالح. لا تكتب أي نص آخر.
 
 صنف كل تعليق إلى فئة واحدة من هذه القائمة:
-- مشكلات تقنية: تحديث التطبيق
-- مشكلات تقنية: تجميد/بطء التطبيق  
-- مشكلات تقنية: مشكلات التطبيق
-- مشكلات تقنية: لا يعمل
-- مشكلات تقنية: تسجيل الدخول والوصول
-- مشكلات تقنية: الأمان
-- ملاحظات العملاء: معقد
-- ملاحظات العملاء: خدمة العملاء
-- ملاحظات العملاء: التصميم
-- ملاحظات العملاء: مسيء
-- ملاحظات العملاء: شكرًا
-- مالية: احتيال
-- مالية: التسعير
-- مالية: طلب استرداد
+${categoryList.map(cat => `- ${cat}`).join('\n')}
 
 التعليقات:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
@@ -411,24 +427,29 @@ ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comme
 {"categorizedComments":[{"id":1,"comment":"النص","category":"اسم الفئة","topics":["موضوع"]}],"extractedTopics":[]}`;
 }
 
-function createEnglishPrompt(batchComments, batchStartIndex) {
+function createEnglishPrompt(batchComments, batchStartIndex, categories) {
+  // Use industry-specific categories if provided, otherwise use default
+  const categoryList = categories && categories.length > 0 ? categories : [
+    'Technical issues: App update',
+    'Technical issues: App Freeze/Slow',
+    'Technical issues: App issues',
+    'Technical issues: Doesn\'t work',
+    'Technical issues: Login and Access',
+    'Technical issues: Security',
+    'Customer Feedback: Complicated',
+    'Customer Feedback: Customer Service',
+    'Customer Feedback: Design',
+    'Customer Feedback: Offensive',
+    'Customer Feedback: Thank you',
+    'Monetary: Fraud',
+    'Monetary: Pricing',
+    'Monetary: Refund Request'
+  ];
+
   return `Return only valid JSON. No other text.
 
 Categorize each comment into one category from this list:
-- Technical issues: App update
-- Technical issues: App Freeze/Slow
-- Technical issues: App issues
-- Technical issues: Doesn't work
-- Technical issues: Login and Access
-- Technical issues: Security
-- Customer Feedback: Complicated
-- Customer Feedback: Customer Service
-- Customer Feedback: Design
-- Customer Feedback: Offensive
-- Customer Feedback: Thank you
-- Monetary: Fraud
-- Monetary: Pricing
-- Monetary: Refund Request
+${categoryList.map(cat => `- ${cat}`).join('\n')}
 
 Comments:
 ${batchComments.map((comment, index) => `${batchStartIndex + index + 1}. ${comment}`).join('\n')}
