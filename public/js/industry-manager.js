@@ -12,6 +12,8 @@ class IndustryManager {
     this.initialized = false;
   }
 
+
+  
   /**
    * Initialize the industry manager
    */

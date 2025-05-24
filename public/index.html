@@ -324,50 +324,47 @@
     }
   </script>
 
-  <!-- Industry Integration -->
+ <!-- Industry Integration -->
   <script>
     console.log('🏭 Industry integration loading...');
     
     document.addEventListener('DOMContentLoaded', async function() {
       console.log('🏭 Starting industry integration...');
       
-      // Wait for auth to be ready
-      await new Promise(resolve => {
-        if (window.currentUser !== undefined) {
-          resolve();
-        } else {
-          const checkAuth = setInterval(() => {
-            if (window.currentUser !== undefined) {
-              clearInterval(checkAuth);
-              resolve();
-            }
-          }, 100);
-          
-          setTimeout(() => {
-            clearInterval(checkAuth);
-            resolve();
-          }, 5000);
-        }
-      });
+      // Wait for industry manager to be available
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max wait
       
-      // Initialize industry manager
-      if (window.industryManager) {
-        console.log('✅ Industry manager found, initializing...');
+      while (!window.industryManager && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!window.industryManager) {
+        console.error('❌ Industry manager failed to initialize after 5 seconds');
+        return;
+      }
+      
+      // Wait for auth to be ready
+      attempts = 0;
+      while (window.currentUser === undefined && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      console.log('✅ Industry manager found, initializing...');
+      
+      try {
+        await window.industryManager.initialize();
+        window.industryManager.updateIndustryDisplay();
         
-        try {
-          await window.industryManager.initialize();
-          window.industryManager.updateIndustryDisplay();
-          
-          if (window.isAuthenticated && window.isAuthenticated()) {
-            addIndustrySelector();
-          }
-          
-          console.log('✅ Industry integration complete');
-        } catch (error) {
-          console.error('❌ Industry integration failed:', error);
+        if (window.isAuthenticated && window.isAuthenticated()) {
+          addIndustrySelector();
         }
-      } else {
-        console.warn('⚠️ Industry manager not found');
+        
+        console.log('✅ Industry integration complete');
+      } catch (error) {
+        console.error('❌ Industry integration failed:', error);
       }
     });
     
