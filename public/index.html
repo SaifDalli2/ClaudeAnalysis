@@ -8,6 +8,53 @@
   
   <!-- Load translations.js (non-module) first -->
   <script src="js/translations.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1E1E2F;
+      color: #E8E8FF;
+    }
+    
+    .debug-section {
+      background: #2A2A3D;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #333355;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 4px;
+    }
+    
+    .success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4CAF50; }
+    .error { background: rgba(244, 67, 54, 0.2); border: 1px solid #F44336; }
+    .warning { background: rgba(255, 152, 0, 0.2); border: 1px solid #FF9800; }
+    
+    button {
+      background: #E2FF66;
+      color: black;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    
+    .code {
+      background: #1a1a2e;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      overflow-x: auto;
+    }
+  </style>
 </head>
 <body>
   <!-- Loading status indicator -->
@@ -225,6 +272,42 @@
       
       <div id="categoriesContainer"></div>
     </div>
+  </div>
+
+
+
+  <h1>🔧 Authentication Debug Tool</h1>
+  
+  <div class="debug-section">
+    <h2>Current Authentication Status</h2>
+    <div id="authStatus" class="status">Checking...</div>
+    <div id="tokenStatus" class="status">Checking token...</div>
+    <div id="userStatus" class="status">Checking user data...</div>
+  </div>
+  
+  <div class="debug-section">
+    <h2>Stored Data</h2>
+    <div><strong>Auth Token:</strong> <span id="storedToken">Loading...</span></div>
+    <div><strong>User Data:</strong> <pre id="storedUser" class="code">Loading...</pre></div>
+  </div>
+  
+  <div class="debug-section">
+    <h2>API Verification</h2>
+    <div id="apiVerification" class="status">Not tested</div>
+    <button onclick="testAPI()">Test API Verification</button>
+  </div>
+  
+  <div class="debug-section">
+    <h2>Manual Actions</h2>
+    <button onclick="clearAuth()">Clear All Auth Data</button>
+    <button onclick="refreshAuth()">Refresh Authentication</button>
+    <button onclick="debugConsole()">Log Debug Info to Console</button>
+  </div>
+  
+  <div class="debug-section">
+    <h2>Fixed Authentication Script</h2>
+    <p>Copy this script to replace the authentication section in your index.html:</p>
+    <pre class="code" id="fixedScript">Loading script...</pre>
   </div>
 
   <!-- Load debug helper script first -->
@@ -454,254 +537,345 @@
   </script>
 
   <!-- User Authentication Integration Script -->
-  <script>
-    // Global authentication state
-    window.currentUser = null;
-    window.authToken = null;
-
-    document.addEventListener('DOMContentLoaded', function() {
-      initializeAuthentication();
-      setupUserInterface();
+   <script>
+    // Check initial state
+    window.addEventListener('load', function() {
+      checkCurrentState();
+      loadFixedScript();
     });
-
-    /**
-     * Initialize authentication on page load
-     */
-    async function initializeAuthentication() {
+    
+    function checkCurrentState() {
       const token = localStorage.getItem('authToken');
-      const userInfo = localStorage.getItem('user');
-
-      if (token && userInfo) {
+      const userStr = localStorage.getItem('user');
+      
+      // Update token status
+      const tokenStatus = document.getElementById('tokenStatus');
+      if (token) {
+        tokenStatus.textContent = `Token found: ${token.substring(0, 20)}...`;
+        tokenStatus.className = 'status success';
+      } else {
+        tokenStatus.textContent = 'No token found';
+        tokenStatus.className = 'status error';
+      }
+      
+      // Update user status
+      const userStatus = document.getElementById('userStatus');
+      if (userStr) {
         try {
-          // Verify token is still valid
-          const response = await fetch('/api/auth/verify', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            window.currentUser = data.user;
-            window.authToken = token;
-            showUserInterface(data.user);
-            console.log('✅ User authenticated:', data.user.email);
-          } else {
-            // Token is invalid
-            clearAuthData();
-            showLoginPrompt();
-          }
-        } catch (error) {
-          console.error('Auth verification failed:', error);
-          clearAuthData();
-          showLoginPrompt();
+          const user = JSON.parse(userStr);
+          userStatus.textContent = `User found: ${user.email}`;
+          userStatus.className = 'status success';
+          document.getElementById('storedUser').textContent = JSON.stringify(user, null, 2);
+        } catch (e) {
+          userStatus.textContent = 'Invalid user data format';
+          userStatus.className = 'status error';
+          document.getElementById('storedUser').textContent = userStr;
         }
       } else {
-        showLoginPrompt();
+        userStatus.textContent = 'No user data found';
+        userStatus.className = 'status error';
+        document.getElementById('storedUser').textContent = 'None';
+      }
+      
+      // Update stored token display
+      document.getElementById('storedToken').textContent = token || 'None';
+      
+      // Update overall auth status
+      const authStatus = document.getElementById('authStatus');
+      if (token && userStr) {
+        authStatus.textContent = '✅ Authentication data present';
+        authStatus.className = 'status success';
+      } else {
+        authStatus.textContent = '❌ Authentication incomplete';
+        authStatus.className = 'status error';
       }
     }
-
-    /**
-     * Setup user interface event handlers
-     */
-    function setupUserInterface() {
-      // Profile button click
-      const profileBtn = document.getElementById('profileBtn');
-      const userDropdown = document.getElementById('userDropdown');
+    
+    async function testAPI() {
+      const apiVerification = document.getElementById('apiVerification');
+      const token = localStorage.getItem('authToken');
       
-      if (profileBtn) {
-        profileBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          userDropdown.classList.toggle('show');
-        });
+      if (!token) {
+        apiVerification.textContent = '❌ No token to test';
+        apiVerification.className = 'status error';
+        return;
       }
+      
+      apiVerification.textContent = '🔄 Testing API...';
+      apiVerification.className = 'status warning';
+      
+      try {
+        const response = await fetch('/api/auth/verify', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          apiVerification.textContent = `✅ API verification successful: ${data.user.email}`;
+          apiVerification.className = 'status success';
+        } else {
+          apiVerification.textContent = `❌ API verification failed: ${response.status}`;
+          apiVerification.className = 'status error';
+        }
+      } catch (error) {
+        apiVerification.textContent = `❌ API test error: ${error.message}`;
+        apiVerification.className = 'status error';
+      }
+    }
+    
+    function clearAuth() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      checkCurrentState();
+      alert('Authentication data cleared. Refresh the main page.');
+    }
+    
+    function refreshAuth() {
+      checkCurrentState();
+      testAPI();
+    }
+    
+    function debugConsole() {
+      console.group('🔍 Authentication Debug Info');
+      console.log('Token:', localStorage.getItem('authToken'));
+      console.log('User:', localStorage.getItem('user'));
+      console.log('Parsed User:', JSON.parse(localStorage.getItem('user') || 'null'));
+      console.log('Window objects:');
+      console.log('- window.currentUser:', window.currentUser);
+      console.log('- window.authToken:', window.authToken);
+      console.log('- window.isAuthenticated:', typeof window.isAuthenticated);
+      console.log('- window.getCurrentUser:', typeof window.getCurrentUser);
+      console.groupEnd();
+    }
+    
+    function loadFixedScript() {
+      const fixedScript = `
+<!-- FIXED Authentication Integration Script -->
+<scr` + `ipt>
+// Global authentication state
+window.currentUser = null;
+window.authToken = null;
 
-      // Close dropdown when clicking outside
-      document.addEventListener('click', function() {
-        if (userDropdown) {
-          userDropdown.classList.remove('show');
+// Make authentication functions available globally
+window.isAuthenticated = function() {
+  return window.currentUser !== null && window.authToken !== null;
+};
+
+window.getCurrentUser = function() {
+  return window.currentUser;
+};
+
+window.getAuthHeaders = function() {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  
+  if (window.authToken) {
+    headers['Authorization'] = \`Bearer \${window.authToken}\`;
+  }
+  
+  return headers;
+};
+
+// Initialize authentication immediately when script loads
+async function initializeAuthentication() {
+  console.log('🔐 Initializing authentication...');
+  
+  const token = localStorage.getItem('authToken');
+  const userInfo = localStorage.getItem('user');
+  
+  console.log('Token found:', !!token);
+  console.log('User info found:', !!userInfo);
+
+  if (token && userInfo) {
+    try {
+      console.log('Verifying stored token...');
+      
+      // Verify token is still valid
+      const response = await fetch('/api/auth/verify', {
+        headers: {
+          'Authorization': \`Bearer \${token}\`
         }
       });
 
-      // Logout button
-      const logoutBtn = document.getElementById('logoutBtn');
-      if (logoutBtn) {
-        logoutBtn.addEventListener('click', handleLogout);
-      }
-
-      // Edit profile button
-      const editProfileBtn = document.getElementById('editProfileBtn');
-      if (editProfileBtn) {
-        editProfileBtn.addEventListener('click', showProfileModal);
-      }
-    }
-
-    /**
-     * Show user interface for authenticated users
-     */
-    function showUserInterface(user) {
-      // Hide login prompt, show user menu
-      const loginPrompt = document.getElementById('loginPrompt');
-      const userMenu = document.getElementById('userMenu');
-      const userInfo = document.getElementById('userInfo');
-
-      if (loginPrompt) loginPrompt.style.display = 'none';
-      if (userMenu) userMenu.style.display = 'block';
-      if (userInfo) userInfo.style.display = 'flex';
-
-      // Update user information
-      updateUserDisplay(user);
-    }
-
-    /**
-     * Show login prompt for unauthenticated users
-     */
-    function showLoginPrompt() {
-      const loginPrompt = document.getElementById('loginPrompt');
-      const userMenu = document.getElementById('userMenu');
-      const userInfo = document.getElementById('userInfo');
-
-      if (loginPrompt) loginPrompt.style.display = 'flex';
-      if (userMenu) userMenu.style.display = 'none';
-      if (userInfo) userInfo.style.display = 'none';
-    }
-
-    /**
-     * Update user display information
-     */
-    /**
-     * Update user display information with proper translations
-     */
-    function updateUserDisplay(user) {
-      // Welcome message with proper translation
-      const welcomeMessage = document.getElementById('welcomeMessage');
-      if (welcomeMessage) {
-        const firstName = user.firstName || user.email.split('@')[0];
-        const currentLang = getCurrentLanguage ? getCurrentLanguage() : 'en';
+      if (response.ok) {
+        const data = await response.json();
+        window.currentUser = data.user;
+        window.authToken = token;
         
-        if (currentLang === 'ar') {
-          welcomeMessage.textContent = `مرحباً، ${firstName}!`;
-        } else {
-          welcomeMessage.textContent = `Welcome, ${firstName}!`;
-        }
-      }
-
-      // Industry badge
-      const industryBadge = document.getElementById('industryBadge');
-      if (industryBadge && user.industry) {
-        industryBadge.textContent = user.industry;
-        industryBadge.style.display = 'inline-block';
-      } else if (industryBadge) {
-        industryBadge.style.display = 'none';
-      }
-
-      // User initials
-      const userInitials = document.getElementById('userInitials');
-      if (userInitials) {
-        const initials = getInitials(user.firstName, user.lastName, user.email);
-        userInitials.textContent = initials;
-      }
-
-      // Dropdown user info
-      const userFullName = document.getElementById('userFullName');
-      const userEmail = document.getElementById('userEmail');
-      
-      if (userFullName) {
-        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
-        userFullName.textContent = fullName;
-      }
-      
-      if (userEmail) {
-        userEmail.textContent = user.email;
-      }
-
-      // Update dropdown button texts with translations
-      updateDropdownTranslations();
-    }
-
-    /**
-     * Update dropdown translations based on current language
-     */
-    function updateDropdownTranslations() {
-      const editProfileBtn = document.getElementById('editProfileBtn');
-      const logoutBtn = document.getElementById('logoutBtn');
-      
-      if (editProfileBtn && window.getTranslation) {
-        const editText = window.getTranslation('edit-profile', 'Edit Profile');
-        editProfileBtn.querySelector('span').textContent = editText;
-      }
-      
-      if (logoutBtn && window.getTranslation) {
-        const logoutText = window.getTranslation('logout', 'Logout');
-        logoutBtn.querySelector('span').textContent = logoutText;
-      }
-
-      // Update login/register links
-      const loginLink = document.querySelector('.login-link');
-      const registerLink = document.querySelector('.register-link');
-      
-      if (loginLink && window.getTranslation) {
-        loginLink.textContent = window.getTranslation('login', 'Login');
-      }
-      
-      if (registerLink && window.getTranslation) {
-        registerLink.textContent = window.getTranslation('register', 'Register');
-      }
-    }
-
-    /**
-     * Update interface when language changes
-     */
-    function handleLanguageChange() {
-      // Re-update user display with new language
-      if (window.currentUser) {
-        updateUserDisplay(window.currentUser);
-      }
-      
-      // Update other UI elements
-      updateDropdownTranslations();
-    }
-
-    // Listen for language changes
-    document.addEventListener('DOMContentLoaded', function() {
-      const languageSelector = document.getElementById('languageSelector');
-      if (languageSelector) {
-        languageSelector.addEventListener('change', function() {
-          // Small delay to ensure the new language is applied
-          setTimeout(handleLanguageChange, 100);
-        });
-      }
-    });
-    /**
-     * Get user initials for avatar
-     */
-    function getInitials(firstName, lastName, email) {
-      if (firstName && lastName) {
-        return (firstName[0] + lastName[0]).toUpperCase();
-      } else if (firstName) {
-        return firstName.substring(0, 2).toUpperCase();
+        console.log('✅ Authentication successful:', data.user.email);
+        showUserInterface(data.user);
       } else {
-        return email.substring(0, 2).toUpperCase();
+        console.log('❌ Token verification failed:', response.status);
+        clearAuthData();
+        showLoginPrompt();
       }
+    } catch (error) {
+      console.error('Auth verification failed:', error);
+      clearAuthData();
+      showLoginPrompt();
     }
+  } else {
+    console.log('No stored authentication data');
+    showLoginPrompt();
+  }
+}
 
-    /**
-     * Handle user logout
-     */
-    async function handleLogout() {
+function showUserInterface(user) {
+  console.log('🎨 Showing user interface for:', user.email);
+  
+  // Hide login prompt, show user menu
+  const loginPrompt = document.getElementById('loginPrompt');
+  const userMenu = document.getElementById('userMenu');
+  const userInfo = document.getElementById('userInfo');
+
+  if (loginPrompt) {
+    loginPrompt.style.display = 'none';
+    console.log('Hidden login prompt');
+  }
+  
+  if (userMenu) {
+    userMenu.style.display = 'block';
+    console.log('Shown user menu');
+  }
+  
+  if (userInfo) {
+    userInfo.style.display = 'flex';
+    console.log('Shown user info');
+  }
+
+  // Update user information
+  updateUserDisplay(user);
+}
+
+function showLoginPrompt() {
+  console.log('🔑 Showing login prompt');
+  
+  const loginPrompt = document.getElementById('loginPrompt');
+  const userMenu = document.getElementById('userMenu');
+  const userInfo = document.getElementById('userInfo');
+
+  if (loginPrompt) {
+    loginPrompt.style.display = 'flex';
+    console.log('Shown login prompt');
+  }
+  
+  if (userMenu) {
+    userMenu.style.display = 'none';
+    console.log('Hidden user menu');
+  }
+  
+  if (userInfo) {
+    userInfo.style.display = 'none';
+    console.log('Hidden user info');
+  }
+}
+
+function updateUserDisplay(user) {
+  console.log('📝 Updating user display for:', user.email);
+  
+  // Welcome message
+  const welcomeMessage = document.getElementById('welcomeMessage');
+  if (welcomeMessage) {
+    const firstName = user.firstName || user.email.split('@')[0];
+    welcomeMessage.textContent = \`Welcome, \${firstName}!\`;
+    console.log('Updated welcome message');
+  }
+
+  // Industry badge
+  const industryBadge = document.getElementById('industryBadge');
+  if (industryBadge && user.industry) {
+    industryBadge.textContent = user.industry;
+    industryBadge.style.display = 'inline-block';
+    console.log('Updated industry badge:', user.industry);
+  } else if (industryBadge) {
+    industryBadge.style.display = 'none';
+  }
+
+  // User initials
+  const userInitials = document.getElementById('userInitials');
+  if (userInitials) {
+    const initials = getInitials(user.firstName, user.lastName, user.email);
+    userInitials.textContent = initials;
+    console.log('Updated user initials:', initials);
+  }
+
+  // Dropdown user info
+  const userFullName = document.getElementById('userFullName');
+  const userEmail = document.getElementById('userEmail');
+  
+  if (userFullName) {
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
+    userFullName.textContent = fullName;
+    console.log('Updated full name:', fullName);
+  }
+  
+  if (userEmail) {
+    userEmail.textContent = user.email;
+    console.log('Updated email display');
+  }
+}
+
+function getInitials(firstName, lastName, email) {
+  if (firstName && lastName) {
+    return (firstName[0] + lastName[0]).toUpperCase();
+  } else if (firstName) {
+    return firstName.substring(0, 2).toUpperCase();
+  } else {
+    return email.substring(0, 2).toUpperCase();
+  }
+}
+
+function clearAuthData() {
+  console.log('🧹 Clearing authentication data');
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
+  window.currentUser = null;
+  window.authToken = null;
+}
+
+// Setup event handlers
+function setupUserInterface() {
+  console.log('🎛️ Setting up user interface handlers');
+  
+  // Profile button click
+  const profileBtn = document.getElementById('profileBtn');
+  const userDropdown = document.getElementById('userDropdown');
+  
+  if (profileBtn && userDropdown) {
+    profileBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      userDropdown.classList.toggle('show');
+    });
+    console.log('Profile button handler added');
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function() {
+    if (userDropdown) {
+      userDropdown.classList.remove('show');
+    }
+  });
+
+  // Logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async function() {
+      console.log('🚪 Logging out...');
+      
       try {
-        // Call logout API
         await fetch('/api/auth/logout', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${window.authToken}`
+            'Authorization': \`Bearer \${window.authToken}\`
           }
         });
       } catch (error) {
         console.error('Logout API call failed:', error);
       }
 
-      // Clear local data regardless of API call success
       clearAuthData();
       showLoginPrompt();
       
@@ -722,61 +896,28 @@
       }
 
       console.log('✅ User logged out successfully');
+    });
+    console.log('Logout button handler added');
+  }
+}
+
+// Wait for DOM to be ready, then initialize
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM loaded, initializing auth...');
+    setupUserInterface();
+    initializeAuthentication();
+  });
+} else {
+  console.log('📄 DOM already loaded, initializing auth immediately...');
+  setupUserInterface();
+  initializeAuthentication();
+}
+</scr` + `ipt>`;
       
-      // Optionally redirect to login page
-      // window.location.href = '/login';
+      document.getElementById('fixedScript').textContent = fixedScript;
     }
-
-    /**
-     * Clear authentication data
-     */
-    function clearAuthData() {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      window.currentUser = null;
-      window.authToken = null;
-    }
-
-    /**
-     * Show profile editing modal (placeholder for now)
-     */
-    function showProfileModal() {
-      alert('Profile editing will be implemented in the next step!');
-      // Close the dropdown
-      const userDropdown = document.getElementById('userDropdown');
-      if (userDropdown) {
-        userDropdown.classList.remove('show');
-      }
-    }
-
-    /**
-     * Get authentication headers for API calls
-     */
-    window.getAuthHeaders = function() {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
-      if (window.authToken) {
-        headers['Authorization'] = `Bearer ${window.authToken}`;
-      }
-      
-      return headers;
-    };
-
-    /**
-     * Check if user is authenticated
-     */
-    window.isAuthenticated = function() {
-      return window.currentUser !== null && window.authToken !== null;
-    };
-
-    /**
-     * Get current user
-     */
-    window.getCurrentUser = function() {
-      return window.currentUser;
-    };
   </script>
+  
 </body>
 </html>
