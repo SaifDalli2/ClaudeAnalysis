@@ -75,34 +75,38 @@ body.rtl {
   gap: 20px;
 }
 
-.user-menu {
-  position: relative;
-}
-
 .profile-btn {
-  background: var(--dark-primary);
-  color: black;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  transition: background-color 0.3s ease;
+  background: var(--dark-primary) !important;
+  color: black !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 40px !important;
+  height: 40px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: bold !important;
+  transition: background-color 0.3s ease !important;
+  position: relative !important;
+  z-index: 100 !important;
 }
 
 .profile-btn:hover {
-  background: var(--dark-primary-hover);
+  background: var(--dark-primary-hover) !important;
 }
 
 .user-initials {
-  font-size: 14px;
-  font-weight: bold;
+  font-size: 14px !important;
+  font-weight: bold !important;
+  color: black !important;
+  display: block !important;
 }
 
+.user-menu {
+  position: relative !important;
+  display: block !important;
+}
 .user-dropdown {
   position: absolute;
   top: 50px;
