@@ -1,6 +1,6 @@
 /**
  * Enhanced UI handler functions for real-time progress display
- * Fixed result display issues
+ * Fixed result display issues and undefined variable errors
  */
 import { 
   getCurrentLanguage, 
@@ -211,12 +211,27 @@ async function processCommentsWithAPI(comments, apiKey) {
     
     // Get final results
     addLogEntry('Retrieving final results...', 'info');
-    const finalResults = await getJobResults(currentJobId);
+    let finalJobResults;
     
-    addLogEntry(`Final results retrieved: ${finalResults.categorizedComments.length} comments categorized`, 'success');
+    try {
+      finalJobResults = await getJobResults(currentJobId);
+    } catch (resultsError) {
+      // If we can't get final results but have partial results from status, use those
+      if (processedResults.categorizedComments.length > 0) {
+        addLogEntry('Using partial results from status checks', 'warning');
+        finalJobResults = {
+          categorizedComments: processedResults.categorizedComments,
+          extractedTopics: processedResults.extractedTopics || []
+        };
+      } else {
+        throw resultsError;
+      }
+    }
+    
+    addLogEntry(`Final results retrieved: ${finalJobResults.categorizedComments.length} comments categorized`, 'success');
     
     // Generate summaries for final results
-    return await generateSummariesForResults(finalResults, comments, apiKey);
+    return await generateSummariesForResults(finalJobResults, comments, apiKey);
     
   } catch (error) {
     addLogEntry(`API processing error: ${error.message}`, 'error');
@@ -436,69 +451,6 @@ async function generateSummariesForResults(results, comments, apiKey) {
     return generateCategoriesFromComments(results.categorizedComments, comments);
   }
 }
-
-// In services/summary.js, update the summarizeComments function:
-async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
-  console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
-  
-  // ... existing code ...
-  
-  const summaryData = parseClaudeResponse(response);
-  
-  // DEBUG: Log the parsed summary data
-  console.log('📊 Parsed summary data structure:', Object.keys(summaryData || {}));
-  console.log('📊 Parsed summary data:', summaryData);
-  
-  // Add actual comment counts for each category
-  if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
-    summaryData.summaries.forEach(summary => {
-      if (commentsByCategory[summary.category]) {
-        summary.commentCount = commentsByCategory[summary.category].length;
-      }
-    });
-    console.log(`📊 Enhanced ${summaryData.summaries.length} summaries with comment counts`);
-  } else {
-    console.warn('⚠️ No summaries array found in parsed data');
-    
-    // If no summaries found, check if we have categorizedComments instead
-    if (summaryData.categorizedComments) {
-      console.log('📊 Found categorizedComments in summary data');
-    }
-  }
-  
-  return summaryData;
-}
-
-/**
- * THIRD FIX: Enhanced debugging for the main processing function
- */
-// In ui-handlers.js, update processCommentsWithAPI function to add more logging:
-
-// After getting final results, add this:
-console.log('🔍 Final results from server:', finalResults);
-console.log('🔍 Final results structure:', Object.keys(finalResults || {}));
-if (finalResults.categorizedComments) {
-  console.log(`🔍 Final results has ${finalResults.categorizedComments.length} categorized comments`);
-}
-
-// Before calling generateSummariesForResults, add this:
-console.log('🔍 About to generate summaries for results...');
-console.log('🔍 Results passed to generateSummariesForResults:', {
-  categorizedCommentsCount: finalResults.categorizedComments?.length || 0,
-  extractedTopicsCount: finalResults.extractedTopics?.length || 0
-});
-
-/**
- * USAGE INSTRUCTIONS:
- * 
- * 1. Replace the generateSummariesForResults function in ui-handlers.js with the version above
- * 2. Add the debug logging to services/summary.js
- * 3. Add the debug logging to the processCommentsWithAPI function
- * 4. Enable debug mode in the UI to see detailed logs
- * 
- * This fix handles multiple possible response formats from the summarization API
- * and ensures results are preserved even if summarization fails or returns unexpected format.
- */
 
 /**
  * Enhanced display processing results with debugging and better error handling
@@ -1001,7 +953,7 @@ export function setupActionButtons(commentsArray, processFunction) {
       }
       
       // Check processing method
-      const useSimulation = document.getElementById('useSimulation').checked;
+      const useSimulation = document.getElementById('useSimulation') ? document.getElementById('useSimulation').checked : false;
       
       try {
         await processFunction(commentsArray, useSimulation);
