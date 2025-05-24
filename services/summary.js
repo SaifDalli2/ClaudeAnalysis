@@ -142,6 +142,71 @@ async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
   return summaryData;
 }
 
+/**
+ * Create summary prompt for categorized comments
+ */
+function createSummaryPrompt(limitedCommentsByCategory, allCommentsByCategory, extractedTopics, language) {
+  if (language === 'ar') {
+    return `قم بتحليل التعليقات المصنفة التالية وإنشاء ملخصات مفيدة لكل فئة.
+
+البيانات:
+${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
+  `الفئة: ${category}\nعدد التعليقات: ${allCommentsByCategory[category].length}\nالتعليقات:\n${comments.map((comment, i) => `${i+1}. ${comment}`).join('\n')}`
+).join('\n\n')}
+
+لكل فئة، قدم:
+1. ملخص موجز ودقيق يلتقط النقاط الرئيسية
+2. المشاكل الشائعة (2-3 مشاكل)
+3. الإجراءات المقترحة (2-3 إجراءات)
+4. درجة المشاعر (-1 إلى 1)
+
+أرجع النتائج بتنسيق JSON فقط:
+{
+  "summaries": [
+    {
+      "category": "اسم الفئة",
+      "summary": "ملخص موجز ودقيق",
+      "commonIssues": ["مشكلة 1", "مشكلة 2"],
+      "suggestedActions": ["إجراء 1", "إجراء 2"],
+      "sentiment": 0.5
+    }
+  ],
+  "topTopics": [
+    {"topic": "موضوع", "count": 5}
+  ]
+}`;
+  } else {
+    return `Analyze the following categorized comments and create helpful summaries for each category.
+
+Data:
+${Object.entries(limitedCommentsByCategory).map(([category, comments]) => 
+  `Category: ${category}\nTotal Comments: ${allCommentsByCategory[category].length}\nComments:\n${comments.map((comment, i) => `${i+1}. ${comment}`).join('\n')}`
+).join('\n\n')}
+
+For each category, provide:
+1. A concise, accurate summary capturing key points
+2. Common issues (2-3 issues)
+3. Suggested actions (2-3 actions)
+4. Sentiment score (-1 to 1)
+
+Return results in JSON format only:
+{
+  "summaries": [
+    {
+      "category": "Category Name",
+      "summary": "Concise, accurate summary",
+      "commonIssues": ["Issue 1", "Issue 2"],
+      "suggestedActions": ["Action 1", "Action 2"],
+      "sentiment": 0.5
+    }
+  ],
+  "topTopics": [
+    {"topic": "topic", "count": 5}
+  ]
+}`;
+  }
+}
+
 async function testCategorization(apiKey) {
   console.log('Running categorization test with 5 sample comments...');
   

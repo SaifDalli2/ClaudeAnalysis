@@ -15,7 +15,7 @@ function startCategorization(comments, apiKey, options = {}) {
   const estimatedBatches = Math.ceil(comments.length / 30);
   const estimatedTimeMinutes = Math.ceil(estimatedBatches * 1.5);
   
-  // Initialize job status
+  // Initialize job status with industry information
   processingJobs.set(jobId, {
     status: 'starting',
     progress: 0,
@@ -30,12 +30,21 @@ function startCategorization(comments, apiKey, options = {}) {
     lastActivity: new Date(),
     retryCount: 0,
     successfulBatches: 0,
-    failedBatches: 0
+    failedBatches: 0,
+    industry: industry || 'default',
+    categoriesUsed: categories ? categories.length : 'default'
   });
   
-  // Start processing asynchronously
-  processCommentsAsync(jobId, comments, apiKey);
+  console.log(`🏭 Job ${jobId} - Industry: ${industry || 'default'}`);
+  console.log(`📊 Job ${jobId} - Categories: ${categories ? categories.length + ' industry-specific' : 'default set'}`);
   
+  if (categories && categories.length > 0) {
+    console.log(`📋 Job ${jobId} - Category list: ${categories.slice(0, 3).join(', ')}${categories.length > 3 ? '...' : ''}`);
+  }
+  
+  // Start processing asynchronously
+  processCommentsAsync(jobId, comments, apiKey, { industry, categories, userId });
+
   // Set up cleanup (4 hours)
   setTimeout(() => {
     if (processingJobs.has(jobId)) {
@@ -147,6 +156,7 @@ async function processCommentsAsync(jobId, comments, apiKey) {
   const job = processingJobs.get(jobId);
   if (!job) return;
   
+  const { industry, categories, userId } = options;
   // Set up timeout handling
   const timeoutDuration = 25 * 60 * 1000; // 25 minutes
   const timeoutHandler = setTimeout(() => {
