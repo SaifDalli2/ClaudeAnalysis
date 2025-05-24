@@ -92,6 +92,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+
 // API Routes with error handling
 try {
   app.use('/api/auth', authRoutes);
@@ -120,6 +121,95 @@ try {
 } catch (error) {
   console.warn('Claude routes failed to load:', error.message);
 }
+
+// Add this to your server.js after the middleware setup and before the catch-all route
+
+// Import authentication middleware for route protection
+const { authenticateToken, optionalAuth } = require('./middleware/auth');
+
+// Root route - smart routing based on authentication
+app.get('/', optionalAuth, (req, res) => {
+  // If user is authenticated, redirect to dashboard
+  if (req.user) {
+    console.log(`Authenticated user ${req.user.email} accessing root - redirecting to dashboard`);
+    return res.redirect('/dashboard');
+  }
+  
+  // If not authenticated, show the main landing page (comment tool)
+  console.log('Unauthenticated user accessing root - showing comment tool');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Dashboard route - requires authentication
+app.get('/dashboard', authenticateToken, (req, res) => {
+  console.log(`User ${req.user.email} accessing dashboard`);
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Comment analysis tool - public access (can be used without login)
+app.get('/comment-tool', (req, res) => {
+  console.log('Comment tool accessed (public)');
+  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
+});
+
+app.get('/comment-analysis', (req, res) => {
+  console.log('Comment analysis accessed (public)');
+  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
+});
+
+// Auth pages - only for non-authenticated users
+app.get('/login', optionalAuth, (req, res) => {
+  // If already logged in, redirect to dashboard
+  if (req.user) {
+    console.log(`Already authenticated user ${req.user.email} accessing login - redirecting to dashboard`);
+    return res.redirect('/dashboard');
+  }
+  
+  console.log('Showing login page');
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/register', optionalAuth, (req, res) => {
+  // If already logged in, redirect to dashboard
+  if (req.user) {
+    console.log(`Already authenticated user ${req.user.email} accessing register - redirecting to dashboard`);
+    return res.redirect('/dashboard');
+  }
+  
+  console.log('Showing register page');
+  res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
+
+// API endpoint to check auth status (useful for frontend)
+app.get('/api/auth-status', optionalAuth, (req, res) => {
+  res.json({
+    authenticated: !!req.user,
+    user: req.user || null,
+    redirectUrl: req.user ? '/dashboard' : '/login'
+  });
+});
+
+// Logout endpoint that redirects
+app.post('/logout', (req, res) => {
+  // Clear any session data if needed
+  console.log('User logged out - redirecting to home');
+  res.redirect('/');
+});
+
+// Catch-all route - handle unmatched routes intelligently
+app.get('*', optionalAuth, (req, res) => {
+  console.log(`Catch-all route hit: ${req.url}`);
+  
+  // If user is authenticated, redirect to dashboard
+  if (req.user) {
+    console.log(`Authenticated user accessing unknown route - redirecting to dashboard`);
+    return res.redirect('/dashboard');
+  }
+  
+  // If not authenticated, show the main landing page
+  console.log('Unauthenticated user accessing unknown route - showing comment tool');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Dashboard route
 app.get('/dashboard', (req, res) => {
