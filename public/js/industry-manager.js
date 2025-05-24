@@ -352,14 +352,15 @@ class IndustryManager {
   }
 }
 
-// Create global instance with proper initialization
-if (!window.industryManager) {
-  window.industryManager = new IndustryManager();
-}
+// Initialize industry manager immediately when script loads
+console.log('🏭 Creating Industry Manager instance...');
 
-// Export for module use
+// Create the global instance
+window.industryManager = new IndustryManager();
+
+console.log('🏭 Industry Manager loaded and ready');
+
+// Export for module use if needed
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = IndustryManager;
 }
-
-console.log('🏭 Industry Manager loaded');

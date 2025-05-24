@@ -5,9 +5,325 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comment Categorization System</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- Load translations and industry manager FIRST (before any other scripts) -->
+  <script src="js/translations.js"></script>
   <script src="js/industry-manager.js"></script>
+  
+  <!-- Load debug helper script (hidden by default) -->
+  <script src="js/debug-helper.js" style="display: none;"></script>
+
+  <!-- SINGLE MODULE IMPORT -->
+  <script type="module">
+    import { initializeApp } from './js/module-index.js';
+  </script>
+
+  <!-- Enhanced comment counter and utilities -->
   <script>
+    function updateCommentCount() {
+      const count = window.comments ? window.comments.length : 0;
+      const commentCountEl = document.getElementById('commentCount');
+      if (commentCountEl) {
+        commentCountEl.textContent = count;
+      }
+    }
+
+    function updateLastProcessed() {
+      const lastProcessedEl = document.getElementById('lastProcessed');
+      if (lastProcessedEl) {
+        lastProcessedEl.textContent = new Date().toLocaleTimeString();
+      }
+    }
+
+    window.updateCommentCount = updateCommentCount;
+    window.updateLastProcessed = updateLastProcessed;
+
+    // Auto-update comment count
+    setInterval(updateCommentCount, 1000);
+
+    // Show debug elements only in development
+    function toggleDebugElements() {
+      const debugElements = document.getElementById('debugElements');
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.search.includes('debug=true');
+      
+      if (isDevelopment || window.location.search.includes('debug=true')) {
+        debugElements.style.display = 'block';
+        console.log('🔧 Debug mode enabled');
+      }
+    }
+
+    // Check for debug mode
+    document.addEventListener('DOMContentLoaded', toggleDebugElements);
+
+    // Secret key combination to enable debug in production (Ctrl+Shift+D)
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const debugElements = document.getElementById('debugElements');
+        debugElements.style.display = debugElements.style.display === 'none' ? 'block' : 'none';
+        console.log('🔧 Debug mode toggled via keyboard shortcut');
+      }
+    });
+  </script>
+
+  <!-- COMPLETE FIXED Authentication Integration Script -->
+  <script>
+    console.log('🚀 Loading complete authentication fix...');
+
+    window.currentUser = null;
+    window.authToken = null;
+
+    window.isAuthenticated = function() {
+      return window.currentUser !== null && window.authToken !== null;
+    };
+
+    window.getCurrentUser = function() {
+      return window.currentUser;
+    };
+
+    window.getAuthHeaders = function() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (window.authToken) {
+        headers['Authorization'] = `Bearer ${window.authToken}`;
+      }
+      return headers;
+    };
+
+    function waitForElement(selector, callback, maxAttempts = 20) {
+      let attempts = 0;
+      
+      function check() {
+        const element = document.getElementById(selector) || document.querySelector(selector);
+        if (element) {
+          callback(element);
+        } else {
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(check, 250);
+          }
+        }
+      }
+      
+      check();
+    }
+
+    async function initializeAuthentication() {
+      const token = localStorage.getItem('authToken');
+      const userInfo = localStorage.getItem('user');
+
+      if (token && userInfo) {
+        try {
+          const response = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            window.currentUser = data.user;
+            window.authToken = token;
+            
+            showUserInterface(data.user);
+          } else {
+            clearAuthData();
+            showLoginPrompt();
+          }
+        } catch (error) {
+          clearAuthData();
+          showLoginPrompt();
+        }
+      } else {
+        showLoginPrompt();
+      }
+    }
+
+    function showUserInterface(user) {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'block';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'flex';
+      });
+
+      updateUserDisplay(user);
+    }
+
+    function showLoginPrompt() {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'flex';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'none';
+      });
+    }
+
+    function updateUserDisplay(user) {
+      waitForElement('welcomeMessage', (element) => {
+        const firstName = user.firstName || user.email.split('@')[0];
+        const currentLang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : 'en';
+        
+        if (currentLang === 'ar') {
+          element.textContent = `مرحباً، ${firstName}!`;
+        } else {
+          element.textContent = `Welcome, ${firstName}!`;
+        }
+      });
+
+      waitForElement('industryBadge', (element) => {
+        if (user.industry) {
+          element.textContent = user.industry;
+          element.style.display = 'inline-block';
+        } else {
+          element.style.display = 'none';
+        }
+      });
+
+      waitForElement('userInitials', (element) => {
+        const initials = getInitials(user.firstName, user.lastName, user.email);
+        element.textContent = initials;
+      });
+
+      waitForElement('userFullName', (element) => {
+        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
+        element.textContent = fullName;
+      });
+      
+      waitForElement('userEmail', (element) => {
+        element.textContent = user.email;
+      });
+    }
+
+    function getInitials(firstName, lastName, email) {
+      if (firstName && lastName) {
+        return (firstName[0] + lastName[0]).toUpperCase();
+      } else if (firstName) {
+        return firstName.substring(0, 2).toUpperCase();
+      } else {
+        return email.substring(0, 2).toUpperCase();
+      }
+    }
+
+    function clearAuthData() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.currentUser = null;
+      window.authToken = null;
+    }
+
+    function setupUserInterface() {
+      waitForElement('profileBtn', (profileBtn) => {
+        waitForElement('userDropdown', (userDropdown) => {
+          profileBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const isShown = userDropdown.classList.contains('show');
+            
+            if (isShown) {
+              userDropdown.classList.remove('show');
+            } else {
+              userDropdown.classList.add('show');
+            }
+          });
+        });
+      });
+
+      document.addEventListener('click', function(e) {
+        waitForElement('userDropdown', (userDropdown) => {
+          if (!e.target.closest('.user-menu')) {
+            userDropdown.classList.remove('show');
+          }
+        });
+      });
+
+      waitForElement('logoutBtn', (logoutBtn) => {
+        logoutBtn.addEventListener('click', async function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${window.authToken}` }
+            });
+          } catch (error) {
+            console.error('Logout API call failed:', error);
+          }
+
+          clearAuthData();
+          
+          const userMenu = document.getElementById('userMenu');
+          const userInfo = document.getElementById('userInfo');
+          const loginPrompt = document.getElementById('loginPrompt');
+          const userDropdown = document.getElementById('userDropdown');
+          
+          if (userMenu) userMenu.style.display = 'none';
+          if (userInfo) userInfo.style.display = 'none';
+          if (userDropdown) userDropdown.classList.remove('show');
+          if (loginPrompt) loginPrompt.style.display = 'flex';
+          
+          const welcomeMessage = document.getElementById('welcomeMessage');
+          const userInitials = document.getElementById('userInitials');
+          const userFullName = document.getElementById('userFullName');
+          const userEmail = document.getElementById('userEmail');
+          const industryBadge = document.getElementById('industryBadge');
+          
+          if (welcomeMessage) welcomeMessage.textContent = '';
+          if (userInitials) userInitials.textContent = '';
+          if (userFullName) userFullName.textContent = '';
+          if (userEmail) userEmail.textContent = '';
+          if (industryBadge) {
+            industryBadge.textContent = '';
+            industryBadge.style.display = 'none';
+          }
+          
+          const categoriesContainer = document.getElementById('categoriesContainer');
+          if (categoriesContainer) categoriesContainer.innerHTML = '';
+          
+          if (window.comments) window.comments.length = 0;
+          
+          const commentsList = document.getElementById('commentsList');
+          if (commentsList) commentsList.innerHTML = '';
+        });
+      });
+    }
+
+    function handleLanguageChange() {
+      if (window.currentUser) {
+        updateUserDisplay(window.currentUser);
+      }
+    }
+
+    function initialize() {
+      setupUserInterface();
+      initializeAuthentication();
+      
+      waitForElement('languageSelector', (languageSelector) => {
+        languageSelector.addEventListener('change', () => {
+          setTimeout(handleLanguageChange, 100);
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+      setTimeout(initialize, 100);
+    }
+  </script>
+
+<script>
   // Enhanced integration with industry-specific categories
+  console.log('🏭 Industry integration script loading...');
   
   // Initialize industry manager when app loads
   document.addEventListener('DOMContentLoaded', async function() {
@@ -33,30 +349,11 @@
       }
     });
     
-    // Wait for industry manager to be available
-    await new Promise(resolve => {
-      if (window.industryManager) {
-        resolve();
-      } else {
-        const checkManager = setInterval(() => {
-          if (window.industryManager) {
-            clearInterval(checkManager);
-            resolve();
-          }
-        }, 100);
-        
-        // Timeout after 3 seconds
-        setTimeout(() => {
-          clearInterval(checkManager);
-          console.warn('⚠️ Industry manager not found, continuing without it');
-          resolve();
-        }, 3000);
-      }
-    });
-    
-    // Initialize industry manager
-    try {
-      if (window.industryManager && typeof window.industryManager.initialize === 'function') {
+    // Industry manager should already be available since we loaded it first
+    if (window.industryManager) {
+      console.log('✅ Industry manager found, initializing...');
+      
+      try {
         await window.industryManager.initialize();
         
         // Update UI with industry information
@@ -68,11 +365,11 @@
         }
         
         console.log('✅ Industry integration complete');
-      } else {
-        console.warn('⚠️ Industry manager not properly initialized');
+      } catch (error) {
+        console.error('❌ Industry integration failed:', error);
       }
-    } catch (error) {
-      console.error('❌ Industry integration failed:', error);
+    } else {
+      console.warn('⚠️ Industry manager not found');
     }
   });
   
@@ -100,57 +397,59 @@
   });
   
   // Enhanced comment processing with industry context
-  if (typeof window.enhancedProcessComments === 'function') {
-    window.originalProcessComments = window.enhancedProcessComments;
-    window.enhancedProcessComments = async function(comments, useSimulation = false) {
-      console.log('🚀 Starting enhanced processing with industry context...');
-      
-      try {
-        // Get industry-specific processing options
-        let industryOptions = {
-          industry: 'Default',
-          categories: [],
-          npsFactors: [],
-          isUserIndustry: false
-        };
+  setTimeout(() => {
+    if (typeof window.enhancedProcessComments === 'function') {
+      window.originalProcessComments = window.enhancedProcessComments;
+      window.enhancedProcessComments = async function(comments, useSimulation = false) {
+        console.log('🚀 Starting enhanced processing with industry context...');
         
-        if (window.industryManager && typeof window.industryManager.getProcessingOptions === 'function') {
-          industryOptions = window.industryManager.getProcessingOptions();
-        }
-        
-        console.log(`📊 Processing ${comments.length} comments with ${industryOptions.industry} categories`);
-        
-        // Add industry information to the processing
-        if (!useSimulation) {
-          // For API processing, we'll pass industry info to the backend
-          console.log(`🏭 Using ${industryOptions.categories.length} ${industryOptions.industry} industry categories`);
+        try {
+          // Get industry-specific processing options
+          let industryOptions = {
+            industry: 'Default',
+            categories: [],
+            npsFactors: [],
+            isUserIndustry: false
+          };
           
-          // Update progress display to show industry
-          const progressMessage = document.getElementById('progressMessage');
-          if (progressMessage) {
-            progressMessage.textContent = `Processing with ${industryOptions.industry} categories...`;
+          if (window.industryManager && typeof window.industryManager.getProcessingOptions === 'function') {
+            industryOptions = window.industryManager.getProcessingOptions();
           }
-        }
-        
-        // Call the original processing function
-        const result = await window.originalProcessComments(comments, useSimulation);
-        
-        // Add industry context to results
-        if (result && industryOptions.industry !== 'Default') {
-          console.log(`✅ Processing completed using ${industryOptions.industry} industry categories`);
           
-          // Add industry badge to results if it doesn't exist
-          addIndustryBadgeToResults(industryOptions.industry);
+          console.log(`📊 Processing ${comments.length} comments with ${industryOptions.industry} categories`);
+          
+          // Add industry information to the processing
+          if (!useSimulation) {
+            // For API processing, we'll pass industry info to the backend
+            console.log(`🏭 Using ${industryOptions.categories.length} ${industryOptions.industry} industry categories`);
+            
+            // Update progress display to show industry
+            const progressMessage = document.getElementById('progressMessage');
+            if (progressMessage) {
+              progressMessage.textContent = `Processing with ${industryOptions.industry} categories...`;
+            }
+          }
+          
+          // Call the original processing function
+          const result = await window.originalProcessComments(comments, useSimulation);
+          
+          // Add industry context to results
+          if (result && industryOptions.industry !== 'Default') {
+            console.log(`✅ Processing completed using ${industryOptions.industry} industry categories`);
+            
+            // Add industry badge to results if it doesn't exist
+            addIndustryBadgeToResults(industryOptions.industry);
+          }
+          
+          return result;
+          
+        } catch (error) {
+          console.error('❌ Enhanced processing failed:', error);
+          throw error;
         }
-        
-        return result;
-        
-      } catch (error) {
-        console.error('❌ Enhanced processing failed:', error);
-        throw error;
-      }
-    };
-  }
+      };
+    }
+  }, 2000); // Wait 2 seconds for all modules to load
   
   // Add industry selector for authenticated users
   function addIndustrySelector() {
@@ -315,8 +614,6 @@
   
   console.log('🏭 Industry integration script loaded');
 </script>
-  <!-- Load translations.js (non-module) first -->
-  <script src="js/translations.js"></script>
 </head>
 <body>
   <header class="header">
@@ -486,62 +783,7 @@
     </div>
   </div>
 
-  <!-- Load debug helper script (hidden by default) -->
-  <script src="js/debug-helper.js" style="display: none;"></script>
-
-  <!-- SINGLE MODULE IMPORT -->
-  <script type="module">
-    import { initializeApp } from './js/module-index.js';
-  </script>
-
-  <!-- Enhanced comment counter and utilities -->
-  <script>
-    function updateCommentCount() {
-      const count = window.comments ? window.comments.length : 0;
-      const commentCountEl = document.getElementById('commentCount');
-      if (commentCountEl) {
-        commentCountEl.textContent = count;
-      }
-    }
-
-    function updateLastProcessed() {
-      const lastProcessedEl = document.getElementById('lastProcessed');
-      if (lastProcessedEl) {
-        lastProcessedEl.textContent = new Date().toLocaleTimeString();
-      }
-    }
-
-    window.updateCommentCount = updateCommentCount;
-    window.updateLastProcessed = updateLastProcessed;
-
-    // Auto-update comment count
-    setInterval(updateCommentCount, 1000);
-
-    // Show debug elements only in development
-    function toggleDebugElements() {
-      const debugElements = document.getElementById('debugElements');
-      const isDevelopment = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.search.includes('debug=true');
-      
-      if (isDevelopment || window.location.search.includes('debug=true')) {
-        debugElements.style.display = 'block';
-        console.log('🔧 Debug mode enabled');
-      }
-    }
-
-    // Check for debug mode
-    document.addEventListener('DOMContentLoaded', toggleDebugElements);
-
-    // Secret key combination to enable debug in production (Ctrl+Shift+D)
-    document.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        const debugElements = document.getElementById('debugElements');
-        debugElements.style.display = debugElements.style.display === 'none' ? 'block' : 'none';
-        console.log('🔧 Debug mode toggled via keyboard shortcut');
-      }
-    });
-  </script>
+  
 
   <!-- COMPLETE FIXED Authentication Integration Script -->
   <script>
