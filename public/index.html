@@ -66,58 +66,57 @@
     <p id="loading-message">Initializing...</p>
   </div>
 
-  <header class="header">
-    <div class="logo-container">
-      <div class="logo-section">
-        <img src="img/logo.png" alt="Comment Categorizer Logo" class="logo-image">
-        <div class="app-info">
-          <h2 style="margin: 0; color: var(--dark-primary-hover);">Comment Categorization System</h2>
-          <div id="userInfo" class="user-info" style="display: none;">
-            <span id="welcomeMessage" class="welcome-message"></span>
-            <span id="industryBadge" class="industry-badge"></span>
+<header class="header">
+  <div class="logo-container">
+    <div class="logo-section">
+      <!-- Smaller, cleaner logo -->
+      <img src="img/logo.png" alt="Logo" class="logo-image">
+      
+      <!-- User info (shown when logged in) -->
+      <div id="userInfo" class="user-info" style="display: none;">
+        <span id="welcomeMessage" class="welcome-message"></span>
+        <span id="industryBadge" class="industry-badge"></span>
+      </div>
+    </div>
+    
+    <div class="header-controls">
+      <!-- Language Switcher -->
+      <div class="language-switcher">
+        <select id="languageSelector">
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+        </select>
+      </div>
+      
+      <!-- User Menu (shown when logged in) -->
+      <div id="userMenu" class="user-menu" style="display: none;">
+        <button id="profileBtn" class="profile-btn">
+          <span id="userInitials" class="user-initials"></span>
+        </button>
+        <div id="userDropdown" class="user-dropdown">
+          <div class="dropdown-header">
+            <div id="userFullName" class="user-full-name"></div>
+            <div id="userEmail" class="user-email"></div>
           </div>
+          <hr class="dropdown-divider">
+          <button id="editProfileBtn" class="dropdown-item">
+            <span data-lang-key="edit-profile">Edit Profile</span>
+          </button>
+          <button id="logoutBtn" class="dropdown-item logout">
+            <span data-lang-key="logout">Logout</span>
+          </button>
         </div>
       </div>
       
-      <div class="header-controls">
-        <!-- Language Switcher -->
-        <div class="language-switcher">
-          <select id="languageSelector">
-            <option value="en">English</option>
-            <option value="ar">العربية</option>
-          </select>
-        </div>
-        
-        <!-- User Menu (shown when logged in) -->
-        <div id="userMenu" class="user-menu" style="display: none;">
-          <button id="profileBtn" class="profile-btn">
-            <span id="userInitials" class="user-initials"></span>
-          </button>
-          <div id="userDropdown" class="user-dropdown">
-            <div class="dropdown-header">
-              <div id="userFullName" class="user-full-name"></div>
-              <div id="userEmail" class="user-email"></div>
-            </div>
-            <hr class="dropdown-divider">
-            <button id="editProfileBtn" class="dropdown-item">
-              <span data-lang-key="edit-profile">Edit Profile</span>
-            </button>
-            <button id="logoutBtn" class="dropdown-item logout">
-              <span data-lang-key="logout">Logout</span>
-            </button>
-          </div>
-        </div>
-        
-        <!-- Login Button (shown when not logged in) -->
-        <div id="loginPrompt" class="login-prompt">
-          <a href="/login" class="login-link" data-lang-key="login">Login</a>
-          <span class="separator">|</span>
-          <a href="/register" class="register-link" data-lang-key="register">Register</a>
-        </div>
-
+      <!-- Login Button (shown when not logged in) -->
+      <div id="loginPrompt" class="login-prompt">
+        <a href="/login" class="login-link" data-lang-key="login">Login</a>
+        <span class="separator">|</span>
+        <a href="/register" class="register-link" data-lang-key="register">Register</a>
       </div>
     </div>
-  </header>
+  </div>
+</header>
 
   <div class="container">
     <div class="input-section">
@@ -720,6 +719,20 @@ function clearAuthData() {
   window.authToken = null;
 }
 
+// Utility: Wait for element to exist before attaching handler
+function waitForElement(id, callback) {
+  const el = document.getElementById(id);
+  if (el) return callback(el);
+  const observer = new MutationObserver(() => {
+    const el = document.getElementById(id);
+    if (el) {
+      observer.disconnect();
+      callback(el);
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 // Setup event handlers
 function setupUserInterface() {
   console.log('🎛️ Setting up user interface handlers');
@@ -743,46 +756,85 @@ function setupUserInterface() {
     }
   });
 
-  // Logout button
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async function() {
+  // Enhanced logout with proper UI cleanup
+  waitForElement('logoutBtn', (logoutBtn) => {
+    logoutBtn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       console.log('🚪 Logging out...');
       
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${window.authToken}`
-          }
+          headers: { 'Authorization': `Bearer ${window.authToken}` }
         });
+        console.log('✅ Logout API call successful');
       } catch (error) {
-        console.error('Logout API call failed:', error);
+        console.error('❌ Logout API call failed:', error);
       }
 
+      // Clear authentication data
       clearAuthData();
-      showLoginPrompt();
       
-      // Clear any existing results
+      // Force immediate UI update
+      console.log('🔄 Updating UI after logout...');
+      
+      // Hide user interface elements
+      const userMenu = document.getElementById('userMenu');
+      const userInfo = document.getElementById('userInfo');
+      const loginPrompt = document.getElementById('loginPrompt');
+      const userDropdown = document.getElementById('userDropdown');
+      
+      if (userMenu) {
+        userMenu.style.display = 'none';
+        console.log('✅ Hidden user menu');
+      }
+      
+      if (userInfo) {
+        userInfo.style.display = 'none';
+        console.log('✅ Hidden user info');
+      }
+      
+      if (userDropdown) {
+        userDropdown.classList.remove('show');
+        console.log('✅ Closed user dropdown');
+      }
+      
+      if (loginPrompt) {
+        loginPrompt.style.display = 'flex';
+        console.log('✅ Shown login prompt');
+      }
+      
+      // Clear user display data
+      const welcomeMessage = document.getElementById('welcomeMessage');
+      const userInitials = document.getElementById('userInitials');
+      const userFullName = document.getElementById('userFullName');
+      const userEmail = document.getElementById('userEmail');
+      const industryBadge = document.getElementById('industryBadge');
+      
+      if (welcomeMessage) welcomeMessage.textContent = '';
+      if (userInitials) userInitials.textContent = '';
+      if (userFullName) userFullName.textContent = '';
+      if (userEmail) userEmail.textContent = '';
+      if (industryBadge) {
+        industryBadge.textContent = '';
+        industryBadge.style.display = 'none';
+      }
+      
+      // Clear application state
       const categoriesContainer = document.getElementById('categoriesContainer');
-      if (categoriesContainer) {
-        categoriesContainer.innerHTML = '';
-      }
+      if (categoriesContainer) categoriesContainer.innerHTML = '';
       
-      // Clear comments
-      if (window.comments) {
-        window.comments.length = 0;
-      }
+      if (window.comments) window.comments.length = 0;
       
       const commentsList = document.getElementById('commentsList');
-      if (commentsList) {
-        commentsList.innerHTML = '';
-      }
+      if (commentsList) commentsList.innerHTML = '';
 
-      console.log('✅ User logged out successfully');
+      console.log('✅ User logged out and UI cleaned up');
     });
-    console.log('Logout button handler added');
-  }
+    
+    console.log('✅ Enhanced logout button handler added');
+  });
 }
 
 // Wait for DOM to be ready, then initialize

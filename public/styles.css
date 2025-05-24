@@ -94,6 +94,7 @@ body.rtl {
 
 .profile-btn:hover {
   background: var(--dark-primary-hover) !important;
+  transform: scale(1.05);
 }
 
 .user-initials {
@@ -102,6 +103,12 @@ body.rtl {
   color: black !important;
   display: block !important;
 }
+
+/* User menu and dropdown */
+.user-menu {
+  position: relative !important;
+}
+
 .user-dropdown {
   position: absolute;
   top: 50px;
@@ -122,70 +129,6 @@ body.rtl {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
-}
-
-/* Ensure profile button is properly styled */
-.profile-btn {
-  background: var(--dark-primary) !important;
-  color: black !important;
-  border: none !important;
-  border-radius: 50% !important;
-  width: 40px !important;
-  height: 40px !important;
-  cursor: pointer !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-weight: bold !important;
-  transition: all 0.3s ease !important;
-  position: relative !important;
-}
-
-.profile-btn:hover {
-  background: var(--dark-primary-hover) !important;
-  transform: scale(1.05);
-}
-
-/* Fix user menu positioning */
-.user-menu {
-  position: relative !important;
-}
-
-/* Ensure login prompt and user menu are mutually exclusive */
-.login-prompt {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-menu {
-  display: none; /* Default hidden */
-}
-
-/* RTL fixes */
-.rtl .user-dropdown {
-  right: auto;
-  left: 0;
-}
-.user-menu {
-  position: relative !important;
-  display: block !important;
-}
-.user-dropdown {
-  position: absolute;
-  top: 50px;
-  right: 0;
-  background: var(--dark-surface);
-  border: 1px solid var(--dark-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  min-width: 200px;
-  z-index: 1000;
-  display: none;
-}
-
-.user-dropdown.show {
-  display: block;
 }
 
 .dropdown-header {
@@ -236,6 +179,7 @@ body.rtl {
   background: rgba(244, 67, 54, 0.1);
 }
 
+/* Ensure login prompt and user menu are mutually exclusive */
 .login-prompt {
   display: flex;
   align-items: center;
