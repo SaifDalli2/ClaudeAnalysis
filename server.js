@@ -40,8 +40,19 @@ app.use('/api', claudeRoutes);
 
 // Root route - serve main app or login page
 // In your server.js or main route file
+a// Dashboard route (authenticated users will see this)
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Keep existing routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html')); // Main dashboard
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Comment analysis tool as separate route (for iframe embedding)
+app.get('/comment-tool', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
 });
 
 app.get('/comment-analysis', (req, res) => {

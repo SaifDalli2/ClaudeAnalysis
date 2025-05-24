@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comment Categorization System</title>
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Load translations.js (non-module) first -->
+  <script src="js/translations.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="logo-container">
+      <div class="logo-section">
+        <!-- Smaller, cleaner logo -->
+        <img src="img/logo.png" alt="Logo" class="logo-image">
+        
+        <!-- User info (shown when logged in) -->
+        <div id="userInfo" class="user-info" style="display: none;">
+          <span id="welcomeMessage" class="welcome-message"></span>
+          <span id="industryBadge" class="industry-badge"></span>
+        </div>
+      </div>
+      
+      <div class="header-controls">
+        <!-- Language Switcher -->
+        <div class="language-switcher">
+          <select id="languageSelector">
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+          </select>
+        </div>
+        
+        <!-- User Menu (shown when logged in) -->
+        <div id="userMenu" class="user-menu" style="display: none;">
+          <button id="profileBtn" class="profile-btn">
+            <span id="userInitials" class="user-initials"></span>
+          </button>
+          <div id="userDropdown" class="user-dropdown">
+            <div class="dropdown-header">
+              <div id="userFullName" class="user-full-name"></div>
+              <div id="userEmail" class="user-email"></div>
+            </div>
+            <hr class="dropdown-divider">
+            <button id="editProfileBtn" class="dropdown-item">
+              <span data-lang-key="edit-profile">Edit Profile</span>
+            </button>
+            <button id="logoutBtn" class="dropdown-item logout">
+              <span data-lang-key="logout">Logout</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Login Button (shown when not logged in) -->
+        <div id="loginPrompt" class="login-prompt">
+          <a href="/login" class="login-link" data-lang-key="login">Login</a>
+          <span class="separator">|</span>
+          <a href="/register" class="register-link" data-lang-key="register">Register</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="input-section">
+      <h1 data-lang-key="app-title">Comment Categorization System</h1>
+      <p data-lang-key="app-description">Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
+      
+      <!-- Simplified API Key Section -->
+      <div class="api-key-section">
+        <div class="api-key-input-group">
+          <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
+          <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
+        </div>
+        <p class="api-key-note" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
+      </div>
+      
+      <div class="tabs">
+        <div class="tab active" data-tab="manual-entry" data-lang-key="manual-entry">Manual Entry</div>
+        <div class="tab" data-tab="csv-upload" data-lang-key="csv-upload">CSV Upload</div>
+      </div>
+      
+      <div class="tab-content active" id="manual-entry">
+        <h3 data-lang-key="add-comment">Add Comment</h3>
+        <textarea id="commentInput" data-lang-key="comment-placeholder" placeholder="Type your comment here..."></textarea>
+        <button id="addCommentBtn" data-lang-key="add-comment-btn">Add Comment</button>
+      </div>
+      
+      <div class="tab-content" id="csv-upload">
+        <h3 data-lang-key="upload-csv">Upload CSV File</h3>
+        <div class="file-upload">
+          <label for="csvFileInput" data-lang-key="select-csv">Select a CSV file with comments (one comment per line or in a 'comment' column):</label>
+          <input type="file" id="csvFileInput" accept=".csv">
+          <div class="file-info" id="fileInfo"></div>
+        </div>
+        <button id="loadCsvBtn" data-lang-key="load-csv">Load Comments from CSV</button>
+      </div>
+      
+      <h3 data-lang-key="comments-list">Comments List</h3>
+      <div class="comment-list" id="commentsList"></div>
+      
+      <div class="action-buttons">
+        <button id="clearCommentsBtn" data-lang-key="clear-comments">Clear All Comments</button>
+        <button id="processCommentsBtn" class="primary-button" data-lang-key="process-comments">Process Comments</button>
+      </div>
+
+      <!-- Minimal Progress Indicator -->
+      <div id="processingProgress" class="minimal-progress">
+        <div class="progress-content">
+          <div class="progress-info">
+            <span class="progress-text" id="progressMessage">Processing...</span>
+            <span class="progress-percentage" id="progressPercentage">0%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <button class="cancel-btn" id="cancelJobBtn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Hidden Debug Elements (only visible in development) -->
+      <div id="debugElements" style="display: none;">
+        <div class="system-status">
+          <h4>System Status</h4>
+          <div class="status-grid">
+            <div class="status-item">
+              <span class="status-label">API Server:</span>
+              <span id="apiStatus" class="status-value status-checking">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Comments Loaded:</span>
+              <span id="commentCount" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Last Processed:</span>
+              <span id="lastProcessed" class="status-value">Never</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="debug-panel">
+          <h4>Debug Controls</h4>
+          <button id="debugBtn">🐛 Enable Debug Mode</button>
+          <button id="testDisplayBtn">🧪 Test Display</button>
+          <button id="clearConsoleBtn">🧹 Clear Console</button>
+          <div id="debugInfo"></div>
+        </div>
+
+        <div class="debug-log" id="debugLog"></div>
+      </div>
+    </div>
+    
+    <div class="results-section">
+      <h2 data-lang-key="categorized-comments">Categorized Comments</h2>
+      <div class="result-info" data-lang-key="result-info">Each comment is assigned to exactly one category based on its primary topic or sentiment.</div>
+      
+      <div id="overallStats" class="overall-stats" style="display: none;">
+        <h3 data-lang-key="overall-stats">Overall Statistics</h3>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="totalComments">0</div>
+            <div class="stat-label" data-lang-key="total-comments">Total Comments</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="categoryCount">0</div>
+            <div class="stat-label" data-lang-key="categories">Categories</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="avgSentiment">0.0</div>
+            <div class="stat-label" data-lang-key="avg-sentiment">Avg. Sentiment</div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="categoriesContainer"></div>
+    </div>
+  </div>
+
+  <!-- Load debug helper script (hidden by default) -->
+  <script src="js/debug-helper.js" style="display: none;"></script>
+
+  <!-- SINGLE MODULE IMPORT -->
+  <script type="module">
+    import { initializeApp } from './js/module-index.js';
+  </script>
+
+  <!-- Enhanced comment counter and utilities -->
+  <script>
+    function updateCommentCount() {
+      const count = window.comments ? window.comments.length : 0;
+      const commentCountEl = document.getElementById('commentCount');
+      if (commentCountEl) {
+        commentCountEl.textContent = count;
+      }
+    }
+
+    function updateLastProcessed() {
+      const lastProcessedEl = document.getElementById('lastProcessed');
+      if (lastProcessedEl) {
+        lastProcessedEl.textContent = new Date().toLocaleTimeString();
+      }
+    }
+
+    window.updateCommentCount = updateCommentCount;
+    window.updateLastProcessed = updateLastProcessed;
+
+    // Auto-update comment count
+    setInterval(updateCommentCount, 1000);
+
+    // Show debug elements only in development
+    function toggleDebugElements() {
+      const debugElements = document.getElementById('debugElements');
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.search.includes('debug=true');
+      
+      if (isDevelopment || window.location.search.includes('debug=true')) {
+        debugElements.style.display = 'block';
+        console.log('🔧 Debug mode enabled');
+      }
+    }
+
+    // Check for debug mode
+    document.addEventListener('DOMContentLoaded', toggleDebugElements);
+
+    // Secret key combination to enable debug in production (Ctrl+Shift+D)
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const debugElements = document.getElementById('debugElements');
+        debugElements.style.display = debugElements.style.display === 'none' ? 'block' : 'none';
+        console.log('🔧 Debug mode toggled via keyboard shortcut');
+      }
+    });
+  </script>
+
+  <!-- COMPLETE FIXED Authentication Integration Script -->
+  <script>
+    console.log('🚀 Loading complete authentication fix...');
+
+    window.currentUser = null;
+    window.authToken = null;
+
+    window.isAuthenticated = function() {
+      return window.currentUser !== null && window.authToken !== null;
+    };
+
+    window.getCurrentUser = function() {
+      return window.currentUser;
+    };
+
+    window.getAuthHeaders = function() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (window.authToken) {
+        headers['Authorization'] = `Bearer ${window.authToken}`;
+      }
+      return headers;
+    };
+
+    function waitForElement(selector, callback, maxAttempts = 20) {
+      let attempts = 0;
+      
+      function check() {
+        const element = document.getElementById(selector) || document.querySelector(selector);
+        if (element) {
+          callback(element);
+        } else {
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(check, 250);
+          }
+        }
+      }
+      
+      check();
+    }
+
+    async function initializeAuthentication() {
+      const token = localStorage.getItem('authToken');
+      const userInfo = localStorage.getItem('user');
+
+      if (token && userInfo) {
+        try {
+          const response = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            window.currentUser = data.user;
+            window.authToken = token;
+            
+            showUserInterface(data.user);
+          } else {
+            clearAuthData();
+            showLoginPrompt();
+          }
+        } catch (error) {
+          clearAuthData();
+          showLoginPrompt();
+        }
+      } else {
+        showLoginPrompt();
+      }
+    }
+
+    function showUserInterface(user) {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'block';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'flex';
+      });
+
+      updateUserDisplay(user);
+    }
+
+    function showLoginPrompt() {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'flex';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'none';
+      });
+    }
+
+    function updateUserDisplay(user) {
+      waitForElement('welcomeMessage', (element) => {
+        const firstName = user.firstName || user.email.split('@')[0];
+        const currentLang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : 'en';
+        
+        if (currentLang === 'ar') {
+          element.textContent = `مرحباً، ${firstName}!`;
+        } else {
+          element.textContent = `Welcome, ${firstName}!`;
+        }
+      });
+
+      waitForElement('industryBadge', (element) => {
+        if (user.industry) {
+          element.textContent = user.industry;
+          element.style.display = 'inline-block';
+        } else {
+          element.style.display = 'none';
+        }
+      });
+
+      waitForElement('userInitials', (element) => {
+        const initials = getInitials(user.firstName, user.lastName, user.email);
+        element.textContent = initials;
+      });
+
+      waitForElement('userFullName', (element) => {
+        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
+        element.textContent = fullName;
+      });
+      
+      waitForElement('userEmail', (element) => {
+        element.textContent = user.email;
+      });
+    }
+
+    function getInitials(firstName, lastName, email) {
+      if (firstName && lastName) {
+        return (firstName[0] + lastName[0]).toUpperCase();
+      } else if (firstName) {
+        return firstName.substring(0, 2).toUpperCase();
+      } else {
+        return email.substring(0, 2).toUpperCase();
+      }
+    }
+
+    function clearAuthData() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.currentUser = null;
+      window.authToken = null;
+    }
+
+    function setupUserInterface() {
+      waitForElement('profileBtn', (profileBtn) => {
+        waitForElement('userDropdown', (userDropdown) => {
+          profileBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const isShown = userDropdown.classList.contains('show');
+            
+            if (isShown) {
+              userDropdown.classList.remove('show');
+            } else {
+              userDropdown.classList.add('show');
+            }
+          });
+        });
+      });
+
+      document.addEventListener('click', function(e) {
+        waitForElement('userDropdown', (userDropdown) => {
+          if (!e.target.closest('.user-menu')) {
+            userDropdown.classList.remove('show');
+          }
+        });
+      });
+
+      waitForElement('logoutBtn', (logoutBtn) => {
+        logoutBtn.addEventListener('click', async function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${window.authToken}` }
+            });
+          } catch (error) {
+            console.error('Logout API call failed:', error);
+          }
+
+          clearAuthData();
+          
+          const userMenu = document.getElementById('userMenu');
+          const userInfo = document.getElementById('userInfo');
+          const loginPrompt = document.getElementById('loginPrompt');
+          const userDropdown = document.getElementById('userDropdown');
+          
+          if (userMenu) userMenu.style.display = 'none';
+          if (userInfo) userInfo.style.display = 'none';
+          if (userDropdown) userDropdown.classList.remove('show');
+          if (loginPrompt) loginPrompt.style.display = 'flex';
+          
+          const welcomeMessage = document.getElementById('welcomeMessage');
+          const userInitials = document.getElementById('userInitials');
+          const userFullName = document.getElementById('userFullName');
+          const userEmail = document.getElementById('userEmail');
+          const industryBadge = document.getElementById('industryBadge');
+          
+          if (welcomeMessage) welcomeMessage.textContent = '';
+          if (userInitials) userInitials.textContent = '';
+          if (userFullName) userFullName.textContent = '';
+          if (userEmail) userEmail.textContent = '';
+          if (industryBadge) {
+            industryBadge.textContent = '';
+            industryBadge.style.display = 'none';
+          }
+          
+          const categoriesContainer = document.getElementById('categoriesContainer');
+          if (categoriesContainer) categoriesContainer.innerHTML = '';
+          
+          if (window.comments) window.comments.length = 0;
+          
+          const commentsList = document.getElementById('commentsList');
+          if (commentsList) commentsList.innerHTML = '';
+        });
+      });
+    }
+
+    function handleLanguageChange() {
+      if (window.currentUser) {
+        updateUserDisplay(window.currentUser);
+      }
+    }
+
+    function initialize() {
+      setupUserInterface();
+      initializeAuthentication();
+      
+      waitForElement('languageSelector', (languageSelector) => {
+        languageSelector.addEventListener('change', () => {
+          setTimeout(handleLanguageChange, 100);
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+      setTimeout(initialize, 100);
+    }
+  </script>
+</body>
+</html>
