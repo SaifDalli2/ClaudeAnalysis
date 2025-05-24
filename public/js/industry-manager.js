@@ -352,10 +352,10 @@ class IndustryManager {
   }
 }
 
-// Initialize industry manager immediately when script loads
+// Initialize industry manager when script loads
 console.log('🏭 Creating Industry Manager instance...');
 
-// Create the global instance
+// Create the global instance safely
 window.industryManager = new IndustryManager();
 
 console.log('🏭 Industry Manager loaded and ready');
