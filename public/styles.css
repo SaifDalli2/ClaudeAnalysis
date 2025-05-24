@@ -69,6 +69,162 @@ body.rtl {
   font-weight: 600;
 }
 
+/* ===== MINIMAL PROGRESS BAR STYLES ===== */
+.minimal-progress {
+  display: none;
+  background: var(--dark-surface-lighter);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  border: 1px solid var(--dark-border);
+}
+
+.progress-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-text {
+  color: var(--dark-text);
+  font-weight: 500;
+}
+
+.progress-percentage {
+  color: var(--dark-primary);
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: var(--dark-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--dark-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.cancel-btn {
+  background: var(--dark-error);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  align-self: flex-start;
+  display: none;
+}
+
+.cancel-btn:hover {
+  background: #d32f2f;
+}
+
+/* ===== SIMPLIFIED API KEY SECTION ===== */
+.api-key-section {
+  background: rgba(226, 255, 102, 0.05);
+  border: 1px solid rgba(226, 255, 102, 0.2);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.api-key-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-key-input-group label {
+  color: var(--dark-text);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.api-key-input-group input {
+  padding: 12px;
+  border: 1px solid var(--dark-border);
+  border-radius: 6px;
+  background: var(--dark-surface-lighter);
+  color: var(--dark-text);
+  font-size: 14px;
+}
+
+.api-key-note {
+  font-size: 12px;
+  color: var(--dark-text-secondary);
+  margin: 8px 0 0 0;
+  font-style: italic;
+}
+
+/* ===== ACTION BUTTONS ===== */
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.primary-button {
+  background: var(--dark-primary) !important;
+  color: black !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  font-size: 16px !important;
+}
+
+.primary-button:hover {
+  background: var(--dark-primary-hover) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(226, 255, 102, 0.3);
+}
+
+/* ===== HIDE DEBUG ELEMENTS BY DEFAULT ===== */
+#debugElements {
+  display: none;
+  margin-top: 30px;
+  padding: 20px;
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid var(--dark-error);
+  border-radius: 8px;
+}
+
+#debugElements h4 {
+  color: var(--dark-error);
+  margin-top: 0;
+}
+
+/* ===== MOBILE RESPONSIVENESS ===== */
+@media (max-width: 768px) {
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .api-key-input-group {
+    gap: 6px;
+  }
+  
+  .progress-info {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+}
+
 .header-controls {
   display: flex;
   align-items: center;

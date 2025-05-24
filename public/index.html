@@ -8,151 +8,72 @@
   
   <!-- Load translations.js (non-module) first -->
   <script src="js/translations.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      background: #1E1E2F;
-      color: #E8E8FF;
-    }
-    
-    .debug-section {
-      background: #2A2A3D;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 8px;
-      border: 1px solid #333355;
-    }
-    
-    .status {
-      padding: 10px;
-      margin: 5px 0;
-      border-radius: 4px;
-    }
-    
-    .success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4CAF50; }
-    .error { background: rgba(244, 67, 54, 0.2); border: 1px solid #F44336; }
-    .warning { background: rgba(255, 152, 0, 0.2); border: 1px solid #FF9800; }
-    
-    button {
-      background: #E2FF66;
-      color: black;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 5px;
-    }
-    
-    .code {
-      background: #1a1a2e;
-      padding: 10px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 12px;
-      overflow-x: auto;
-    }
-  </style>
 </head>
 <body>
-  <!-- Loading status indicator -->
-  <div id="loading-status" style="display: none; padding: 10px; margin: 10px 0; background: #e2f7ff; border: 1px solid #a9d4e6; border-radius: 4px;">
-    <p>Loading application resources... <span id="loading-progress">0%</span></p>
-    <div style="height: 4px; width: 100%; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
-      <div id="loading-bar" style="height: 100%; width: 0%; background: #4db6ac; transition: width 0.3s;"></div>
-    </div>
-    <p id="loading-message">Initializing...</p>
-  </div>
-
-<header class="header">
-  <div class="logo-container">
-    <div class="logo-section">
-      <!-- Smaller, cleaner logo -->
-      <img src="img/logo.png" alt="Logo" class="logo-image">
-      
-      <!-- User info (shown when logged in) -->
-      <div id="userInfo" class="user-info" style="display: none;">
-        <span id="welcomeMessage" class="welcome-message"></span>
-        <span id="industryBadge" class="industry-badge"></span>
-      </div>
-    </div>
-    
-    <div class="header-controls">
-      <!-- Language Switcher -->
-      <div class="language-switcher">
-        <select id="languageSelector">
-          <option value="en">English</option>
-          <option value="ar">العربية</option>
-        </select>
-      </div>
-      
-      <!-- User Menu (shown when logged in) -->
-      <div id="userMenu" class="user-menu" style="display: none;">
-        <button id="profileBtn" class="profile-btn">
-          <span id="userInitials" class="user-initials"></span>
-        </button>
-        <div id="userDropdown" class="user-dropdown">
-          <div class="dropdown-header">
-            <div id="userFullName" class="user-full-name"></div>
-            <div id="userEmail" class="user-email"></div>
-          </div>
-          <hr class="dropdown-divider">
-          <button id="editProfileBtn" class="dropdown-item">
-            <span data-lang-key="edit-profile">Edit Profile</span>
-          </button>
-          <button id="logoutBtn" class="dropdown-item logout">
-            <span data-lang-key="logout">Logout</span>
-          </button>
+  <header class="header">
+    <div class="logo-container">
+      <div class="logo-section">
+        <!-- Smaller, cleaner logo -->
+        <img src="img/logo.png" alt="Logo" class="logo-image">
+        
+        <!-- User info (shown when logged in) -->
+        <div id="userInfo" class="user-info" style="display: none;">
+          <span id="welcomeMessage" class="welcome-message"></span>
+          <span id="industryBadge" class="industry-badge"></span>
         </div>
       </div>
       
-      <!-- Login Button (shown when not logged in) -->
-      <div id="loginPrompt" class="login-prompt">
-        <a href="/login" class="login-link" data-lang-key="login">Login</a>
-        <span class="separator">|</span>
-        <a href="/register" class="register-link" data-lang-key="register">Register</a>
+      <div class="header-controls">
+        <!-- Language Switcher -->
+        <div class="language-switcher">
+          <select id="languageSelector">
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+          </select>
+        </div>
+        
+        <!-- User Menu (shown when logged in) -->
+        <div id="userMenu" class="user-menu" style="display: none;">
+          <button id="profileBtn" class="profile-btn">
+            <span id="userInitials" class="user-initials"></span>
+          </button>
+          <div id="userDropdown" class="user-dropdown">
+            <div class="dropdown-header">
+              <div id="userFullName" class="user-full-name"></div>
+              <div id="userEmail" class="user-email"></div>
+            </div>
+            <hr class="dropdown-divider">
+            <button id="editProfileBtn" class="dropdown-item">
+              <span data-lang-key="edit-profile">Edit Profile</span>
+            </button>
+            <button id="logoutBtn" class="dropdown-item logout">
+              <span data-lang-key="logout">Logout</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Login Button (shown when not logged in) -->
+        <div id="loginPrompt" class="login-prompt">
+          <a href="/login" class="login-link" data-lang-key="login">Login</a>
+          <span class="separator">|</span>
+          <a href="/register" class="register-link" data-lang-key="register">Register</a>
+        </div>
       </div>
     </div>
-  </div>
-</header>
+  </header>
 
   <div class="container">
     <div class="input-section">
       <h1 data-lang-key="app-title">Comment Categorization System</h1>
       <p data-lang-key="app-description">Enter comments to be categorized and summarized. Each comment will be assigned to exactly one category.</p>
       
+      <!-- Simplified API Key Section -->
       <div class="api-key-section">
-        <h3 data-lang-key="processing-method">Processing Method</h3>
-        <div class="radio-group">
-          <div class="radio-option">
-            <input type="radio" id="useApi" name="processingMethod" value="api" checked>
-            <label for="useApi" data-lang-key="use-api">Use Claude API (Recommended)</label>
-          </div>
-          <!-- Simulation option hidden by CSS -->
-          <div class="radio-option" style="display: none;">
-            <input type="radio" id="useSimulation" name="processingMethod" value="simulation">
-            <label for="useSimulation" data-lang-key="use-simulation">Use Simulation</label>
-          </div>
-        </div>
-        
-        <div id="apiKeySection" style="margin-top: 15px;">
+        <div class="api-key-input-group">
           <label for="apiKeyInput" data-lang-key="api-key">Claude API Key:</label>
           <input type="password" id="apiKeyInput" data-lang-key="api-key-placeholder" placeholder="Enter your Claude API key">
-          <p style="font-size: 12px; margin-top: 5px;" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
-          
-          <div class="deploy-instructions">
-            <strong data-lang-key="note">Real-time Processing:</strong>
-            <p>This system processes comments in batches with live progress updates:</p>
-            <ul>
-              <li>Comments are processed in batches of 50</li>
-              <li>Results appear in real-time as each batch completes</li>
-              <li>Processing continues even if some batches timeout</li>
-              <li>You can see partial results while processing continues</li>
-            </ul>
-          </div>
         </div>
+        <p class="api-key-note" data-lang-key="api-key-storage">Your API key is stored locally in your browser only.</p>
       </div>
       
       <div class="tabs">
@@ -178,73 +99,56 @@
       
       <h3 data-lang-key="comments-list">Comments List</h3>
       <div class="comment-list" id="commentsList"></div>
-      <button id="clearCommentsBtn" data-lang-key="clear-comments">Clear All Comments</button>
-      <button id="processCommentsBtn" data-lang-key="process-comments">Process Comments</button>
-
-      <!-- Progress Indicator -->
-      <div id="processingProgress" class="processing-progress">
-        <div class="progress-header">
-          <div class="progress-title">Processing Comments...</div>
-          <div class="progress-percentage" id="progressPercentage">0%</div>
-        </div>
-        
-        <div class="progress-bar-container">
-          <div class="progress-bar" id="progressBar"></div>
-        </div>
-        
-        <div class="progress-details">
-          <div class="progress-stat">
-            <span>Batches:</span>
-            <span id="batchProgress">0/0</span>
-          </div>
-          <div class="progress-stat">
-            <span>Elapsed:</span>
-            <span id="elapsedTime">0 min</span>
-          </div>
-          <div class="progress-stat">
-            <span>Comments:</span>
-            <span id="commentProgress">0/0</span>
-          </div>
-          <div class="progress-stat">
-            <span>Success Rate:</span>
-            <span id="successRate">0%</span>
-          </div>
-        </div>
-        
-        <div class="progress-message" id="progressMessage">Starting job...</div>
-        <button class="cancel-job-btn" id="cancelJobBtn">Cancel Processing</button>
+      
+      <div class="action-buttons">
+        <button id="clearCommentsBtn" data-lang-key="clear-comments">Clear All Comments</button>
+        <button id="processCommentsBtn" class="primary-button" data-lang-key="process-comments">Process Comments</button>
       </div>
 
-      <!-- System Status -->
-      <div id="systemStatus" class="system-status">
-        <h4>System Status</h4>
-        <div class="status-grid">
-          <div class="status-item">
-            <span class="status-label">API Server:</span>
-            <span id="apiStatus" class="status-value status-checking">Checking...</span>
+      <!-- Minimal Progress Indicator -->
+      <div id="processingProgress" class="minimal-progress">
+        <div class="progress-content">
+          <div class="progress-info">
+            <span class="progress-text" id="progressMessage">Processing...</span>
+            <span class="progress-percentage" id="progressPercentage">0%</span>
           </div>
-          <div class="status-item">
-            <span class="status-label">Comments Loaded:</span>
-            <span id="commentCount" class="status-value">0</span>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
           </div>
-          <div class="status-item">
-            <span class="status-label">Last Processed:</span>
-            <span id="lastProcessed" class="status-value">Never</span>
-          </div>
+          <button class="cancel-btn" id="cancelJobBtn">Cancel</button>
         </div>
       </div>
 
-      <!-- Debug Panel (Enhanced) -->
-      <div class="debug-panel" style="margin-top: 20px; padding: 15px; background: var(--dark-surface); border-radius: 6px; border: 1px solid var(--dark-border);">
-        <h4 style="color: var(--dark-primary-hover); margin-top: 0;">Debug Controls</h4>
-        <button id="debugBtn" style="background: #ff6b6b; margin-right: 10px;">🐛 Enable Debug Mode</button>
-        <button id="testDisplayBtn" style="background: #4ecdc4; margin-right: 10px;">🧪 Test Display</button>
-        <button id="clearConsoleBtn" style="background: #45b7d1;">🧹 Clear Console</button>
-        <div id="debugInfo" style="margin-top: 10px; font-family: monospace; font-size: 12px; color: var(--dark-text-secondary);"></div>
-      </div>
+      <!-- Hidden Debug Elements (only visible in development) -->
+      <div id="debugElements" style="display: none;">
+        <div class="system-status">
+          <h4>System Status</h4>
+          <div class="status-grid">
+            <div class="status-item">
+              <span class="status-label">API Server:</span>
+              <span id="apiStatus" class="status-value status-checking">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Comments Loaded:</span>
+              <span id="commentCount" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Last Processed:</span>
+              <span id="lastProcessed" class="status-value">Never</span>
+            </div>
+          </div>
+        </div>
 
-      <div class="loader" id="loader"></div>
-      <div class="debug-log" id="debugLog"></div>
+        <div class="debug-panel">
+          <h4>Debug Controls</h4>
+          <button id="debugBtn">🐛 Enable Debug Mode</button>
+          <button id="testDisplayBtn">🧪 Test Display</button>
+          <button id="clearConsoleBtn">🧹 Clear Console</button>
+          <div id="debugInfo"></div>
+        </div>
+
+        <div class="debug-log" id="debugLog"></div>
+      </div>
     </div>
     
     <div class="results-section">
@@ -273,57 +177,16 @@
     </div>
   </div>
 
+  <!-- Load debug helper script (hidden by default) -->
+  <script src="js/debug-helper.js" style="display: none;"></script>
 
-
-  <h1>🔧 Authentication Debug Tool</h1>
-  
-  <div class="debug-section">
-    <h2>Current Authentication Status</h2>
-    <div id="authStatus" class="status">Checking...</div>
-    <div id="tokenStatus" class="status">Checking token...</div>
-    <div id="userStatus" class="status">Checking user data...</div>
-  </div>
-  
-  <div class="debug-section">
-    <h2>Stored Data</h2>
-    <div><strong>Auth Token:</strong> <span id="storedToken">Loading...</span></div>
-    <div><strong>User Data:</strong> <pre id="storedUser" class="code">Loading...</pre></div>
-  </div>
-  
-  <div class="debug-section">
-    <h2>API Verification</h2>
-    <div id="apiVerification" class="status">Not tested</div>
-    <button onclick="testAPI()">Test API Verification</button>
-  </div>
-  
-  <div class="debug-section">
-    <h2>Manual Actions</h2>
-    <button onclick="clearAuth()">Clear All Auth Data</button>
-    <button onclick="refreshAuth()">Refresh Authentication</button>
-    <button onclick="debugConsole()">Log Debug Info to Console</button>
-  </div>
-  
-  <div class="debug-section">
-    <h2>Fixed Authentication Script</h2>
-    <p>Copy this script to replace the authentication section in your index.html:</p>
-    <pre class="code" id="fixedScript">Loading script...</pre>
-  </div>
-
-  <!-- Load debug helper script first -->
-  <script src="js/debug-helper.js"></script>
-
-  <!-- SINGLE MODULE IMPORT - This replaces all the individual script imports -->
+  <!-- SINGLE MODULE IMPORT -->
   <script type="module">
-    // Import the organized module structure
     import { initializeApp } from './js/module-index.js';
-    
-    // The initializeApp function will handle all initialization
-    // It's called automatically when the DOM is ready
   </script>
 
   <!-- Enhanced comment counter and utilities -->
   <script>
-    // Enhanced comment counter
     function updateCommentCount() {
       const count = window.comments ? window.comments.length : 0;
       const commentCountEl = document.getElementById('commentCount');
@@ -332,7 +195,6 @@
       }
     }
 
-    // Update last processed timestamp
     function updateLastProcessed() {
       const lastProcessedEl = document.getElementById('lastProcessed');
       if (lastProcessedEl) {
@@ -340,516 +202,291 @@
       }
     }
 
-    // Make functions globally available
     window.updateCommentCount = updateCommentCount;
     window.updateLastProcessed = updateLastProcessed;
 
     // Auto-update comment count
     setInterval(updateCommentCount, 1000);
-  </script>
 
-  <!-- Enhanced debug controls script -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Debug mode toggle
-      const debugBtn = document.getElementById('debugBtn');
-      const testDisplayBtn = document.getElementById('testDisplayBtn');
-      const clearConsoleBtn = document.getElementById('clearConsoleBtn');
-      const debugInfo = document.getElementById('debugInfo');
+    // Show debug elements only in development
+    function toggleDebugElements() {
+      const debugElements = document.getElementById('debugElements');
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.search.includes('debug=true');
       
-      let debugMode = false;
-      
-      if (debugBtn) {
-        debugBtn.addEventListener('click', function() {
-          debugMode = !debugMode;
-          if (debugMode) {
-            this.textContent = '🐛 Debug Mode ON';
-            this.style.background = '#27ae60';
-            debugInfo.innerHTML = 'Debug mode enabled - detailed logging active';
-            console.log('🐛 Debug mode ENABLED - Detailed logging active');
-            
-            // Enable enhanced logging
-            window.debugMode = true;
-            
-            // Override console.log to also show in debug panel
-            const originalLog = console.log;
-            console.log = function(...args) {
-              originalLog.apply(console, args);
-              if (debugInfo) {
-                const logEntry = args.map(arg => 
-                  typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-                ).join(' ');
-                debugInfo.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + logEntry;
-                debugInfo.scrollTop = debugInfo.scrollHeight;
-              }
-            };
-            
-          } else {
-            this.textContent = '🐛 Enable Debug Mode';
-            this.style.background = '#ff6b6b';
-            debugInfo.innerHTML = 'Debug mode disabled';
-            window.debugMode = false;
-            console.log('🐛 Debug mode DISABLED');
-          }
-        });
+      if (isDevelopment || window.location.search.includes('debug=true')) {
+        debugElements.style.display = 'block';
+        console.log('🔧 Debug mode enabled');
       }
-      
-      if (testDisplayBtn) {
-        testDisplayBtn.addEventListener('click', function() {
-          console.log('🧪 Testing display function with mock data...');
-          
-          // Create mock result data
-          const mockResult = {
-            categories: [
-              {
-                name: 'Test Category 1',
-                comments: [1, 2, 3],
-                summary: 'This is a test category with mock data',
-                sentiment: 0.5,
-                commonIssues: ['Test issue 1', 'Test issue 2'],
-                suggestedActions: ['Test action 1', 'Test action 2']
-              },
-              {
-                name: 'Test Category 2',
-                comments: [4, 5],
-                summary: 'Another test category',
-                sentiment: -0.3,
-                commonIssues: ['Test issue 3'],
-                suggestedActions: ['Test action 3']
-              }
-            ],
-            extractedTopics: [
-              { topic: 'test topic', count: 5 }
-            ]
-          };
-          
-          const mockComments = [
-            'Test comment 1',
-            'Test comment 2', 
-            'Test comment 3',
-            'Test comment 4',
-            'Test comment 5'
-          ];
-          
-          if (window.enhancedDisplayProcessingResults) {
-            console.log('🧪 Calling enhanced display function...');
-            window.enhancedDisplayProcessingResults(mockResult, mockComments, false);
-          } else if (window.displayProcessingResults) {
-            console.log('🧪 Calling standard display function...');
-            window.displayProcessingResults(mockResult, mockComments, false);
-          } else {
-            console.error('❌ No display function found!');
-            debugInfo.innerHTML += '<br>❌ ERROR: No display function available';
-          }
-        });
-      }
-      
-      if (clearConsoleBtn) {
-        clearConsoleBtn.addEventListener('click', function() {
-          console.clear();
-          if (debugInfo) {
-            debugInfo.innerHTML = 'Console cleared at ' + new Date().toLocaleTimeString();
-          }
-        });
-      }
-      
-      // Auto-detect if we're in development mode
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.log('🔧 Development mode detected - enabling debug features');
-        if (debugBtn && !debugMode) {
-          debugBtn.click(); // Auto-enable debug mode in development
-        }
-      }
-    });
-  </script>
-
-  <!-- Fallback error handling script -->
-  <script>
-    console.log("HTML document loaded");
-    
-    // Check if translations.js loaded
-    if (typeof window.translations === 'undefined') {
-      console.error("ERROR: translations.js did not load properly!");
-      
-      // Create a fallback translations object
-      window.translations = {
-        en: {
-          "comments": "comments",
-          "show-comments": "Show Comments",
-          "hide-comments": "Hide Comments",
-          "no-comments": "Please add some comments first.",
-          "select-csv": "Please select a CSV file first.",
-          "sentiment": "Sentiment",
-          "negative": "Negative",
-          "positive": "Positive",
-          "top-topics": "Top Topics Mentioned",
-          "topics-description": "Click on a topic to see related comments."
-        },
-        ar: {
-          "comments": "تعليقات",
-          "show-comments": "عرض التعليقات",
-          "hide-comments": "إخفاء التعليقات",
-          "no-comments": "الرجاء إضافة بعض التعليقات أولا.",
-          "select-csv": "الرجاء تحديد ملف CSV أولا.",
-          "sentiment": "المشاعر",
-          "negative": "سلبي",
-          "positive": "إيجابي",
-          "top-topics": "أكثر المواضيع ذكرًا",
-          "topics-description": "انقر على موضوع لعرض التعليقات المتعلقة به."
-        }
-      };
     }
-    
-    // Handle module loading errors
-    window.addEventListener('error', function(event) {
-      if (event.message && (event.message.includes('module') || (event.filename && event.filename.includes('.js')))) {
-        console.error('Module loading error:', event);
-        
-        // Show a simplified error message
-        const errorDiv = document.createElement('div');
-        errorDiv.style.cssText = 'color: red; background: #ffeeee; padding: 10px; margin: 10px 0; border: 1px solid red;';
-        errorDiv.innerHTML = `
-          <strong>Module Loading Error:</strong><br>
-          Error: ${event.message}<br>
-          File: ${event.filename}<br>
-          Please refresh the page or check the console for more details.
-        `;
-        
-        document.body.insertBefore(errorDiv, document.body.firstChild);
+
+    // Check for debug mode
+    document.addEventListener('DOMContentLoaded', toggleDebugElements);
+
+    // Secret key combination to enable debug in production (Ctrl+Shift+D)
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const debugElements = document.getElementById('debugElements');
+        debugElements.style.display = debugElements.style.display === 'none' ? 'block' : 'none';
+        console.log('🔧 Debug mode toggled via keyboard shortcut');
       }
     });
-    
-    // Final verification that everything loaded
-    setTimeout(function() {
-      console.log('🔍 Final verification check...');
-      console.log('- Translations loaded:', typeof window.translations !== 'undefined');
-      console.log('- Debug helper loaded:', typeof window.debugObject !== 'undefined');
-      console.log('- Enhanced display loaded:', typeof window.enhancedDisplayProcessingResults !== 'undefined');
-      console.log('- Comments array:', typeof window.comments !== 'undefined');
-      
-      if (typeof window.debugObject !== 'undefined') {
-        console.log('✅ All systems appear to be loaded correctly');
-      } else {
-        console.warn('⚠️ Some components may not have loaded properly');
-      }
-    }, 2000);
   </script>
 
-   <!-- FIXED Authentication Integration Script -->
-<script>
-// Global authentication state
-window.currentUser = null;
-window.authToken = null;
+  <!-- COMPLETE FIXED Authentication Integration Script -->
+  <script>
+    console.log('🚀 Loading complete authentication fix...');
 
-// Make authentication functions available globally
-window.isAuthenticated = function() {
-  return window.currentUser !== null && window.authToken !== null;
-};
+    window.currentUser = null;
+    window.authToken = null;
 
-window.getCurrentUser = function() {
-  return window.currentUser;
-};
+    window.isAuthenticated = function() {
+      return window.currentUser !== null && window.authToken !== null;
+    };
 
-window.getAuthHeaders = function() {
-  const headers = {
-    'Content-Type': 'application/json'
-  };
-  
-  if (window.authToken) {
-    headers['Authorization'] = `Bearer ${window.authToken}`;
-  }
-  
-  return headers;
-};
+    window.getCurrentUser = function() {
+      return window.currentUser;
+    };
 
-// Initialize authentication immediately when script loads
-async function initializeAuthentication() {
-  console.log('🔐 Initializing authentication...');
-  
-  const token = localStorage.getItem('authToken');
-  const userInfo = localStorage.getItem('user');
-  
-  console.log('Token found:', !!token);
-  console.log('User info found:', !!userInfo);
+    window.getAuthHeaders = function() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (window.authToken) {
+        headers['Authorization'] = `Bearer ${window.authToken}`;
+      }
+      return headers;
+    };
 
-  if (token && userInfo) {
-    try {
-      console.log('Verifying stored token...');
+    function waitForElement(selector, callback, maxAttempts = 20) {
+      let attempts = 0;
       
-      // Verify token is still valid
-      const response = await fetch('/api/auth/verify', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      function check() {
+        const element = document.getElementById(selector) || document.querySelector(selector);
+        if (element) {
+          callback(element);
+        } else {
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(check, 250);
+          }
+        }
+      }
+      
+      check();
+    }
+
+    async function initializeAuthentication() {
+      const token = localStorage.getItem('authToken');
+      const userInfo = localStorage.getItem('user');
+
+      if (token && userInfo) {
+        try {
+          const response = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            window.currentUser = data.user;
+            window.authToken = token;
+            
+            showUserInterface(data.user);
+          } else {
+            clearAuthData();
+            showLoginPrompt();
+          }
+        } catch (error) {
+          clearAuthData();
+          showLoginPrompt();
+        }
+      } else {
+        showLoginPrompt();
+      }
+    }
+
+    function showUserInterface(user) {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'block';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'flex';
+      });
+
+      updateUserDisplay(user);
+    }
+
+    function showLoginPrompt() {
+      waitForElement('loginPrompt', (element) => {
+        element.style.display = 'flex';
+      });
+      
+      waitForElement('userMenu', (element) => {
+        element.style.display = 'none';
+      });
+      
+      waitForElement('userInfo', (element) => {
+        element.style.display = 'none';
+      });
+    }
+
+    function updateUserDisplay(user) {
+      waitForElement('welcomeMessage', (element) => {
+        const firstName = user.firstName || user.email.split('@')[0];
+        const currentLang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : 'en';
+        
+        if (currentLang === 'ar') {
+          element.textContent = `مرحباً، ${firstName}!`;
+        } else {
+          element.textContent = `Welcome, ${firstName}!`;
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        window.currentUser = data.user;
-        window.authToken = token;
-        
-        console.log('✅ Authentication successful:', data.user.email);
-        showUserInterface(data.user);
+      waitForElement('industryBadge', (element) => {
+        if (user.industry) {
+          element.textContent = user.industry;
+          element.style.display = 'inline-block';
+        } else {
+          element.style.display = 'none';
+        }
+      });
+
+      waitForElement('userInitials', (element) => {
+        const initials = getInitials(user.firstName, user.lastName, user.email);
+        element.textContent = initials;
+      });
+
+      waitForElement('userFullName', (element) => {
+        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
+        element.textContent = fullName;
+      });
+      
+      waitForElement('userEmail', (element) => {
+        element.textContent = user.email;
+      });
+    }
+
+    function getInitials(firstName, lastName, email) {
+      if (firstName && lastName) {
+        return (firstName[0] + lastName[0]).toUpperCase();
+      } else if (firstName) {
+        return firstName.substring(0, 2).toUpperCase();
       } else {
-        console.log('❌ Token verification failed:', response.status);
-        clearAuthData();
-        showLoginPrompt();
+        return email.substring(0, 2).toUpperCase();
       }
-    } catch (error) {
-      console.error('Auth verification failed:', error);
-      clearAuthData();
-      showLoginPrompt();
     }
-  } else {
-    console.log('No stored authentication data');
-    showLoginPrompt();
-  }
-}
 
-function showUserInterface(user) {
-  console.log('🎨 Showing user interface for:', user.email);
-  
-  // Hide login prompt, show user menu
-  const loginPrompt = document.getElementById('loginPrompt');
-  const userMenu = document.getElementById('userMenu');
-  const userInfo = document.getElementById('userInfo');
-
-  if (loginPrompt) {
-    loginPrompt.style.display = 'none';
-    console.log('Hidden login prompt');
-  }
-  
-  if (userMenu) {
-    userMenu.style.display = 'block';
-    console.log('Shown user menu');
-  }
-  
-  if (userInfo) {
-    userInfo.style.display = 'flex';
-    console.log('Shown user info');
-  }
-
-  // Update user information
-  updateUserDisplay(user);
-}
-
-function showLoginPrompt() {
-  console.log('🔑 Showing login prompt');
-  
-  const loginPrompt = document.getElementById('loginPrompt');
-  const userMenu = document.getElementById('userMenu');
-  const userInfo = document.getElementById('userInfo');
-
-  if (loginPrompt) {
-    loginPrompt.style.display = 'flex';
-    console.log('Shown login prompt');
-  }
-  
-  if (userMenu) {
-    userMenu.style.display = 'none';
-    console.log('Hidden user menu');
-  }
-  
-  if (userInfo) {
-    userInfo.style.display = 'none';
-    console.log('Hidden user info');
-  }
-}
-
-function updateUserDisplay(user) {
-  console.log('📝 Updating user display for:', user.email);
-  
-  // Welcome message
-  const welcomeMessage = document.getElementById('welcomeMessage');
-  if (welcomeMessage) {
-    const firstName = user.firstName || user.email.split('@')[0];
-    welcomeMessage.textContent = `Welcome, ${firstName}!`;
-    console.log('Updated welcome message');
-  }
-
-  // Industry badge
-  const industryBadge = document.getElementById('industryBadge');
-  if (industryBadge && user.industry) {
-    industryBadge.textContent = user.industry;
-    industryBadge.style.display = 'inline-block';
-    console.log('Updated industry badge:', user.industry);
-  } else if (industryBadge) {
-    industryBadge.style.display = 'none';
-  }
-
-  // User initials
-  const userInitials = document.getElementById('userInitials');
-  if (userInitials) {
-    const initials = getInitials(user.firstName, user.lastName, user.email);
-    userInitials.textContent = initials;
-    console.log('Updated user initials:', initials);
-  }
-
-  // Dropdown user info
-  const userFullName = document.getElementById('userFullName');
-  const userEmail = document.getElementById('userEmail');
-  
-  if (userFullName) {
-    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
-    userFullName.textContent = fullName;
-    console.log('Updated full name:', fullName);
-  }
-  
-  if (userEmail) {
-    userEmail.textContent = user.email;
-    console.log('Updated email display');
-  }
-}
-
-function getInitials(firstName, lastName, email) {
-  if (firstName && lastName) {
-    return (firstName[0] + lastName[0]).toUpperCase();
-  } else if (firstName) {
-    return firstName.substring(0, 2).toUpperCase();
-  } else {
-    return email.substring(0, 2).toUpperCase();
-  }
-}
-
-function clearAuthData() {
-  console.log('🧹 Clearing authentication data');
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('user');
-  window.currentUser = null;
-  window.authToken = null;
-}
-
-// Utility: Wait for element to exist before attaching handler
-function waitForElement(id, callback) {
-  const el = document.getElementById(id);
-  if (el) return callback(el);
-  const observer = new MutationObserver(() => {
-    const el = document.getElementById(id);
-    if (el) {
-      observer.disconnect();
-      callback(el);
+    function clearAuthData() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.currentUser = null;
+      window.authToken = null;
     }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-}
 
-// Setup event handlers
-function setupUserInterface() {
-  console.log('🎛️ Setting up user interface handlers');
-  
-  // Profile button click
-  const profileBtn = document.getElementById('profileBtn');
-  const userDropdown = document.getElementById('userDropdown');
-  
-  if (profileBtn && userDropdown) {
-    profileBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      userDropdown.classList.toggle('show');
-    });
-    console.log('Profile button handler added');
-  }
-
-  // Close dropdown when clicking outside
-  document.addEventListener('click', function() {
-    if (userDropdown) {
-      userDropdown.classList.remove('show');
-    }
-  });
-
-  // Enhanced logout with proper UI cleanup
-  waitForElement('logoutBtn', (logoutBtn) => {
-    logoutBtn.addEventListener('click', async function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      console.log('🚪 Logging out...');
-      
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${window.authToken}` }
+    function setupUserInterface() {
+      waitForElement('profileBtn', (profileBtn) => {
+        waitForElement('userDropdown', (userDropdown) => {
+          profileBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const isShown = userDropdown.classList.contains('show');
+            
+            if (isShown) {
+              userDropdown.classList.remove('show');
+            } else {
+              userDropdown.classList.add('show');
+            }
+          });
         });
-        console.log('✅ Logout API call successful');
-      } catch (error) {
-        console.error('❌ Logout API call failed:', error);
-      }
+      });
 
-      // Clear authentication data
-      clearAuthData();
-      
-      // Force immediate UI update
-      console.log('🔄 Updating UI after logout...');
-      
-      // Hide user interface elements
-      const userMenu = document.getElementById('userMenu');
-      const userInfo = document.getElementById('userInfo');
-      const loginPrompt = document.getElementById('loginPrompt');
-      const userDropdown = document.getElementById('userDropdown');
-      
-      if (userMenu) {
-        userMenu.style.display = 'none';
-        console.log('✅ Hidden user menu');
-      }
-      
-      if (userInfo) {
-        userInfo.style.display = 'none';
-        console.log('✅ Hidden user info');
-      }
-      
-      if (userDropdown) {
-        userDropdown.classList.remove('show');
-        console.log('✅ Closed user dropdown');
-      }
-      
-      if (loginPrompt) {
-        loginPrompt.style.display = 'flex';
-        console.log('✅ Shown login prompt');
-      }
-      
-      // Clear user display data
-      const welcomeMessage = document.getElementById('welcomeMessage');
-      const userInitials = document.getElementById('userInitials');
-      const userFullName = document.getElementById('userFullName');
-      const userEmail = document.getElementById('userEmail');
-      const industryBadge = document.getElementById('industryBadge');
-      
-      if (welcomeMessage) welcomeMessage.textContent = '';
-      if (userInitials) userInitials.textContent = '';
-      if (userFullName) userFullName.textContent = '';
-      if (userEmail) userEmail.textContent = '';
-      if (industryBadge) {
-        industryBadge.textContent = '';
-        industryBadge.style.display = 'none';
-      }
-      
-      // Clear application state
-      const categoriesContainer = document.getElementById('categoriesContainer');
-      if (categoriesContainer) categoriesContainer.innerHTML = '';
-      
-      if (window.comments) window.comments.length = 0;
-      
-      const commentsList = document.getElementById('commentsList');
-      if (commentsList) commentsList.innerHTML = '';
+      document.addEventListener('click', function(e) {
+        waitForElement('userDropdown', (userDropdown) => {
+          if (!e.target.closest('.user-menu')) {
+            userDropdown.classList.remove('show');
+          }
+        });
+      });
 
-      console.log('✅ User logged out and UI cleaned up');
-    });
-    
-    console.log('✅ Enhanced logout button handler added');
-  });
-}
+      waitForElement('logoutBtn', (logoutBtn) => {
+        logoutBtn.addEventListener('click', async function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${window.authToken}` }
+            });
+          } catch (error) {
+            console.error('Logout API call failed:', error);
+          }
 
-// Wait for DOM to be ready, then initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('📄 DOM loaded, initializing auth...');
-    setupUserInterface();
-    initializeAuthentication();
-  });
-} else {
-  console.log('📄 DOM already loaded, initializing auth immediately...');
-  setupUserInterface();
-  initializeAuthentication();
-}
-</script>
-  
+          clearAuthData();
+          
+          const userMenu = document.getElementById('userMenu');
+          const userInfo = document.getElementById('userInfo');
+          const loginPrompt = document.getElementById('loginPrompt');
+          const userDropdown = document.getElementById('userDropdown');
+          
+          if (userMenu) userMenu.style.display = 'none';
+          if (userInfo) userInfo.style.display = 'none';
+          if (userDropdown) userDropdown.classList.remove('show');
+          if (loginPrompt) loginPrompt.style.display = 'flex';
+          
+          const welcomeMessage = document.getElementById('welcomeMessage');
+          const userInitials = document.getElementById('userInitials');
+          const userFullName = document.getElementById('userFullName');
+          const userEmail = document.getElementById('userEmail');
+          const industryBadge = document.getElementById('industryBadge');
+          
+          if (welcomeMessage) welcomeMessage.textContent = '';
+          if (userInitials) userInitials.textContent = '';
+          if (userFullName) userFullName.textContent = '';
+          if (userEmail) userEmail.textContent = '';
+          if (industryBadge) {
+            industryBadge.textContent = '';
+            industryBadge.style.display = 'none';
+          }
+          
+          const categoriesContainer = document.getElementById('categoriesContainer');
+          if (categoriesContainer) categoriesContainer.innerHTML = '';
+          
+          if (window.comments) window.comments.length = 0;
+          
+          const commentsList = document.getElementById('commentsList');
+          if (commentsList) commentsList.innerHTML = '';
+        });
+      });
+    }
+
+    function handleLanguageChange() {
+      if (window.currentUser) {
+        updateUserDisplay(window.currentUser);
+      }
+    }
+
+    function initialize() {
+      setupUserInterface();
+      initializeAuthentication();
+      
+      waitForElement('languageSelector', (languageSelector) => {
+        languageSelector.addEventListener('change', () => {
+          setTimeout(handleLanguageChange, 100);
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+      setTimeout(initialize, 100);
+    }
+  </script>
 </body>
 </html>
