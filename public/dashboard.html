@@ -981,21 +981,24 @@
               backgroundColor: '#4CAF50',
               borderColor: '#4CAF50',
               borderWidth: 1,
-              stack: 'participants'
+              stack: 'participants',
+              order: 2
             }, {
               label: 'Passives',
               data: dashboardData.monthlyData.map(d => d.passives),
               backgroundColor: '#FF9800',
               borderColor: '#FF9800',
               borderWidth: 1,
-              stack: 'participants'
+              stack: 'participants',
+              order: 2
             }, {
               label: 'Detractors',
               data: dashboardData.monthlyData.map(d => d.detractors),
               backgroundColor: '#F44336',
               borderColor: '#F44336',
               borderWidth: 1,
-              stack: 'participants'
+              stack: 'participants',
+              order: 2
             }, {
               label: 'NPS Score',
               type: 'line',
@@ -1009,7 +1012,8 @@
               pointRadius: 6,
               fill: false,
               yAxisID: 'y1',
-              tension: 0.4
+              tension: 0.4,
+              order: 1
             }]
           },
           options: {
