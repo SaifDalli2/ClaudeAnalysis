@@ -365,7 +365,7 @@
 
     .factor-header {
       display: flex;
-      justify-content: between;
+      justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
     }
@@ -443,11 +443,11 @@
       overflow: hidden;
       position: relative;
       margin-top: 15px;
+      display: flex;
     }
 
     .customer-bar-segment {
       height: 100%;
-      float: left;
       transition: width 0.8s ease;
     }
 
@@ -457,6 +457,8 @@
       margin-top: 10px;
       font-size: 12px;
       color: var(--dark-text-secondary);
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .legend-item {
@@ -601,6 +603,11 @@
       .modal-content {
         margin: 20px;
         padding: 20px;
+      }
+
+      .customer-legend {
+        flex-direction: column;
+        gap: 4px;
       }
     }
 
@@ -870,30 +877,31 @@
       </div>
     </div>
 
-    <!-- Customer Analysis Section -->
+    <!-- Customer Analysis Section - FIXED -->
     <div class="customer-analysis">
       <div class="analysis-card">
         <h3 class="insight-title">👋 New Customers</h3>
         <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Distribution of new customers by NPS category</p>
         
         <div class="customer-bar-container">
-          <div class="customer-bar-segment" style="width: 45%; background: var(--nps-promoter);"></div>
-          <div class="customer-bar-segment" style="width: 35%; background: var(--nps-passive);"></div>
+          <!-- FLIPPED: Declined first (bottom), then No Change, then Improved (top) -->
           <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
+          <div class="customer-bar-segment" style="width: 52%; background: #888888;"></div>
+          <div class="customer-bar-segment" style="width: 28%; background: var(--nps-promoter);"></div>
         </div>
         
         <div class="customer-legend">
           <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-promoter);"></div>
-            <span>Improved: 23 (28%)</span>
+            <div class="legend-color" style="background: var(--nps-detractor);"></div>
+            <span>Declined: 16 (20%)</span>
           </div>
           <div class="legend-item">
             <div class="legend-color" style="background: #888888;"></div>
             <span>No Change: 42 (52%)</span>
           </div>
           <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-detractor);"></div>
-            <span>Declined: 16 (20%)</span>
+            <div class="legend-color" style="background: var(--nps-promoter);"></div>
+            <span>Improved: 23 (28%)</span>
           </div>
         </div>
       </div>
@@ -967,7 +975,7 @@
       console.log('✅ Dashboard initialized successfully!');
     }
 
-    // Initialize Charts
+    // Initialize Charts - FIXED WITH FLIPPED STACKING
     function initializeCharts() {
       const npsCtx = document.getElementById('npsChart');
       if (npsCtx) {
@@ -976,13 +984,14 @@
           data: {
             labels: dashboardData.monthlyData.map(d => d.month),
             datasets: [{
-              label: 'Promoters',
-              data: dashboardData.monthlyData.map(d => d.promoters),
-              backgroundColor: '#4CAF50',
-              borderColor: '#4CAF50',
+              // FLIPPED ORDER: Detractors first (bottom), then Passives, then Promoters (top)
+              label: 'Detractors',
+              data: dashboardData.monthlyData.map(d => d.detractors),
+              backgroundColor: '#F44336',
+              borderColor: '#F44336',
               borderWidth: 1,
               stack: 'participants',
-              order: 2
+              order: 3
             }, {
               label: 'Passives',
               data: dashboardData.monthlyData.map(d => d.passives),
@@ -992,13 +1001,13 @@
               stack: 'participants',
               order: 2
             }, {
-              label: 'Detractors',
-              data: dashboardData.monthlyData.map(d => d.detractors),
-              backgroundColor: '#F44336',
-              borderColor: '#F44336',
+              label: 'Promoters',
+              data: dashboardData.monthlyData.map(d => d.promoters),
+              backgroundColor: '#4CAF50',
+              borderColor: '#4CAF50',
               borderWidth: 1,
               stack: 'participants',
-              order: 2
+              order: 1
             }, {
               label: 'NPS Score',
               type: 'line',
@@ -1013,7 +1022,7 @@
               fill: false,
               yAxisID: 'y1',
               tension: 0.4,
-              order: 1
+              order: 0
             }]
           },
           options: {
@@ -1058,6 +1067,7 @@
                 display: true,
                 position: 'left',
                 beginAtZero: true,
+                stacked: true,
                 grid: { color: '#333355' },
                 ticks: { 
                   color: '#B4B4D0',
@@ -1442,16 +1452,25 @@
     console.log('📊 NPS Dashboard JavaScript loaded successfully');
   </script>
 </body>
-</html>>
-            <span>Promoters: 18 (45%)</span>
+</html>
+          <!-- FLIPPED: Detractors first (bottom in visual), then Passives, then Promoters (top) -->
+          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
+          <div class="customer-bar-segment" style="width: 35%; background: var(--nps-passive);"></div>
+          <div class="customer-bar-segment" style="width: 45%; background: var(--nps-promoter);"></div>
+        </div>
+        
+        <div class="customer-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-detractor);"></div>
+            <span>Detractors: 8 (20%)</span>
           </div>
           <div class="legend-item">
             <div class="legend-color" style="background: var(--nps-passive);"></div>
             <span>Passives: 14 (35%)</span>
           </div>
           <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-detractor);"></div>
-            <span>Detractors: 8 (20%)</span>
+            <div class="legend-color" style="background: var(--nps-promoter);"></div>
+            <span>Promoters: 18 (45%)</span>
           </div>
         </div>
       </div>
@@ -1461,11 +1480,3 @@
         <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Score changes for returning customers</p>
         
         <div class="customer-bar-container">
-          <div class="customer-bar-segment" style="width: 28%; background: var(--nps-promoter);"></div>
-          <div class="customer-bar-segment" style="width: 52%; background: #888888;"></div>
-          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
-        </div>
-        
-        <div class="customer-legend">
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-promoter);"></div
