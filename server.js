@@ -1,3 +1,5 @@
+// Fixed server.js - Remove duplicate routes and fix authentication logic
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -14,7 +16,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 console.log(`Server will bind to: ${HOST}:${PORT}`);
 
-// Basic CORS setup (simplified)
+// Basic CORS setup
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -37,7 +39,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: false
 }));
 
-// Health check endpoints FIRST
+// Health check endpoints
 app.get('/ping', (req, res) => {
   console.log('Ping received');
   res.status(200).send('OK');
@@ -56,7 +58,6 @@ app.get('/health', (req, res) => {
 // Optional authentication middleware (safe version)
 function optionalAuth(req, res, next) {
   try {
-    // Skip authentication if JWT_SECRET is not configured
     if (!process.env.JWT_SECRET) {
       req.user = null;
       return next();
@@ -70,7 +71,6 @@ function optionalAuth(req, res, next) {
       return next();
     }
 
-    // Simple token validation without database
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = {
@@ -80,7 +80,6 @@ function optionalAuth(req, res, next) {
     
     next();
   } catch (error) {
-    // On any error, just continue without user
     req.user = null;
     next();
   }
@@ -88,7 +87,6 @@ function optionalAuth(req, res, next) {
 
 // Load routes with error handling
 try {
-  // API routes
   const apiRoutes = require('./routes/api');
   app.use('/api', apiRoutes);
   console.log('✅ API routes loaded');
@@ -97,7 +95,6 @@ try {
 }
 
 try {
-  // Health routes
   const healthRoutes = require('./routes/health');
   app.use('/api', healthRoutes);
   console.log('✅ Health routes loaded');
@@ -106,7 +103,6 @@ try {
 }
 
 try {
-  // Claude routes (legacy)
   const claudeRoutes = require('./routes/claude');
   app.use('/api', claudeRoutes);
   console.log('✅ Claude routes loaded');
@@ -115,7 +111,6 @@ try {
 }
 
 try {
-  // Auth routes (if database is available)
   if (process.env.DATABASE_URL && process.env.JWT_SECRET) {
     const authRoutes = require('./routes/auth');
     app.use('/api/auth', authRoutes);
@@ -127,38 +122,74 @@ try {
   console.warn('⚠️ Auth routes failed to load:', error.message);
 }
 
-// Page routes with smart routing
+try {
+  const industryRoutes = require('./routes/industry');
+  app.use('/api', industryRoutes);
+  console.log('✅ Industry routes loaded');
+} catch (error) {
+  console.warn('⚠️ Industry routes failed to load:', error.message);
+}
+
+// FIXED PAGE ROUTES - Single definition for each route
+
+// Dashboard route - FIXED to always allow access
+app.get('/dashboard', optionalAuth, (req, res) => {
+  console.log('Dashboard route accessed');
+  console.log('User:', req.user ? req.user.email : 'Not authenticated');
+  
+  const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+  console.log('Dashboard path:', dashboardPath);
+  
+  // Check if file exists
+  const fs = require('fs');
+  if (!fs.existsSync(dashboardPath)) {
+    console.error('❌ Dashboard file not found:', dashboardPath);
+    return res.status(404).json({
+      error: 'Dashboard not found',
+      message: 'dashboard.html file is missing',
+      expectedPath: dashboardPath
+    });
+  }
+  
+  // Always serve dashboard (no authentication required)
+  res.sendFile(dashboardPath);
+});
+
+// Alternative dashboard routes
+app.get('/nps-dashboard', (req, res) => {
+  console.log('NPS Dashboard direct access');
+  res.redirect('/dashboard');
+});
+
+app.get('/dash', (req, res) => {
+  console.log('Short dashboard redirect');
+  res.redirect('/dashboard');
+});
+
+// Root route
 app.get('/', optionalAuth, (req, res) => {
   console.log('Root route accessed');
   if (req.user) {
-    console.log(`Authenticated user ${req.user.email} - redirecting to dashboard`);
-    return res.redirect('/dashboard');
+    console.log(`Authenticated user ${req.user.email}`);
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/dashboard', optionalAuth, (req, res) => {
-  console.log('Dashboard route accessed');
-  if (!req.user && process.env.JWT_SECRET) {
-    console.log('Unauthenticated user trying to access dashboard - redirecting to login');
-    return res.redirect('/login');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
+// Comment tool route
 app.get('/comment-tool', (req, res) => {
   console.log('Comment tool accessed');
   res.sendFile(path.join(__dirname, 'public', 'comment-tool.html'));
 });
 
+// Auth pages - only if auth is enabled
 app.get('/login', optionalAuth, (req, res) => {
   console.log('Login page accessed');
+  
   if (req.user) {
-    console.log(`Already authenticated user - redirecting to dashboard`);
+    console.log('Already authenticated user - redirecting to dashboard');
     return res.redirect('/dashboard');
   }
   
-  // Check if login page exists
   const loginPath = path.join(__dirname, 'public', 'login.html');
   const fs = require('fs');
   
@@ -172,12 +203,12 @@ app.get('/login', optionalAuth, (req, res) => {
 
 app.get('/register', optionalAuth, (req, res) => {
   console.log('Register page accessed');
+  
   if (req.user) {
-    console.log(`Already authenticated user - redirecting to dashboard`);
+    console.log('Already authenticated user - redirecting to dashboard');
     return res.redirect('/dashboard');
   }
   
-  // Check if register page exists
   const registerPath = path.join(__dirname, 'public', 'register.html');
   const fs = require('fs');
   
@@ -189,7 +220,7 @@ app.get('/register', optionalAuth, (req, res) => {
   }
 });
 
-// API endpoint to check auth status
+// API endpoints
 app.get('/api/auth-status', optionalAuth, (req, res) => {
   res.json({
     authenticated: !!req.user,
@@ -199,43 +230,6 @@ app.get('/api/auth-status', optionalAuth, (req, res) => {
   });
 });
 
-const industryRoutes = require('./routes/industry');
-try {
-  app.use('/api', industryRoutes);
-  console.log('✅ Industry routes loaded');
-} catch (error) {
-  console.warn('Industry routes failed to load:', error.message);
-}
-
-// Make dashboard accessible without strict authentication
-app.get('/dashboard', (req, res) => {
-  console.log('Dashboard route accessed');
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// Alternative route for direct dashboard access
-app.get('/nps-dashboard', (req, res) => {
-  console.log('NPS Dashboard direct access');
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// Update the root route to provide navigation options
-app.get('/', optionalAuth, (req, res) => {
-  console.log('Root route accessed');
-  
-  // Check if user prefers dashboard
-  const userAgent = req.get('User-Agent') || '';
-  const referrer = req.get('Referer') || '';
-  
-  // If user is authenticated, show dashboard option
-  if (req.user) {
-    console.log(`Authenticated user ${req.user.email} - serving main page with dashboard option`);
-  }
-  
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Add a navigation endpoint
 app.get('/navigation', (req, res) => {
   res.json({
     pages: [
@@ -246,15 +240,11 @@ app.get('/navigation', (req, res) => {
   });
 });
 
-// Add this test endpoint to your server.js for debugging
-
+// Debug endpoint
 app.get('/test-dashboard', (req, res) => {
-  const path = require('path');
   const fs = require('fs');
-  
   const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
   
-  // Check if file exists
   if (fs.existsSync(dashboardPath)) {
     res.json({
       status: 'success',
@@ -277,11 +267,7 @@ app.get('/test-dashboard', (req, res) => {
   }
 });
 
-// Add a simple dashboard redirect
-app.get('/dash', (req, res) => {
-  res.redirect('/dashboard');
-});
-// Catch-all route
+// Catch-all route (must be last)
 app.get('*', (req, res) => {
   console.log(`Catch-all route: ${req.url} - serving main page`);
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -295,7 +281,6 @@ app.use((err, req, res, next) => {
     return next(err);
   }
   
-  // Handle specific errors
   if (err.code === 'ECONNRESET') {
     return res.status(503).json({
       error: 'Connection Error',
@@ -310,7 +295,6 @@ app.use((err, req, res, next) => {
     });
   }
   
-  // Default error
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message
@@ -325,28 +309,21 @@ app.use((req, res) => {
   });
 });
 
-// Start server with proper error handling
+// Start server
 const server = app.listen(PORT, HOST, () => {
   console.log(`✅ Server running on ${HOST}:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💾 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
   console.log(`🔐 Auth: ${process.env.JWT_SECRET ? 'Enabled' : 'Disabled'}`);
   console.log(`🚀 Application ready to serve requests`);
-});
-
-// Handle server errors
-server.on('error', (error) => {
-  console.error('❌ Server error:', error);
   
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use`);
-    process.exit(1);
-  } else if (error.code === 'EACCES') {
-    console.error(`Permission denied to bind to port ${PORT}`);
-    process.exit(1);
+  // Check dashboard file on startup
+  const fs = require('fs');
+  const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+  if (fs.existsSync(dashboardPath)) {
+    console.log(`📊 Dashboard available at: http://${HOST}:${PORT}/dashboard`);
   } else {
-    console.error('Unknown server error');
-    process.exit(1);
+    console.warn(`⚠️ Dashboard file not found: ${dashboardPath}`);
   }
 });
 
@@ -365,17 +342,6 @@ process.on('SIGINT', () => {
     console.log('✅ Server closed');
     process.exit(0);
   });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Promise Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
 });
 
 module.exports = app;
