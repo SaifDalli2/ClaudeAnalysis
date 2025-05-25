@@ -3,6 +3,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer'); // Added multer dependency
 
 // Load environment variables first
 require('dotenv').config();
@@ -130,6 +131,14 @@ try {
   console.warn('⚠️ Industry routes failed to load:', error.message);
 }
 
+try {
+  const npsRoutes = require('./routes/nps'); // New route for NPS
+  app.use('/api/nps', npsRoutes);
+  console.log('✅ NPS routes loaded');
+} catch (error) {
+  console.warn('⚠️ NPS routes failed to load:', error.message);
+}
+
 // FIXED PAGE ROUTES - Single definition for each route
 
 // Dashboard route - FIXED to always allow access
@@ -151,7 +160,7 @@ app.get('/dashboard', optionalAuth, (req, res) => {
     });
   }
   
-  // Always serve dashboard (no authentication required)
+  // Always serve dashboard (no authentication required for now)
   res.sendFile(dashboardPath);
 });
 
@@ -264,6 +273,21 @@ app.get('/test-dashboard', (req, res) => {
       publicDir: path.join(__dirname, 'public'),
       publicFiles: fs.readdirSync(path.join(__dirname, 'public'))
     });
+  }
+});
+
+// NPS Upload page route
+app.get('/upload-nps', optionalAuth, (req, res) => {
+  console.log('NPS Upload page accessed');
+  
+  const uploadPath = path.join(__dirname, 'public', 'upload-nps.html');
+  const fs = require('fs');
+  
+  if (fs.existsSync(uploadPath)) {
+    res.sendFile(uploadPath);
+  } else {
+    console.log('Upload page not found, redirecting to dashboard');
+    res.redirect('/dashboard');
   }
 });
 

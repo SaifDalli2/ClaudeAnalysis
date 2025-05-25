@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPS Data Upload - Enhanced Flow</title>
+  <style>
+    :root {
+      --dark-bg: #000000;
+      --dark-surface: #1E1E2F;
+      --dark-surface-lighter: #2A2A3D;
+      --dark-text: #E8E8FF;
+      --dark-text-secondary: #B4B4D0;
+      --dark-border: #333355;
+      --dark-primary: #E2FF66;
+      --dark-primary-hover: #EEFF99;
+      --dark-error: #F44336;
+      --dark-success: #4CAF50;
+      --dark-warning: #FF9800;
+      --nps-promoter: #4CAF50;
+      --nps-passive: #FF9800;
+      --nps-detractor: #F44336;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--dark-bg);
+      color: var(--dark-text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .title {
+      font-size: 32px;
+      color: var(--dark-primary-hover);
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: var(--dark-text-secondary);
+      font-size: 16px;
+    }
+
+    .upload-container {
+      background: var(--dark-surface);
+      border-radius: 12px;
+      padding: 30px;
+      border: 1px solid var(--dark-border);
+      margin-bottom: 30px;
+    }
+
+    .upload-steps {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .upload-steps::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: var(--dark-border);
+      z-index: 1;
+    }
+
+    .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--dark-surface-lighter);
+      border: 2px solid var(--dark-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 10px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .step.active .step-number {
+      background: var(--dark-primary);
+      border-color: var(--dark-primary);
+      color: black;
+    }
+
+    .step.completed .step-number {
+      background: var(--dark-success);
+      border-color: var(--dark-success);
+      color: white;
+    }
+
+    .step-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--dark-text-secondary);
+    }
+
+    .step.active .step-title {
+      color: var(--dark-text);
+    }
+
+    /* File Upload Area */
+    .file-upload-area {
+      border: 2px dashed var(--dark-border);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      margin-bottom: 30px;
+    }
+
+    .file-upload-area:hover {
+      border-color: var(--dark-primary);
+      background: rgba(226, 255, 102, 0.05);
+    }
+
+    .file-upload-area.drag-over {
+      border-color: var(--dark-primary);
+      background: rgba(226, 255, 102, 0.1);
+      transform: scale(1.02);
+    }
+
+    .file-upload-area.has-file {
+      border-color: var(--dark-success);
+      background: rgba(76, 175, 80, 0.05);
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      opacity: 0.7;
+    }
+
+    .upload-text {
+      font-size: 18px;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .upload-subtext {
+      color: var(--dark-text-secondary);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .browse-btn {
+      background: var(--dark-primary);
+      color: black;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .browse-btn:hover {
+      background: var(--dark-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    /* File Info Display */
+    .file-info {
+      background: var(--dark-surface-lighter);
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      display: none;
+    }
+
+    .file-info.show {
+      display: block;
+    }
+
+    .file-details {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+
+    .file-name {
+      font-weight: 500;
+      color: var(--dark-text);
+    }
+
+    .file-size {
+      color: var(--dark-text-secondary);
+      font-size: 14px;
+    }
+
+    .remove-file {
+      background: var(--dark-error);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* CSV Preview */
+    .csv-preview {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .csv-preview.show {
+      display: block;
+    }
+
+    .preview-header {
+      font-weight: 500;
+      margin-bottom: 15px;
+      color: var(--dark-primary-hover);
+    }
+
+    .csv-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--dark-surface);
+      border-radius: 8px;
+      overflow: hidden;
+      max-height: 300px;
+      overflow-y: auto;
+      display: block;
+    }
+
+    .csv-table thead {
+      background: var(--dark-surface-lighter);
+      position: sticky;
+      top: 0;
+    }
+
+    .csv-table th,
+    .csv-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--dark-border);
+      font-size: 14px;
+    }
+
+    .csv-table th {
+      font-weight: 600;
+      color: var(--dark-primary-hover);
+    }
+
+    .csv-table tbody {
+      display: block;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .csv-table thead,
+    .csv-table tbody tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    /* Column Mapping */
+    .column-mapping {
+      margin-top: 30px;
+      display: none;
+    }
+
+    .column-mapping.show {
+      display: block;
+    }
+
+    .mapping-header {
+      font-weight: 500;
+      margin-bottom: 20px;
+      color: var(--dark-primary-hover);
+    }
+
+    .mapping-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .mapping-item {
+      background: var(--dark-surface-lighter);
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .mapping-label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--dark-text);
+    }
+
+    .mapping-select {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+      border-radius: 6px;
+      color: var(--dark-text);
+      cursor: pointer;
+    }
+
+    .mapping-hint {
+      font-size: 12px;
+      color: var(--dark-text-secondary);
+      margin-top: 5px;
+    }
+
+    /* Validation Results */
+    .validation-results {
+      margin-top: 30px;
+      display: none;
+    }
+
+    .validation-results.show {
+      display: block;
+    }
+
+    .validation-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+    }
+
+    .validation-item.success {
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid var(--dark-success);
+    }
+
+    .validation-item.warning {
+      background: rgba(255, 152, 0, 0.1);
+      border: 1px solid var(--dark-warning);
+    }
+
+    .validation-item.error {
+      background: rgba(244, 67, 54, 0.1);
+      border: 1px solid var(--dark-error);
+    }
+
+    .validation-icon {
+      margin-right: 10px;
+      font-size: 18px;
+    }
+
+    .validation-text {
+      flex: 1;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--dark-primary);
+      color: black;
+    }
+
+    .btn-primary:hover {
+      background: var(--dark-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--dark-surface-lighter);
+      color: var(--dark-text);
+      border: 1px solid var(--dark-border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--dark-border);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      margin-top: 30px;
+      display: none;
+    }
+
+    .progress-container.show {
+      display: block;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--dark-surface-lighter);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--dark-primary);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-text {
+      text-align: center;
+      color: var(--dark-text-secondary);
+      font-size: 14px;
+    }
+
+    /* Sample Data Section */
+    .sample-section {
+      background: var(--dark-surface);
+      border-radius: 12px;
+      padding: 30px;
+      border: 1px solid var(--dark-border);
+      margin-bottom: 30px;
+    }
+
+    .sample-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .sample-title {
+      font-size: 20px;
+      color: var(--dark-primary-hover);
+    }
+
+    .download-sample {
+      background: var(--dark-success);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .sample-format {
+      background: var(--dark-surface-lighter);
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      overflow-x: auto;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px 15px;
+      }
+
+      .mapping-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+      }
+
+      .upload-steps {
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .upload-steps::before {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="title">📊 Upload NPS Data</h1>
+      <p class="subtitle">Import your NPS survey data for analysis and insights</p>
+    </div>
+
+    <!-- Sample Data Section -->
+    <div class="sample-section">
+      <div class="sample-header">
+        <h3 class="sample-title">📋 Required Data Format</h3>
+        <button class="download-sample" onclick="downloadSampleCSV()">
+          📥 Download Sample CSV
+        </button>
+      </div>
+      <p style="margin-bottom: 15px; color: var(--dark-text-secondary);">
+        Your CSV file should contain the following columns (case-insensitive):
+      </p>
+      <div class="sample-format">
+Customer_ID,NPS_Score,Survey_Date,Comments,Product_Quality,Customer_Support,Ease_of_Use,Value_for_Money<br>
+CUST001,9,2024-01-15,"Great product, very satisfied!",9,8,9,7<br>
+CUST002,3,2024-01-16,"Poor customer service, slow response",4,2,6,5<br>
+CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
+      </div>
+      <div style="margin-top: 15px;">
+        <strong>Required columns:</strong> Customer_ID, NPS_Score, Survey_Date<br>
+        <strong>Optional columns:</strong> Comments, and any number of NPS factor ratings
+      </div>
+    </div>
+
+    <!-- Upload Container -->
+    <div class="upload-container">
+      <!-- Progress Steps -->
+      <div class="upload-steps">
+        <div class="step active" id="step1">
+          <div class="step-number">1</div>
+          <div class="step-title">Upload File</div>
+        </div>
+        <div class="step" id="step2">
+          <div class="step-number">2</div>
+          <div class="step-title">Map Columns</div>
+        </div>
+        <div class="step" id="step3">
+          <div class="step-number">3</div>
+          <div class="step-title">Validate Data</div>
+        </div>
+        <div class="step" id="step4">
+          <div class="step-number">4</div>
+          <div class="step-title">Import</div>
+        </div>
+      </div>
+
+      <!-- File Upload Area -->
+      <div class="file-upload-area" id="fileUploadArea">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">Drop your CSV file here</div>
+        <div class="upload-subtext">or click to browse your files</div>
+        <button class="browse-btn" onclick="document.getElementById('fileInput').click()">
+          Choose File
+        </button>
+        <input type="file" id="fileInput" class="file-input" accept=".csv" />
+      </div>
+
+      <!-- File Info -->
+      <div class="file-info" id="fileInfo">
+        <div class="file-details">
+          <div>
+            <div class="file-name" id="fileName">sample.csv</div>
+            <div class="file-size" id="fileSize">2.4 KB</div>
+          </div>
+          <button class="remove-file" onclick="removeFile()">Remove</button>
+        </div>
+
+        <!-- CSV Preview -->
+        <div class="csv-preview" id="csvPreview">
+          <div class="preview-header">📋 File Preview (first 5 rows)</div>
+          <div class="csv-table" id="csvTable"></div>
+        </div>
+      </div>
+
+      <!-- Column Mapping -->
+      <div class="column-mapping" id="columnMapping">
+        <div class="mapping-header">🔗 Map Your Columns</div>
+        <div class="mapping-grid" id="mappingGrid">
+          <!-- Mapping items will be generated dynamically -->
+        </div>
+      </div>
+
+      <!-- Validation Results -->
+      <div class="validation-results" id="validationResults">
+        <div class="validation-item success">
+          <div class="validation-icon">✅</div>
+          <div class="validation-text">Data format is valid</div>
+        </div>
+        <div class="validation-item warning">
+          <div class="validation-icon">⚠️</div>
+          <div class="validation-text">12 rows have missing factor ratings</div>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">Processing data...</div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button class="btn btn-secondary" id="backBtn" onclick="goBack()" style="display: none;">
+          ← Back
+        </button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextStep()" disabled>
+          Next →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let uploadedFile = null;
+    let csvData = [];
+    let columnHeaders = [];
+    let columnMapping = {};
+
+    // Required columns for NPS data
+    const requiredColumns = {
+      customer_id: { label: 'Customer ID', required: true },
+      nps_score: { label: 'NPS Score', required: true },
+      survey_date: { label: 'Survey Date', required: true },
+      comments: { label: 'Comments', required: false }
+    };
+
+    // Initialize the upload flow
+    function initializeUpload() {
+      setupFileUpload();
+      updateStepDisplay();
+    }
+
+    function setupFileUpload() {
+      const fileInput = document.getElementById('fileInput');
+      const uploadArea = document.getElementById('fileUploadArea');
+
+      // File input change
+      fileInput.addEventListener('change', handleFileSelect);
+
+      // Drag and drop
+      uploadArea.addEventListener('click', () => fileInput.click());
+      uploadArea.addEventListener('dragover', handleDragOver);
+      uploadArea.addEventListener('dragleave', handleDragLeave);
+      uploadArea.addEventListener('drop', handleFileDrop);
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        processFile(file);
+      }
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      document.getElementById('fileUploadArea').classList.add('drag-over');
+    }
+
+    function handleDragLeave() {
+      document.getElementById('fileUploadArea').classList.remove('drag-over');
+    }
+
+    function handleFileDrop(event) {
+      event.preventDefault();
+      document.getElementById('fileUploadArea').classList.remove('drag-over');
+      
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        processFile(files[0]);
+      }
+    }
+
+    function processFile(file) {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        showNotification('Please select a CSV file', 'error');
+        return;
+      }
+
+      uploadedFile = file;
+      
+      // Update UI
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = formatFileSize(file.size);
+      document.getElementById('fileInfo').classList.add('show');
+      document.getElementById('fileUploadArea').classList.add('has-file');
+      
+      // Read and parse CSV
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        parseCSV(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCSV(csvText) {
+      const lines = csvText.trim().split('\n');
+      if (lines.length < 2) {
+        showNotification('CSV file must have at least a header row and one data row', 'error');
+        return;
+      }
+
+      // Parse header
+      columnHeaders = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      // Parse data (first 5 rows for preview)
+      csvData = [];
+      for (let i = 1; i < Math.min(6, lines.length); i++) {
+        const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+        csvData.push(values);
+      }
+
+      // Display preview
+      displayCSVPreview();
+      
+      // Enable next button
+      document.getElementById('nextBtn').disabled = false;
+    }
+
+    function displayCSVPreview() {
+      const tableHtml = `
+        <table class="csv-table">
+          <thead>
+            <tr>
+              ${columnHeaders.map(header => `<th>${header}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${csvData.map(row => `
+              <tr>
+                ${row.map(cell => `<td>${cell}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      
+      document.getElementById('csvTable').innerHTML = tableHtml;
+      document.getElementById('csvPreview').classList.add('show');
+    }
+
+    function removeFile() {
+      uploadedFile = null;
+      csvData = [];
+      columnHeaders = [];
+      
+      document.getElementById('fileInfo').classList.remove('show');
+      document.getElementById('fileUploadArea').classList.remove('has-file');
+      document.getElementById('fileInput').value = '';
+      document.getElementById('nextBtn').disabled = true;
+    }
+
+    function nextStep() {
+      if (currentStep < 4) {
+        currentStep++;
+        updateStepDisplay();
+        
+        if (currentStep === 2) {
+          setupColumnMapping();
+        } else if (currentStep === 3) {
+          validateData();
+        } else if (currentStep === 4) {
+          importData();
+        }
+      }
+    }
+
+    function goBack() {
+      if (currentStep > 1) {
+        currentStep--;
+        updateStepDisplay();
+      }
+    }
+
+    function updateStepDisplay() {
+      // Update step indicators
+      for (let i = 1; i <= 4; i++) {
+        const step = document.getElementById(`step${i}`);
+        step.classList.remove('active', 'completed');
+        
+        if (i < currentStep) {
+          step.classList.add('completed');
+        } else if (i === currentStep) {
+          step.classList.add('active');
+        }
+      }
+
+      // Show/hide sections
+      const sections = ['fileUploadArea', 'fileInfo', 'columnMapping', 'validationResults', 'progressContainer'];
+      sections.forEach(section => {
+        document.getElementById(section).classList.remove('show');
+      });
+
+      if (currentStep === 1) {
+        document.getElementById('fileUploadArea').style.display = 'block';
+        if (uploadedFile) {
+          document.getElementById('fileInfo').classList.add('show');
+        }
+        document.getElementById('backBtn').style.display = 'none';
+        document.getElementById('nextBtn').textContent = 'Next →';
+      } else if (currentStep === 2) {
+        document.getElementById('fileUploadArea').style.display = 'none';
+        document.getElementById('columnMapping').classList.add('show');
+        document.getElementById('backBtn').style.display = 'inline-block';
+        document.getElementById('nextBtn').textContent = 'Validate Data →';
+      } else if (currentStep === 3) {
+        document.getElementById('columnMapping').classList.remove('show');
+        document.getElementById('validationResults').classList.add('show');
+        document.getElementById('nextBtn').textContent = 'Import Data →';
+      } else if (currentStep === 4) {
+        document.getElementById('validationResults').classList.remove('show');
+        document.getElementById('progressContainer').classList.add('show');
+        document.getElementById('backBtn').style.display = 'none';
+        document.getElementById('nextBtn').style.display = 'none';
+      }
+    }
+
+    function setupColumnMapping() {
+      const mappingGrid = document.getElementById('mappingGrid');
+      mappingGrid.innerHTML = '';
+
+      Object.keys(requiredColumns).forEach(key => {
+        const config = requiredColumns[key];
+        const mappingItem = document.createElement('div');
+        mappingItem.className = 'mapping-item';
+        
+        mappingItem.innerHTML = `
+          <div class="mapping-label">
+            ${config.label} ${config.required ? '*' : ''}
+          </div>
+          <select class="mapping-select" data-field="${key}">
+            <option value="">-- Select Column --</option>
+            ${columnHeaders.map((header, index) => 
+              `<option value="${index}">${header}</option>`
+            ).join('')}
+          </select>
+          <div class="mapping-hint">
+            ${config.required ? 'Required field' : 'Optional field'}
+          </div>
+        `;
+        
+        mappingGrid.appendChild(mappingItem);
+      });
+
+      // Auto-detect column mappings
+      autoDetectMappings();
+      
+      // Add change listeners
+      mappingGrid.addEventListener('change', updateMapping);
+    }
+
+    function autoDetectMappings() {
+      const detectionRules = {
+        customer_id: ['customer_id', 'customerid', 'customer', 'id', 'user_id'],
+        nps_score: ['nps_score', 'nps', 'score', 'rating'],
+        survey_date: ['survey_date', 'date', 'timestamp', 'created_at'],
+        comments: ['comments', 'comment', 'feedback', 'text']
+      };
+
+      Object.keys(detectionRules).forEach(field => {
+        const rules = detectionRules[field];
+        const headerIndex = columnHeaders.findIndex(header => 
+          rules.some(rule => header.toLowerCase().includes(rule.toLowerCase()))
+        );
+        
+        if (headerIndex !== -1) {
+          const select = document.querySelector(`[data-field="${field}"]`);
+          select.value = headerIndex;
+          columnMapping[field] = headerIndex;
+        }
+      });
+    }
+
+    function updateMapping(event) {
+      const field = event.target.dataset.field;
+      const columnIndex = event.target.value;
+      
+      if (columnIndex) {
+        columnMapping[field] = parseInt(columnIndex);
+      } else {
+        delete columnMapping[field];
+      }
+
+      // Check if all required fields are mapped
+      const requiredFields = Object.keys(requiredColumns).filter(key => requiredColumns[key].required);
+      const mappedRequired = requiredFields.filter(field => columnMapping[field] !== undefined);
+      
+      document.getElementById('nextBtn').disabled = mappedRequired.length !== requiredFields.length;
+    }
+
+    function validateData() {
+      const validationResults = document.getElementById('validationResults');
+      validationResults.innerHTML = '';
+
+      const validations = [
+        checkRequiredFields(),
+        validateNPSScores(),
+        validateDates(),
+        checkDataQuality()
+      ];
+
+      validations.forEach(validation => {
+        if (validation) {
+          const item = document.createElement('div');
+          item.className = `validation-item ${validation.type}`;
+          item.innerHTML = `
+            <div class="validation-icon">${validation.icon}</div>
+            <div class="validation-text">${validation.message}</div>
+          `;
+          validationResults.appendChild(item);
+        }
+      });
+
+      document.getElementById('nextBtn').disabled = false;
+    }
+
+    function checkRequiredFields() {
+      const requiredFields = Object.keys(requiredColumns).filter(key => requiredColumns[key].required);
+      const mappedRequired = requiredFields.filter(field => columnMapping[field] !== undefined);
+      
+      if (mappedRequired.length === requiredFields.length) {
+        return {
+          type: 'success',
+          icon: '✅',
+          message: 'All required fields are mapped correctly'
+        };
+      } else {
+        return {
+          type: 'error',
+          icon: '❌',
+          message: `Missing required fields: ${requiredFields.filter(f => !columnMapping[f]).join(', ')}`
+        };
+      }
+    }
+
+    function validateNPSScores() {
+      // Simulate NPS score validation
+      return {
+        type: 'success',
+        icon: '✅',
+        message: 'NPS scores are within valid range (0-10)'
+      };
+    }
+
+    function validateDates() {
+      // Simulate date validation
+      return {
+        type: 'warning',
+        icon: '⚠️',
+        message: '3 rows have invalid date formats - they will be skipped'
+      };
+    }
+
+    function checkDataQuality() {
+      // Simulate data quality check
+      return {
+        type: 'success',
+        icon: '📊',
+        message: `Found ${csvData.length} valid data rows ready for import`
+      };
+    }
+
+    function importData() {
+      let progress = 0;
+      const progressFill = document.getElementById('progressFill');
+      const progressText = document.getElementById('progressText');
+      
+      const steps = [
+        { message: 'Validating data format...', duration: 1000 },
+        { message: 'Processing customer records...', duration: 1500 },
+        { message: 'Calculating NPS metrics...', duration: 1200 },
+        { message: 'Analyzing sentiment...', duration: 1800 },
+        { message: 'Generating insights...', duration: 1000 },
+        { message: 'Finalizing import...', duration: 800 }
+      ];
+
+      let currentStepIndex = 0;
+
+      function runStep() {
+        if (currentStepIndex >= steps.length) {
+          // Import complete
+          progressFill.style.width = '100%';
+          progressText.textContent = 'Import completed successfully!';
+          
+          setTimeout(() => {
+            showSuccessModal();
+          }, 500);
+          return;
+        }
+
+        const step = steps[currentStepIndex];
+        progressText.textContent = step.message;
+        
+        const stepProgress = ((currentStepIndex + 1) / steps.length) * 100;
+        progressFill.style.width = stepProgress + '%';
+
+        setTimeout(() => {
+          currentStepIndex++;
+          runStep();
+        }, step.duration);
+      }
+
+      runStep();
+    }
+
+    function showSuccessModal() {
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      `;
+
+      modal.innerHTML = `
+        <div style="
+          background: var(--dark-surface);
+          border-radius: 12px;
+          padding: 40px;
+          text-align: center;
+          max-width: 500px;
+          border: 1px solid var(--dark-border);
+        ">
+          <div style="font-size: 64px; margin-bottom: 20px;">🎉</div>
+          <h2 style="color: var(--dark-primary-hover); margin-bottom: 15px;">
+            Import Successful!
+          </h2>
+          <p style="color: var(--dark-text-secondary); margin-bottom: 30px;">
+            Your NPS data has been successfully imported and processed. 
+            You can now view insights and analytics in your dashboard.
+          </p>
+          <div style="display: flex; gap: 15px; justify-content: center;">
+            <button onclick="viewDashboard()" style="
+              background: var(--dark-primary);
+              color: black;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 8px;
+              font-weight: 600;
+              cursor: pointer;
+            ">
+              View Dashboard
+            </button>
+            <button onclick="uploadMore()" style="
+              background: var(--dark-surface-lighter);
+              color: var(--dark-text);
+              border: 1px solid var(--dark-border);
+              padding: 12px 24px;
+              border-radius: 8px;
+              font-weight: 600;
+              cursor: pointer;
+            ">
+              Upload More Data
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+    }
+
+    function viewDashboard() {
+      // Redirect to dashboard
+      window.location.href = '/dashboard';
+    }
+
+    function uploadMore() {
+      // Reset the upload flow
+      location.reload();
+    }
+
+    function downloadSampleCSV() {
+      const sampleData = `Customer_ID,NPS_Score,Survey_Date,Comments,Product_Quality,Customer_Support,Ease_of_Use,Value_for_Money
+CUST001,9,2024-01-15,"Great product, very satisfied!",9,8,9,7
+CUST002,3,2024-01-16,"Poor customer service, slow response",4,2,6,5
+CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
+CUST004,10,2024-01-18,"Excellent experience, highly recommend!",10,9,10,8
+CUST005,2,2024-01-19,"Terrible product, doesn't work as advertised",2,3,3,2
+CUST006,7,2024-01-20,"Decent product but room for improvement",7,6,7,6
+CUST007,9,2024-01-21,"Love the new features, keep it up!",9,8,9,8
+CUST008,4,2024-01-22,"Too expensive for what it offers",6,5,7,3
+CUST009,8,2024-01-23,"Good support team, quick responses",7,9,8,7
+CUST010,6,2024-01-24,"Average experience, nothing special",6,6,6,6`;
+
+      const blob = new Blob([sampleData], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'nps_sample_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      showNotification('Sample CSV downloaded successfully!', 'success');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? 'var(--dark-success)' : type === 'error' ? 'var(--dark-error)' : 'var(--dark-primary)'};
+        color: ${type === 'error' ? 'white' : 'black'};
+        padding: 15px 20px;
+        border-radius: 8px;
+        z-index: 1001;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-weight: 500;
+        animation: slideInRight 0.3s ease;
+      `;
+      notification.textContent = message;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }, 3000);
+    }
+
+    // Industry-specific column suggestions
+    const industryColumnSuggestions = {
+      'SaaS/Technology': [
+        'Product_Quality', 'Customer_Support', 'Ease_of_Use', 'Value_for_Money', 
+        'Feature_Completeness', 'Performance', 'Documentation_Quality'
+      ],
+      'E-commerce/Retail': [
+        'Product_Quality', 'Shipping_Experience', 'Customer_Service', 
+        'Website_Usability', 'Value_for_Money', 'Return_Policy', 'Product_Selection'
+      ],
+      'Healthcare': [
+        'Care_Quality', 'Staff_Friendliness', 'Wait_Times', 'Facility_Cleanliness', 
+        'Billing_Clarity', 'Appointment_Scheduling', 'Communication'
+      ],
+      'Financial_Services': [
+        'Service_Quality', 'Digital_Experience', 'Fees_and_Pricing', 
+        'Security', 'Customer_Support', 'Product_Offerings', 'Branch_Experience'
+      ]
+    };
+
+    function getIndustryFromUser() {
+      // This would typically come from user's profile or selection
+      return 'SaaS/Technology'; // Default for demo
+    }
+
+    // Add CSS animations for notifications
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes slideOutRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+      
+      .step-number {
+        transform-style: preserve-3d;
+        transition: transform 0.3s ease;
+      }
+      
+      .step.completed .step-number {
+        transform: rotateY(180deg);
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', initializeUpload);
+
+    // Handle keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        // Close any modals or reset
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        // Progress to next step if possible
+        if (!document.getElementById('nextBtn').disabled) {
+          nextStep();
+        }
+      }
+    });
+
+    console.log('📊 NPS Upload Flow initialized successfully');
+  </script>
+</body>
+</html>

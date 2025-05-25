@@ -671,9 +671,52 @@
         <option value="Hospitality">Hospitality</option>
       </select>
       
-      <button class="upload-data-btn" onclick="openUploadModal()">
+      <!-- UPDATED: Make this button functional -->
+      <button class="upload-data-btn" onclick="window.location.href='/upload-nps'">
         📤 Upload NPS Data
       </button>
+      
+      <!-- Add data management dropdown -->
+      <div class="data-menu" style="position: relative;">
+        <button class="upload-data-btn" onclick="toggleDataMenu()" style="background: var(--dark-surface-lighter);">
+          ⚙️ Data
+        </button>
+        <div class="data-dropdown" id="dataDropdown" style="
+          position: absolute;
+          top: 100%;
+          right: 0;
+          background: var(--dark-surface);
+          border: 1px solid var(--dark-border);
+          border-radius: 8px;
+          min-width: 200px;
+          display: none;
+          z-index: 1000;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        ">
+          <a href="/upload-nps" style="
+            display: block;
+            padding: 12px 16px;
+            color: var(--dark-text);
+            text-decoration: none;
+            border-bottom: 1px solid var(--dark-border);
+          ">📤 Upload NPS Data</a>
+          
+          <a href="#" onclick="viewUploadHistory()" style="
+            display: block;
+            padding: 12px 16px;
+            color: var(--dark-text);
+            text-decoration: none;
+            border-bottom: 1px solid var(--dark-border);
+          ">📋 Upload History</a>
+          
+          <a href="#" onclick="exportData()" style="
+            display: block;
+            padding: 12px 16px;
+            color: var(--dark-text);
+            text-decoration: none;
+          ">📥 Export Data</a>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -882,6 +925,33 @@
       <div class="analysis-card">
         <h3 class="insight-title">👋 New Customers</h3>
         <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Distribution of new customers by NPS category</p>
+        
+        <div class="customer-bar-container">
+          <!-- FLIPPED: Declined first (bottom), then No Change, then Improved (top) -->
+          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
+          <div class="customer-bar-segment" style="width: 35%; background: var(--nps-passive);"></div>
+          <div class="customer-bar-segment" style="width: 45%; background: var(--nps-promoter);"></div>
+        </div>
+        
+        <div class="customer-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-detractor);"></div>
+            <span>Detractors: 8 (20%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-passive);"></div>
+            <span>Passives: 14 (35%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-promoter);"></div>
+            <span>Promoters: 18 (45%)</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="analysis-card">
+        <h3 class="insight-title">🔄 Returning Customers</h3>
+        <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Score changes for returning customers</p>
         
         <div class="customer-bar-container">
           <!-- FLIPPED: Declined first (bottom), then No Change, then Improved (top) -->
@@ -1450,54 +1520,30 @@
     });
 
     console.log('📊 NPS Dashboard JavaScript loaded successfully');
+
+    function toggleDataMenu() {
+      const dropdown = document.getElementById('dataDropdown');
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function viewUploadHistory() {
+      // Implementation for viewing upload history
+      showNotification('Upload history feature coming soon!', 'info');
+      toggleDataMenu();
+    }
+
+    function exportData() {
+      // Implementation for exporting data
+      showNotification('Data export feature coming soon!', 'info');
+      toggleDataMenu();
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.data-menu')) {
+        document.getElementById('dataDropdown').style.display = 'none';
+      }
+    });
   </script>
 </body>
 </html>
-          <!-- FLIPPED: Detractors first (bottom in visual), then Passives, then Promoters (top) -->
-          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
-          <div class="customer-bar-segment" style="width: 35%; background: var(--nps-passive);"></div>
-          <div class="customer-bar-segment" style="width: 45%; background: var(--nps-promoter);"></div>
-        </div>
-        
-        <div class="customer-legend">
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-detractor);"></div>
-            <span>Detractors: 8 (20%)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-passive);"></div>
-            <span>Passives: 14 (35%)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-promoter);"></div>
-            <span>Promoters: 18 (45%)</span>
-          </div>
-        </div>
-      </div>
-      
-      <div class="analysis-card">
-        <h3 class="insight-title">🔄 Returning Customers</h3>
-        <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Score changes for returning customers</p>
-        
-        <div class="customer-bar-container">
-          <!-- FLIPPED: Declined first (bottom), then No Change, then Improved (top) -->
-          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
-          <div class="customer-bar-segment" style="width: 52%; background: #888888;"></div>
-          <div class="customer-bar-segment" style="width: 28%; background: var(--nps-promoter);"></div>
-        </div>
-        
-        <div class="customer-legend">
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-detractor);"></div>
-            <span>Declined: 16 (20%)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: #888888;"></div>
-            <span>No Change: 42 (52%)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: var(--nps-promoter);"></div>
-            <span>Improved: 23 (28%)</span>
-          </div>
-        </div>
-      </div>

@@ -138,13 +138,101 @@ async function setupDatabase() {
     `);
     console.log('✅ Action plans table created');
 
-    // Create indexes for better performance
+    // NPS Uploads table (track upload sessions)
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_nps_surveys_user_date ON nps_surveys(user_id, survey_date);
-      CREATE INDEX IF NOT EXISTS idx_nps_surveys_customer_date ON nps_surveys(customer_id, survey_date);
-      CREATE INDEX IF NOT EXISTS idx_customers_user_external ON customers(user_id, customer_external_id);
+      CREATE TABLE IF NOT EXISTS nps_uploads (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        filename VARCHAR(255) NOT NULL,
+        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        total_rows INTEGER DEFAULT 0,
+        processed_rows INTEGER DEFAULT 0,
+        failed_rows INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'processing',
+        industry VARCHAR(100),
+        metadata JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
-    console.log('✅ Database indexes created');
+    console.log('✅ NPS uploads table created');
+
+    // Enhanced NPS Surveys table (nps_responses)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nps_responses (
+        id SERIAL PRIMARY KEY,
+        upload_id INTEGER REFERENCES nps_uploads(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        customer_external_id VARCHAR(255) NOT NULL,
+        nps_score INTEGER NOT NULL CHECK (nps_score >= 0 AND nps_score <= 10),
+        survey_date DATE NOT NULL,
+        comments TEXT,
+        sentiment_score DECIMAL(3,2),
+        sentiment_label VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, customer_external_id, survey_date)
+      );
+    `);
+    console.log('✅ NPS responses table created');
+
+    // NPS Factor Ratings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nps_factor_ratings (
+        id SERIAL PRIMARY KEY,
+        nps_response_id INTEGER REFERENCES nps_responses(id) ON DELETE CASCADE,
+        factor_name VARCHAR(100) NOT NULL,
+        rating INTEGER CHECK (rating >= 0 AND rating <= 10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ NPS factor ratings table created');
+
+    // NPS Analytics Cache table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nps_analytics_cache (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        cache_key VARCHAR(255) NOT NULL,
+        cache_data JSON NOT NULL,
+        industry VARCHAR(100),
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, cache_key)
+      );
+    `);
+    console.log('✅ NPS analytics cache table created');
+
+    // Customer Journey table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_journey (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        customer_external_id VARCHAR(255) NOT NULL,
+        first_survey_date DATE,
+        latest_survey_date DATE,
+        first_nps_score INTEGER,
+        latest_nps_score INTEGER,
+        total_surveys INTEGER DEFAULT 1,
+        average_nps DECIMAL(4,2),
+        trend VARCHAR(20),
+        segment VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, customer_external_id)
+      );
+    `);
+    console.log('✅ Customer journey table created');
+
+    // Indexes for better performance
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_nps_responses_user_date ON nps_responses(user_id, survey_date);
+      CREATE INDEX IF NOT EXISTS idx_nps_responses_customer ON nps_responses(customer_external_id);
+      CREATE INDEX IF NOT EXISTS idx_nps_responses_score ON nps_responses(nps_score);
+      CREATE INDEX IF NOT EXISTS idx_nps_uploads_user ON nps_uploads(user_id);
+      CREATE INDEX IF NOT EXISTS idx_factor_ratings_response ON nps_factor_ratings(nps_response_id);
+      CREATE INDEX IF NOT EXISTS idx_customer_journey_user ON customer_journey(user_id);
+    `);
+    console.log('✅ NPS analytics/journey indexes created');
 
     // Insert sample industry configurations
     await client.query(`
