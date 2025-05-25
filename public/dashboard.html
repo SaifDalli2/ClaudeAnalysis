@@ -4,23 +4,644 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NPS Analytics Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="dashboard-styles.css">
   
-  <!-- Load Chart.js for analytics -->
+  <!-- Chart.js for analytics -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   
-  <!-- NPS Color Variables -->
   <style>
     :root {
+      --dark-bg: #000000;
+      --dark-surface: #1E1E2F;
+      --dark-surface-lighter: #2A2A3D;
+      --dark-text: #E8E8FF;
+      --dark-text-secondary: #B4B4D0;
+      --dark-border: #333355;
+      --dark-primary: #E2FF66;
+      --dark-primary-hover: #EEFF99;
+      --dark-error: #F44336;
+      --dark-success: #4CAF50;
+      --dark-warning: #FF9800;
+      
+      /* NPS Colors */
       --nps-promoter: #4CAF50;
       --nps-passive: #FF9800;
       --nps-detractor: #F44336;
+      
+      --dashboard-header-height: 70px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--dark-bg);
+      color: var(--dark-text);
+      line-height: 1.6;
+    }
+
+    /* ===== MAIN HEADER ===== */
+    .main-header {
+      background: var(--dark-surface);
+      border-bottom: 1px solid var(--dark-border);
+      padding: 15px 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: var(--dashboard-header-height);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+    }
+
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--dark-primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: black;
+      font-size: 18px;
+    }
+
+    .app-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--dark-primary-hover);
+      margin: 0;
+    }
+
+    .header-nav {
+      display: flex;
+      gap: 5px;
+    }
+
+    .nav-item {
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      font-size: 14px;
+      background: transparent;
+      border: none;
+      color: var(--dark-text);
+    }
+
+    .nav-item.active {
+      background: var(--dark-primary);
+      color: black;
+    }
+
+    .nav-item:not(.active):hover {
+      background: var(--dark-surface-lighter);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .upload-data-btn {
+      background: var(--dark-primary);
+      color: black;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      font-size: 14px;
+    }
+
+    .upload-data-btn:hover {
+      background: var(--dark-primary-hover);
+    }
+
+    .industry-selector {
+      background: var(--dark-surface-lighter);
+      color: var(--dark-text);
+      border: 1px solid var(--dark-border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    /* ===== DASHBOARD LAYOUT ===== */
+    .dashboard-container {
+      padding: 25px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .welcome-section {
+      background: linear-gradient(135deg, var(--dark-surface), var(--dark-surface-lighter));
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      border: 1px solid var(--dark-border);
+      text-align: center;
+    }
+
+    .welcome-title {
+      color: var(--dark-primary-hover);
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .welcome-subtitle {
+      color: var(--dark-text-secondary);
+      font-size: 16px;
+    }
+
+    /* ===== NPS SCORE CARD ===== */
+    .nps-overview {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .nps-score-card {
+      background: var(--dark-surface);
+      padding: 30px;
+      border-radius: 12px;
+      border: 1px solid var(--dark-border);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .nps-score-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--dark-primary);
+    }
+
+    .nps-value {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, var(--dark-primary), var(--dark-primary-hover));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nps-label {
+      color: var(--dark-text-secondary);
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      margin-bottom: 15px;
+    }
+
+    .nps-change {
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--dark-surface-lighter);
+    }
+
+    .nps-change.positive { color: var(--nps-promoter); }
+    .nps-change.negative { color: var(--nps-detractor); }
+    .nps-change.neutral { color: var(--nps-passive); }
+
+    /* ===== CHARTS SECTION ===== */
+    .chart-container {
+      background: var(--dark-surface);
+      padding: 25px;
+      border-radius: 12px;
+      border: 1px solid var(--dark-border);
+      height: 400px;
+    }
+
+    .chart-title {
+      color: var(--dark-primary-hover);
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: calc(100% - 50px);
+    }
+
+    /* ===== INSIGHTS SECTION ===== */
+    .insights-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .insight-card {
+      background: var(--dark-surface);
+      padding: 25px;
+      border-radius: 12px;
+      border: 1px solid var(--dark-border);
+      transition: transform 0.2s ease;
+    }
+
+    .insight-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .insight-title {
+      color: var(--dark-primary-hover);
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .insight-item {
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .insight-item:hover {
+      background: rgba(226, 255, 102, 0.05);
+    }
+
+    .insight-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .insight-name {
+      font-weight: 500;
+      color: var(--dark-text);
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .insight-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 5px;
+    }
+
+    .insight-bar {
+      flex: 1;
+      height: 12px;
+      background: var(--dark-surface-lighter);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .insight-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.8s ease;
+    }
+
+    .insight-percentage {
+      font-size: 12px;
+      color: var(--dark-text-secondary);
+      font-weight: 600;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    .insight-count {
+      font-size: 12px;
+      color: var(--dark-text-secondary);
+    }
+
+    /* Sentiment colors for categories and topics */
+    .sentiment-positive { background: var(--nps-promoter); }
+    .sentiment-neutral { background: var(--nps-passive); }
+    .sentiment-negative { background: var(--nps-detractor); }
+
+    /* ===== FACTOR ANALYSIS ===== */
+    .factor-item {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: var(--dark-surface-lighter);
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .factor-item:hover {
+      background: rgba(226, 255, 102, 0.05);
+    }
+
+    .factor-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .factor-name {
+      font-weight: 500;
+      color: var(--dark-text);
+      font-size: 15px;
+      flex: 1;
+    }
+
+    .factor-count {
+      font-size: 12px;
+      color: var(--dark-text-secondary);
+      margin-left: 10px;
+    }
+
+    .factor-bar-container {
+      position: relative;
+      height: 20px;
+      background: var(--dark-surface);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .factor-bar-center {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--dark-border);
+      z-index: 2;
+    }
+
+    .factor-bar-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 10px;
+      transition: all 0.8s ease;
+    }
+
+    .factor-score {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 3;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    /* ===== CUSTOMER ANALYSIS SECTION ===== */
+    .customer-analysis {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .analysis-card {
+      background: var(--dark-surface);
+      padding: 25px;
+      border-radius: 12px;
+      border: 1px solid var(--dark-border);
+    }
+
+    .customer-bar-container {
+      height: 30px;
+      background: var(--dark-surface-lighter);
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
+      margin-top: 15px;
+    }
+
+    .customer-bar-segment {
+      height: 100%;
+      float: left;
+      transition: width 0.8s ease;
+    }
+
+    .customer-legend {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--dark-text-secondary);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 6px;
+    }
+
+    /* ===== MODAL STYLES ===== */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--dark-surface);
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      border: 1px solid var(--dark-border);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-title {
+      color: var(--dark-primary-hover);
+      margin: 0 0 20px 0;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-drop-zone {
+      border: 2px dashed var(--dark-border);
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      margin: 20px 0;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .file-drop-zone:hover {
+      border-color: var(--dark-primary);
+      background: rgba(226, 255, 102, 0.05);
+    }
+
+    .file-drop-zone.drag-over {
+      border-color: var(--dark-primary);
+      background: rgba(226, 255, 102, 0.1);
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 25px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--dark-primary);
+      color: black;
+    }
+
+    .btn-primary:hover {
+      background: var(--dark-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--dark-surface-lighter);
+      color: var(--dark-text);
+      border: 1px solid var(--dark-border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--dark-border);
+    }
+
+    /* ===== RESPONSIVE DESIGN ===== */
+    @media (max-width: 1200px) {
+      .nps-overview {
+        grid-template-columns: 1fr;
+      }
+      
+      .insights-section {
+        grid-template-columns: 1fr 1fr;
+      }
+      
+      .customer-analysis {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-container {
+        padding: 15px;
+      }
+      
+      .main-header {
+        padding: 12px 15px;
+        flex-direction: column;
+        gap: 15px;
+        height: auto;
+      }
+      
+      .header-nav {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .insights-section {
+        grid-template-columns: 1fr;
+      }
+      
+      .modal-content {
+        margin: 20px;
+        padding: 20px;
+      }
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .nps-score-card, .chart-container, .insight-card, .analysis-card {
+      animation: fadeInUp 0.6s ease forwards;
+    }
+
+    /* ===== SCROLLBAR STYLING ===== */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--dark-surface);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--dark-primary);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--dark-primary-hover);
     }
   </style>
 </head>
 <body>
-  <!-- Main Header with Authentication -->
+  <!-- Main Header -->
   <header class="main-header">
     <div class="header-left">
       <div class="app-logo">
@@ -29,144 +650,252 @@
       </div>
       
       <nav class="header-nav">
-        <div class="nav-item active" data-view="dashboard">Dashboard</div>
-        <div class="nav-item" data-view="trends">Trends</div>
-        <div class="nav-item" data-view="segments">Segments</div>
-        <div class="nav-item" data-view="reports">Reports</div>
+        <button class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" data-view="comments">Comments</button>
       </nav>
     </div>
     
     <div class="header-right">
-      <!-- Language Switcher -->
-      <div class="language-switcher">
-        <select id="languageSelector">
-          <option value="en">English</option>
-          <option value="ar">العربية</option>
-        </select>
-      </div>
+      <select class="industry-selector" id="industrySelector">
+        <option value="SaaS/Technology">SaaS/Technology</option>
+        <option value="E-commerce/Retail">E-commerce/Retail</option>
+        <option value="Healthcare">Healthcare</option>
+        <option value="Financial Services">Financial Services</option>
+        <option value="Hospitality">Hospitality</option>
+      </select>
       
       <button class="upload-data-btn" onclick="openUploadModal()">
         📤 Upload NPS Data
       </button>
-      
-      <!-- User Menu (shown when logged in) -->
-      <div id="userMenu" class="user-menu" style="display: none;">
-        <div class="user-profile" onclick="toggleUserDropdown()">
-          <div id="userAvatar" class="user-avatar"></div>
-          <span id="userName"></span>
-        </div>
-        <div id="userDropdown" class="user-dropdown">
-          <div class="dropdown-header">
-            <div id="userFullName" class="user-full-name"></div>
-            <div id="userEmail" class="user-email"></div>
-          </div>
-          <hr class="dropdown-divider">
-          <button onclick="goToCommentTool()" class="dropdown-item">
-            💬 Comment Analysis Tool
-          </button>
-          <button onclick="goToMainSite()" class="dropdown-item">
-            🏠 Main Site
-          </button>
-          <button id="logoutBtn" class="dropdown-item logout">
-            🚪 Logout
-          </button>
-        </div>
-      </div>
-      
-      <!-- Login Prompt (shown when not logged in) -->
-      <div id="loginPrompt" class="login-prompt">
-        <a href="/login" class="login-link">Login</a>
-        <span class="separator">|</span>
-        <a href="/register" class="register-link">Register</a>
-      </div>
     </div>
   </header>
 
   <!-- Dashboard Container -->
   <div class="dashboard-container">
-    <!-- Main Dashboard Area -->
-    <div class="main-dashboard">
-      <!-- Welcome Message -->
-      <div class="welcome-section" style="background: var(--dark-surface); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--dark-border);">
-        <h2 style="color: var(--dark-primary-hover); margin: 0 0 10px 0;">Welcome to Your NPS Dashboard</h2>
-        <p style="color: var(--dark-text-secondary); margin: 0;">Track your Net Promoter Score, analyze customer feedback, and gain actionable insights.</p>
-      </div>
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+      <h2 class="welcome-title">Welcome to Your NPS Analytics Dashboard</h2>
+      <p class="welcome-subtitle">Track customer satisfaction, analyze feedback trends, and drive actionable insights from your NPS data</p>
+    </div>
 
-      <!-- Metrics Overview -->
-      <div class="metrics-overview">
-        <div class="metric-card">
-          <div class="metric-value nps" id="overallNPS">+47</div>
-          <div class="metric-label">Overall NPS</div>
-          <div class="metric-change positive">↗ +3 from last month</div>
-        </div>
-        <div class="metric-card promoter">
-          <div class="metric-value promoter">68%</div>
-          <div class="metric-label">Promoters (9-10)</div>
-          <div class="metric-change positive">↗ +5%</div>
-        </div>
-        <div class="metric-card passive">
-          <div class="metric-value passive">21%</div>
-          <div class="metric-label">Passives (7-8)</div>
-          <div class="metric-change negative">↘ -2%</div>
-        </div>
-        <div class="metric-card detractor">
-          <div class="metric-value detractor">11%</div>
-          <div class="metric-label">Detractors (0-6)</div>
-          <div class="metric-change negative">↘ -3%</div>
+    <!-- NPS Overview -->
+    <div class="nps-overview">
+      <div class="nps-score-card">
+        <div class="nps-value" id="overallNPS">+47</div>
+        <div class="nps-label">Overall NPS Score</div>
+        <div class="nps-change positive" id="npsChange">↗ +3 from last month</div>
+      </div>
+      
+      <div class="chart-container">
+        <h3 class="chart-title">📈 NPS Trend & Participation</h3>
+        <div class="chart-wrapper">
+          <canvas id="npsChart"></canvas>
         </div>
       </div>
+    </div>
 
-      <!-- Charts Section -->
-      <div class="charts-section">
-        <div class="chart-container">
-          <h3 class="chart-title">📈 NPS Trend Over Time</h3>
-          <div class="chart-wrapper">
-            <canvas id="npsChart"></canvas>
+    <!-- Insights Section -->
+    <div class="insights-section">
+      <div class="insight-card">
+        <h3 class="insight-title">🏷️ Top Categories by Volume</h3>
+        <div id="categoriesList">
+          <div class="insight-item" onclick="viewCategoryDetails('Customer Service')">
+            <div class="insight-name">Customer Service</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-negative" style="width: 32%"></div>
+              </div>
+              <div class="insight-percentage">32%</div>
+            </div>
+            <div class="insight-count">156 comments</div>
           </div>
-        </div>
-        <div class="chart-container">
-          <h3 class="chart-title">🥧 NPS Distribution</h3>
-          <div class="chart-wrapper">
-            <canvas id="distributionChart"></canvas>
+          
+          <div class="insight-item" onclick="viewCategoryDetails('Product Quality')">
+            <div class="insight-name">Product Quality</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-positive" style="width: 28%"></div>
+              </div>
+              <div class="insight-percentage">28%</div>
+            </div>
+            <div class="insight-count">142 comments</div>
+          </div>
+          
+          <div class="insight-item" onclick="viewCategoryDetails('Pricing')">
+            <div class="insight-name">Pricing</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-negative" style="width: 20%"></div>
+              </div>
+              <div class="insight-percentage">20%</div>
+            </div>
+            <div class="insight-count">98 comments</div>
+          </div>
+          
+          <div class="insight-item" onclick="viewCategoryDetails('User Experience')">
+            <div class="insight-name">User Experience</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-positive" style="width: 18%"></div>
+              </div>
+              <div class="insight-percentage">18%</div>
+            </div>
+            <div class="insight-count">87 comments</div>
+          </div>
+          
+          <div class="insight-item" onclick="viewCategoryDetails('Performance')">
+            <div class="insight-name">Performance</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-neutral" style="width: 15%"></div>
+              </div>
+              <div class="insight-percentage">15%</div>
+            </div>
+            <div class="insight-count">76 comments</div>
           </div>
         </div>
       </div>
-
-      <!-- Insights Section -->
-      <div class="insights-section">
-        <div class="insight-card">
-          <h3 class="insight-title">🏷️ Top Categories by Volume</h3>
-          <div id="categoriesList">
-            <!-- Will be populated by JavaScript -->
+      
+      <div class="insight-card">
+        <h3 class="insight-title">🔖 Top Topics by Volume</h3>
+        <div id="topicsList">
+          <div class="insight-item">
+            <div class="insight-name">Response Time</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-negative" style="width: 25%"></div>
+              </div>
+              <div class="insight-percentage">25%</div>
+            </div>
+            <div class="insight-count">89 mentions</div>
+          </div>
+          
+          <div class="insight-item">
+            <div class="insight-name">Feature Quality</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-positive" style="width: 22%"></div>
+              </div>
+              <div class="insight-percentage">22%</div>
+            </div>
+            <div class="insight-count">78 mentions</div>
+          </div>
+          
+          <div class="insight-item">
+            <div class="insight-name">Pricing Model</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-negative" style="width: 20%"></div>
+              </div>
+              <div class="insight-percentage">20%</div>
+            </div>
+            <div class="insight-count">67 mentions</div>
+          </div>
+          
+          <div class="insight-item">
+            <div class="insight-name">User Interface</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-positive" style="width: 18%"></div>
+              </div>
+              <div class="insight-percentage">18%</div>
+            </div>
+            <div class="insight-count">54 mentions</div>
+          </div>
+          
+          <div class="insight-item">
+            <div class="insight-name">Documentation</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-neutral" style="width: 15%"></div>
+              </div>
+              <div class="insight-percentage">15%</div>
+            </div>
+            <div class="insight-count">43 mentions</div>
           </div>
         </div>
-        <div class="insight-card">
-          <h3 class="insight-title">⚖️ Factor Performance</h3>
-          <div id="factorsList">
-            <!-- Will be populated by JavaScript -->
+      </div>
+      
+      <div class="insight-card">
+        <h3 class="insight-title">⚖️ NPS Factor Analysis</h3>
+        <div id="factorsList">
+          <div class="factor-item">
+            <div class="factor-header">
+              <div class="factor-name">Product Quality</div>
+              <div class="factor-count">285 responses</div>
+            </div>
+            <div class="factor-bar-container">
+              <div class="factor-bar-center"></div>
+              <div class="factor-bar-fill sentiment-positive" style="left: 50%; width: 35%"></div>
+              <div class="factor-score" style="left: 67.5%; color: white;">+70</div>
+            </div>
+          </div>
+          
+          <div class="factor-item">
+            <div class="factor-header">
+              <div class="factor-name">Ease of Use</div>
+              <div class="factor-count">267 responses</div>
+            </div>
+            <div class="factor-bar-container">
+              <div class="factor-bar-center"></div>
+              <div class="factor-bar-fill sentiment-positive" style="left: 50%; width: 28%"></div>
+              <div class="factor-score" style="left: 64%; color: white;">+56</div>
+            </div>
+          </div>
+          
+          <div class="factor-item">
+            <div class="factor-header">
+              <div class="factor-name">Customer Support</div>
+              <div class="factor-count">234 responses</div>
+            </div>
+            <div class="factor-bar-container">
+              <div class="factor-bar-center"></div>
+              <div class="factor-bar-fill sentiment-negative" style="right: 50%; width: 15%"></div>
+              <div class="factor-score" style="left: 42.5%; color: white;">-30</div>
+            </div>
+          </div>
+          
+          <div class="factor-item">
+            <div class="factor-header">
+              <div class="factor-name">Value for Money</div>
+              <div class="factor-count">198 responses</div>
+            </div>
+            <div class="factor-bar-container">
+              <div class="factor-bar-center"></div>
+              <div class="factor-bar-fill sentiment-negative" style="right: 50%; width: 22%"></div>
+              <div class="factor-score" style="left: 39%; color: white;">-44</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Comment Analysis Widget -->
-    <div class="comment-analysis-widget">
-      <div class="widget-header">
-        <h3 class="widget-title">💬 Comment Analysis</h3>
-        <button class="widget-toggle" onclick="toggleWidget()">Expand</button>
-      </div>
-      <div class="widget-content">
-        <div class="loading-placeholder" id="widgetLoading">
-          <div class="loading-spinner"></div>
-          <p style="margin-top: 15px;">Loading Comment Analysis Tool...</p>
+    <!-- Customer Analysis Section -->
+    <div class="customer-analysis">
+      <div class="analysis-card">
+        <h3 class="insight-title">👋 New Customers</h3>
+        <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Distribution of new customers by NPS category</p>
+        
+        <div class="customer-bar-container">
+          <div class="customer-bar-segment" style="width: 45%; background: var(--nps-promoter);"></div>
+          <div class="customer-bar-segment" style="width: 35%; background: var(--nps-passive);"></div>
+          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
         </div>
-        <iframe 
-          id="commentToolFrame"
-          src="/comment-tool" 
-          class="widget-iframe"
-          style="display: none;"
-          title="Comment Analysis Tool">
-        </iframe>
+        
+        <div class="customer-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-promoter);"></div>
+            <span>Improved: 23 (28%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #888888;"></div>
+            <span>No Change: 42 (52%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-detractor);"></div>
+            <span>Declined: 16 (20%)</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -176,20 +905,20 @@
     <div class="modal-content">
       <h2 class="modal-title">📤 Upload NPS Data</h2>
       <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">
-        Upload a CSV file containing NPS survey data with the following columns:
+        Upload a CSV file containing your NPS survey data. Your file should include these columns:
       </p>
       <ul style="color: var(--dark-text-secondary); margin-bottom: 20px; padding-left: 20px;">
         <li><strong>Customer ID</strong> - Unique identifier for each customer</li>
-        <li><strong>NPS Score</strong> - Score from 0-10</li>
-        <li><strong>Survey Date</strong> - When the survey was completed</li>
-        <li><strong>Comments</strong> - Customer feedback text</li>
-        <li><strong>NPS Factors</strong> - Optional factor ratings</li>
+        <li><strong>NPS Score</strong> - Rating from 0-10</li>
+        <li><strong>Survey Date</strong> - When the survey was completed (YYYY-MM-DD format)</li>
+        <li><strong>Comments</strong> - Customer feedback text (optional)</li>
+        <li><strong>NPS Factors</strong> - Individual factor ratings (optional)</li>
       </ul>
       
       <div class="file-drop-zone" id="fileDropZone">
-        <div style="font-size: 48px; margin-bottom: 10px;">📁</div>
+        <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
         <p><strong>Drop your CSV file here</strong></p>
-        <p style="color: var(--dark-text-secondary); font-size: 12px;">or click to browse</p>
+        <p style="color: var(--dark-text-secondary); font-size: 14px;">or click to browse your files</p>
         <input type="file" id="fileInput" accept=".csv" style="display: none;">
       </div>
       
@@ -200,146 +929,539 @@
     </div>
   </div>
 
-  <!-- Load Dashboard JavaScript -->
-  <script src="js/dashboard.js"></script>
-  
-  <!-- Authentication Integration -->
   <script>
-    // Authentication integration for dashboard
-    window.currentUser = null;
-    window.authToken = null;
-
-    window.isAuthenticated = function() {
-      return window.currentUser !== null && window.authToken !== null;
+    // Sample data for the dashboard
+    const dashboardData = {
+      nps: {
+        current: 47,
+        change: 3,
+        trend: 'positive'
+      },
+      monthlyData: [
+        { month: 'Jan', nps: 32, promoters: 45, passives: 32, detractors: 23, total: 156 },
+        { month: 'Feb', nps: 38, promoters: 52, passives: 28, detractors: 20, total: 178 },
+        { month: 'Mar', nps: 42, promoters: 58, passives: 25, detractors: 17, total: 203 },
+        { month: 'Apr', nps: 39, promoters: 55, passives: 29, detractors: 21, total: 189 },
+        { month: 'May', nps: 45, promoters: 67, passives: 23, detractors: 15, total: 234 },
+        { month: 'Jun', nps: 47, promoters: 72, passives: 18, detractors: 12, total: 267 },
+        { month: 'Jul', nps: 44, promoters: 68, passives: 22, detractors: 14, total: 245 },
+        { month: 'Aug', nps: 49, promoters: 75, passives: 19, detractors: 11, total: 289 },
+        { month: 'Sep', nps: 46, promoters: 71, passives: 21, detractors: 13, total: 276 },
+        { month: 'Oct', nps: 51, promoters: 78, passives: 17, detractors: 9, total: 298 },
+        { month: 'Nov', nps: 47, promoters: 73, passives: 20, detractors: 12, total: 284 },
+        { month: 'Dec', nps: 47, promoters: 74, passives: 19, detractors: 11, total: 291 }
+      ]
     };
 
-    window.getCurrentUser = function() {
-      return window.currentUser;
-    };
+    // Initialize Dashboard
+    function initializeDashboard() {
+      console.log('🚀 Initializing NPS Dashboard...');
+      
+      initializeCharts();
+      initializeNavigation();
+      initializeFileUpload();
+      initializeIndustrySelector();
+      setupEventListeners();
+      animateBars();
+      
+      console.log('✅ Dashboard initialized successfully!');
+    }
 
-    // Initialize authentication on dashboard
-    async function initializeDashboardAuth() {
-      const token = localStorage.getItem('authToken');
-      const userInfo = localStorage.getItem('user');
-
-      if (token && userInfo) {
-        try {
-          const response = await fetch('/api/auth/verify', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            window.currentUser = data.user;
-            window.authToken = token;
-            
-            showDashboardForUser(data.user);
-          } else {
-            clearAuthData();
-            redirectToLogin();
+    // Initialize Charts
+    function initializeCharts() {
+      const npsCtx = document.getElementById('npsChart');
+      if (npsCtx) {
+        new Chart(npsCtx.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: dashboardData.monthlyData.map(d => d.month),
+            datasets: [{
+              label: 'Promoters',
+              data: dashboardData.monthlyData.map(d => d.promoters),
+              backgroundColor: '#4CAF50',
+              borderColor: '#4CAF50',
+              borderWidth: 1,
+              stack: 'participants'
+            }, {
+              label: 'Passives',
+              data: dashboardData.monthlyData.map(d => d.passives),
+              backgroundColor: '#FF9800',
+              borderColor: '#FF9800',
+              borderWidth: 1,
+              stack: 'participants'
+            }, {
+              label: 'Detractors',
+              data: dashboardData.monthlyData.map(d => d.detractors),
+              backgroundColor: '#F44336',
+              borderColor: '#F44336',
+              borderWidth: 1,
+              stack: 'participants'
+            }, {
+              label: 'NPS Score',
+              type: 'line',
+              data: dashboardData.monthlyData.map(d => d.nps),
+              borderColor: '#E2FF66',
+              backgroundColor: 'rgba(226, 255, 102, 0.1)',
+              borderWidth: 3,
+              pointBackgroundColor: '#E2FF66',
+              pointBorderColor: '#000',
+              pointBorderWidth: 2,
+              pointRadius: 6,
+              fill: false,
+              yAxisID: 'y1',
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { 
+                  color: '#E8E8FF',
+                  usePointStyle: true,
+                  padding: 20
+                }
+              },
+              tooltip: {
+                backgroundColor: '#1E1E2F',
+                titleColor: '#E2FF66',
+                bodyColor: '#E8E8FF',
+                borderColor: '#333355',
+                borderWidth: 1,
+                callbacks: {
+                  afterLabel: function(context) {
+                    if (context.datasetIndex === 3) {
+                      return 'NPS Score: ' + context.parsed.y;
+                    } else {
+                      const dataPoint = dashboardData.monthlyData[context.dataIndex];
+                      const total = dataPoint.promoters + dataPoint.passives + dataPoint.detractors;
+                      const percentage = Math.round((context.parsed.y / total) * 100);
+                      return percentage + '% of ' + total + ' participants';
+                    }
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: '#333355' },
+                ticks: { color: '#B4B4D0' }
+              },
+              y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                beginAtZero: true,
+                grid: { color: '#333355' },
+                ticks: { 
+                  color: '#B4B4D0',
+                  callback: function(value) {
+                    return value + ' participants';
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'Number of Participants',
+                  color: '#B4B4D0'
+                }
+              },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                min: -100,
+                max: 100,
+                grid: {
+                  drawOnChartArea: false,
+                  color: '#333355'
+                },
+                ticks: { 
+                  color: '#E2FF66',
+                  callback: function(value) {
+                    return value;
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'NPS Score',
+                  color: '#E2FF66'
+                }
+              }
+            },
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            }
           }
-        } catch (error) {
-          clearAuthData();
-          redirectToLogin();
-        }
-      } else {
-        redirectToLogin();
-      }
-    }
-
-    function showDashboardForUser(user) {
-      // Show user menu, hide login prompt
-      document.getElementById('loginPrompt').style.display = 'none';
-      document.getElementById('userMenu').style.display = 'block';
-      
-      // Update user display
-      const userName = document.getElementById('userName');
-      const userAvatar = document.getElementById('userAvatar');
-      const userFullName = document.getElementById('userFullName');
-      const userEmail = document.getElementById('userEmail');
-      
-      const firstName = user.firstName || user.email.split('@')[0];
-      const initials = getInitials(user.firstName, user.lastName, user.email);
-      
-      userName.textContent = firstName;
-      userAvatar.textContent = initials;
-      userFullName.textContent = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'User';
-      userEmail.textContent = user.email;
-      
-      console.log('✅ Dashboard initialized for user:', user.email);
-    }
-
-    function redirectToLogin() {
-      console.log('🔄 No authentication found, redirecting to login');
-      window.location.href = '/login';
-    }
-
-    function getInitials(firstName, lastName, email) {
-      if (firstName && lastName) {
-        return (firstName[0] + lastName[0]).toUpperCase();
-      } else if (firstName) {
-        return firstName.substring(0, 2).toUpperCase();
-      } else {
-        return email.substring(0, 2).toUpperCase();
-      }
-    }
-
-    function clearAuthData() {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      window.currentUser = null;
-      window.authToken = null;
-    }
-
-    // Logout function
-    document.getElementById('logoutBtn').addEventListener('click', async function() {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${window.authToken}` }
         });
-      } catch (error) {
-        console.error('Logout error:', error);
       }
-      
-      clearAuthData();
-      window.location.href = '/';
-    });
-
-    // Toggle user dropdown
-    function toggleUserDropdown() {
-      const dropdown = document.getElementById('userDropdown');
-      dropdown.classList.toggle('show');
     }
 
-    // Navigation functions
-    function goToCommentTool() {
-      window.location.href = '/comment-tool';
-    }
-
-    function goToMainSite() {
-      window.location.href = '/';
-    }
-
-    // Initialize when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-      initializeDashboardAuth();
-      
-      // Initialize dashboard functionality after auth check
+    // Animate bars on load
+    function animateBars() {
       setTimeout(() => {
-        if (window.initializeDashboard) {
-          window.initializeDashboard();
-        }
-      }, 100);
-    });
+        const bars = document.querySelectorAll('.insight-bar-fill, .factor-bar-fill, .customer-bar-segment');
+        bars.forEach((bar, index) => {
+          setTimeout(() => {
+            bar.style.opacity = '1';
+            bar.style.transform = 'scaleX(1)';
+          }, index * 100);
+        });
+      }, 500);
+    }
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-      const dropdown = document.getElementById('userDropdown');
-      if (dropdown && !e.target.closest('.user-profile')) {
-        dropdown.classList.remove('show');
+    // Initialize Navigation
+    function initializeNavigation() {
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+          document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+          this.classList.add('active');
+          
+          const view = this.getAttribute('data-view');
+          switchDashboardView(view);
+        });
+      });
+    }
+
+    // Switch Dashboard Views
+    function switchDashboardView(view) {
+      console.log(`Switching to view: ${view}`);
+      
+      switch(view) {
+        case 'dashboard':
+          // Already showing main dashboard
+          break;
+        case 'comments':
+          showCommentsView();
+          break;
+      }
+    }
+
+    function showCommentsView() {
+      // Redirect to the enhanced comment analysis tool
+      window.open('/comment-tool', '_blank');
+    }
+
+    // Initialize File Upload
+    function initializeFileUpload() {
+      const dropZone = document.getElementById('fileDropZone');
+      const fileInput = document.getElementById('fileInput');
+
+      if (dropZone && fileInput) {
+        dropZone.addEventListener('click', () => {
+          fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('drag-over');
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            fileInput.files = files;
+            updateFileDisplay(files[0]);
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            updateFileDisplay(e.target.files[0]);
+          }
+        });
+      }
+    }
+
+    function updateFileDisplay(file) {
+      const dropZone = document.getElementById('fileDropZone');
+      if (dropZone && file) {
+        dropZone.innerHTML = `
+          <div style="font-size: 32px; margin-bottom: 10px;">📄</div>
+          <p><strong>Selected: ${file.name}</strong></p>
+          <p style="color: var(--dark-text-secondary); font-size: 12px;">
+            ${formatFileSize(file.size)} • Click to change file
+          </p>
+        `;
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Initialize Industry Selector
+    function initializeIndustrySelector() {
+      const selector = document.getElementById('industrySelector');
+      if (selector) {
+        selector.addEventListener('change', function() {
+          const selectedIndustry = this.value;
+          console.log(`Industry changed to: ${selectedIndustry}`);
+          updateDashboardForIndustry(selectedIndustry);
+        });
+      }
+    }
+
+    function updateDashboardForIndustry(industry) {
+      console.log(`Updating dashboard for ${industry} industry`);
+      showNotification(`Dashboard updated for ${industry} industry`, 'success');
+      
+      // Here you would typically update the categories, topics, and factors
+      // based on the selected industry
+      updateCategoriesForIndustry(industry);
+    }
+
+    function updateCategoriesForIndustry(industry) {
+      // This would typically fetch industry-specific data
+      // For demo purposes, we'll update some categories
+      const categoriesList = document.getElementById('categoriesList');
+      const topicsList = document.getElementById('topicsList');
+      const factorsList = document.getElementById('factorsList');
+      
+      // Add a subtle animation to indicate update
+      [categoriesList, topicsList, factorsList].forEach(list => {
+        if (list) {
+          list.style.opacity = '0.7';
+          setTimeout(() => {
+            list.style.opacity = '1';
+          }, 300);
+        }
+      });
+    }
+
+    // Event Listeners
+    function setupEventListeners() {
+      // Add any additional event listeners here
+    }
+
+    // Modal Functions
+    function openUploadModal() {
+      const modal = document.getElementById('uploadModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+
+    function closeUploadModal() {
+      const modal = document.getElementById('uploadModal');
+      if (modal) {
+        modal.style.display = 'none';
+        // Reset file input
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('fileDropZone');
+        if (fileInput) fileInput.value = '';
+        if (dropZone) {
+          dropZone.innerHTML = `
+            <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
+            <p><strong>Drop your CSV file here</strong></p>
+            <p style="color: var(--dark-text-secondary); font-size: 14px;">or click to browse your files</p>
+          `;
+        }
+      }
+    }
+
+    function processUpload() {
+      const fileInput = document.getElementById('fileInput');
+      if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        console.log('Processing file:', file.name);
+        
+        showNotification('Processing your NPS data...', 'info');
+        
+        // Simulate file processing
+        setTimeout(() => {
+          showNotification('NPS data uploaded and processed successfully!', 'success');
+          closeUploadModal();
+          updateDashboardMetrics();
+        }, 2000);
+      } else {
+        showNotification('Please select a file first.', 'error');
+      }
+    }
+
+    function updateDashboardMetrics() {
+      // Simulate updated metrics after file upload
+      const metrics = {
+        nps: Math.floor(Math.random() * 20) + 40
+      };
+      
+      document.getElementById('overallNPS').textContent = `+${metrics.nps}`;
+      
+      // Update change indicator
+      const changeEl = document.getElementById('npsChange');
+      const change = Math.floor(Math.random() * 10) - 5;
+      const changeText = change > 0 ? `↗ +${change}` : change < 0 ? `↘ ${change}` : '↔ 0';
+      const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+      
+      changeEl.textContent = changeText + ' from last month';
+      changeEl.className = `nps-change ${changeClass}`;
+    }
+
+    // Category Details Function
+    function viewCategoryDetails(categoryName) {
+      console.log(`Viewing details for category: ${categoryName}`);
+      showNotification(`Opening detailed analysis for ${categoryName}...`, 'info');
+      
+      setTimeout(() => {
+        showNotification(`Category analysis for ${categoryName} would open in comment analysis tool`, 'success');
+      }, 1000);
+    }
+
+    // Notification System
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? 'var(--dark-success)' : type === 'error' ? 'var(--dark-error)' : 'var(--dark-primary)'};
+        color: ${type === 'error' ? 'white' : 'black'};
+        padding: 15px 20px;
+        border-radius: 8px;
+        z-index: 1001;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-weight: 500;
+        animation: slideInRight 0.3s ease;
+      `;
+      notification.textContent = message;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }, 4000);
+    }
+
+    // Add CSS animations for notifications
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes slideOutRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Real-time Updates Simulation
+    function setupRealTimeUpdates() {
+      setInterval(() => {
+        const npsElement = document.getElementById('overallNPS');
+        if (npsElement) {
+          const currentNPS = parseInt(npsElement.textContent.replace('+', ''));
+          const change = Math.floor(Math.random() * 3) - 1;
+          const newNPS = Math.max(-100, Math.min(100, currentNPS + change));
+          npsElement.textContent = newNPS > 0 ? `+${newNPS}` : newNPS.toString();
+          
+          if (change !== 0) {
+            npsElement.style.transition = 'all 0.3s ease';
+            npsElement.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+              npsElement.style.transform = 'scale(1)';
+            }, 300);
+          }
+        }
+      }, 30000);
+    }
+
+    // Initialize everything when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        initializeDashboard();
+        setupRealTimeUpdates();
+        
+        setTimeout(() => {
+          showNotification('Welcome to your NPS Analytics Dashboard!', 'success');
+        }, 1000);
+        
+        console.log('📊 NPS Dashboard fully loaded and ready!');
+      } catch (error) {
+        console.error('Dashboard initialization error:', error);
+        showNotification('Dashboard initialization error. Please refresh the page.', 'error');
       }
     });
+
+    // Close modal when clicking outside
+    document.addEventListener('click', function(e) {
+      const modal = document.getElementById('uploadModal');
+      if (modal && e.target === modal) {
+        closeUploadModal();
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeUploadModal();
+      }
+      
+      if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault();
+        openUploadModal();
+      }
+    });
+
+    console.log('📊 NPS Dashboard JavaScript loaded successfully');
   </script>
 </body>
-</html>
+</html>>
+            <span>Promoters: 18 (45%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-passive);"></div>
+            <span>Passives: 14 (35%)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-detractor);"></div>
+            <span>Detractors: 8 (20%)</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="analysis-card">
+        <h3 class="insight-title">🔄 Returning Customers</h3>
+        <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Score changes for returning customers</p>
+        
+        <div class="customer-bar-container">
+          <div class="customer-bar-segment" style="width: 28%; background: var(--nps-promoter);"></div>
+          <div class="customer-bar-segment" style="width: 52%; background: #888888;"></div>
+          <div class="customer-bar-segment" style="width: 20%; background: var(--nps-detractor);"></div>
+        </div>
+        
+        <div class="customer-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--nps-promoter);"></div
