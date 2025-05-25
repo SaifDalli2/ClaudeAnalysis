@@ -207,8 +207,80 @@ try {
   console.warn('Industry routes failed to load:', error.message);
 }
 
+// Make dashboard accessible without strict authentication
+app.get('/dashboard', (req, res) => {
+  console.log('Dashboard route accessed');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
 
+// Alternative route for direct dashboard access
+app.get('/nps-dashboard', (req, res) => {
+  console.log('NPS Dashboard direct access');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
 
+// Update the root route to provide navigation options
+app.get('/', optionalAuth, (req, res) => {
+  console.log('Root route accessed');
+  
+  // Check if user prefers dashboard
+  const userAgent = req.get('User-Agent') || '';
+  const referrer = req.get('Referer') || '';
+  
+  // If user is authenticated, show dashboard option
+  if (req.user) {
+    console.log(`Authenticated user ${req.user.email} - serving main page with dashboard option`);
+  }
+  
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Add a navigation endpoint
+app.get('/navigation', (req, res) => {
+  res.json({
+    pages: [
+      { name: 'Comment Tool', url: '/', description: 'Analyze and categorize comments' },
+      { name: 'NPS Dashboard', url: '/dashboard', description: 'View NPS analytics and trends' },
+      { name: 'Comment Analysis', url: '/comment-tool', description: 'Advanced comment categorization' }
+    ]
+  });
+});
+
+// Add this test endpoint to your server.js for debugging
+
+app.get('/test-dashboard', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+  
+  // Check if file exists
+  if (fs.existsSync(dashboardPath)) {
+    res.json({
+      status: 'success',
+      message: 'Dashboard file exists and should be accessible',
+      path: dashboardPath,
+      accessUrls: [
+        `${req.protocol}://${req.get('host')}/dashboard`,
+        `${req.protocol}://${req.get('host')}/nps-dashboard`
+      ],
+      fileSize: fs.statSync(dashboardPath).size + ' bytes'
+    });
+  } else {
+    res.json({
+      status: 'error',
+      message: 'Dashboard file not found',
+      expectedPath: dashboardPath,
+      publicDir: path.join(__dirname, 'public'),
+      publicFiles: fs.readdirSync(path.join(__dirname, 'public'))
+    });
+  }
+});
+
+// Add a simple dashboard redirect
+app.get('/dash', (req, res) => {
+  res.redirect('/dashboard');
+});
 // Catch-all route
 app.get('*', (req, res) => {
   console.log(`Catch-all route: ${req.url} - serving main page`);

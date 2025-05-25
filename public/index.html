@@ -597,7 +597,105 @@
       </div>
     </div>
   </header>
+<!-- Add this navigation section to your index.html after the header -->
 
+<div class="navigation-section" style="
+  background: var(--dark-surface-lighter);
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--dark-border);
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: center;
+">
+  <div style="color: var(--dark-text-secondary); font-size: 14px; margin-right: 10px;">
+    Choose your tool:
+  </div>
+  
+  <a href="/" class="nav-link active" style="
+    padding: 8px 16px;
+    background: var(--dark-primary);
+    color: black;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+  ">
+    📝 Comment Categorizer
+  </a>
+  
+  <a href="/dashboard" class="nav-link" style="
+    padding: 8px 16px;
+    background: var(--dark-surface);
+    color: var(--dark-text);
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid var(--dark-border);
+    transition: all 0.3s ease;
+  ">
+    📊 NPS Dashboard
+  </a>
+  
+  <a href="/comment-tool" class="nav-link" style="
+    padding: 8px 16px;
+    background: var(--dark-surface);
+    color: var(--dark-text);
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid var(--dark-border);
+    transition: all 0.3s ease;
+  ">
+    🔧 Comment Tool
+  </a>
+</div>
+
+<style>
+.nav-link:hover {
+  background: var(--dark-primary-hover) !important;
+  color: black !important;
+  transform: translateY(-1px);
+}
+
+.nav-link.active {
+  background: var(--dark-primary) !important;
+  color: black !important;
+}
+
+@media (max-width: 768px) {
+  .navigation-section {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .nav-link {
+    width: 100%;
+    text-align: center;
+  }
+}
+</style>
+
+<script>
+// Add active state management
+document.addEventListener('DOMContentLoaded', function() {
+  const currentPath = window.location.pathname;
+  const navLinks = document.querySelectorAll('.nav-link');
+  
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === currentPath || 
+        (currentPath === '/' && link.getAttribute('href') === '/')) {
+      link.classList.add('active');
+    }
+  });
+});
+</script>
   <div class="container">
     <div class="input-section">
       <h1 data-lang-key="app-title">Comment Categorization System</h1>
