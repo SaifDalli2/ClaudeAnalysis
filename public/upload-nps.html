@@ -580,10 +580,11 @@ CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
         <div class="upload-icon">📁</div>
         <div class="upload-text">Drop your CSV file here</div>
         <div class="upload-subtext">or click to browse your files</div>
-        <button class="browse-btn" onclick="document.getElementById('fileInput').click()">
+        <!-- Browse button that's more reliable -->
+        <button class="browse-btn" type="button" id="browseBtn">
           Choose File
         </button>
-        <input type="file" id="fileInput" class="file-input" accept=".csv" />
+        <input type="file" id="fileInput" class="file-input" accept=".csv" multiple="false" />
       </div>
 
       <!-- File Info -->
@@ -660,28 +661,73 @@ CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
 
     // Initialize the upload flow
     function initializeUpload() {
+      console.log('🔧 Setting up file upload handlers...');
+      
+      // Check if elements exist
+      const fileInput = document.getElementById('fileInput');
+      const uploadArea = document.getElementById('fileUploadArea');
+      const browseBtn = document.getElementById('browseBtn');
+      
+      console.log('Elements found:', {
+        fileInput: !!fileInput,
+        uploadArea: !!uploadArea,
+        browseBtn: !!browseBtn
+      });
+      
+      if (!fileInput || !uploadArea || !browseBtn) {
+        console.error('❌ Required elements not found!');
+        return;
+      }
+      
       setupFileUpload();
       updateStepDisplay();
+      
+      console.log('✅ Upload system ready');
     }
 
     function setupFileUpload() {
       const fileInput = document.getElementById('fileInput');
       const uploadArea = document.getElementById('fileUploadArea');
+      const browseBtn = document.querySelector('.browse-btn');
 
-      // File input change
-      fileInput.addEventListener('change', handleFileSelect);
+      // File input change - THIS IS THE KEY FIX
+      fileInput.addEventListener('change', function(event) {
+        console.log('File input changed:', event.target.files);
+        handleFileSelect(event);
+      });
+
+      // Browse button click
+      browseBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Browse button clicked');
+        fileInput.click();
+      });
+
+      // Upload area click (but not if clicking the browse button)
+      uploadArea.addEventListener('click', function(e) {
+        if (!e.target.closest('.browse-btn')) {
+          console.log('Upload area clicked');
+          fileInput.click();
+        }
+      });
 
       // Drag and drop
-      uploadArea.addEventListener('click', () => fileInput.click());
       uploadArea.addEventListener('dragover', handleDragOver);
       uploadArea.addEventListener('dragleave', handleDragLeave);
       uploadArea.addEventListener('drop', handleFileDrop);
     }
 
     function handleFileSelect(event) {
+      console.log('handleFileSelect called');
       const file = event.target.files[0];
+      console.log('Selected file:', file);
+      
       if (file) {
+        console.log('Processing file:', file.name, file.size, file.type);
         processFile(file);
+      } else {
+        console.log('No file selected');
       }
     }
 
@@ -705,11 +751,15 @@ CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
     }
 
     function processFile(file) {
+      console.log('processFile called with:', file.name, file.type);
+      
       if (!file.name.toLowerCase().endsWith('.csv')) {
+        console.error('Invalid file type:', file.type);
         showNotification('Please select a CSV file', 'error');
         return;
       }
 
+      console.log('File validation passed, processing...');
       uploadedFile = file;
       
       // Update UI
@@ -718,10 +768,17 @@ CUST003,8,2024-01-17,"Good overall but could be cheaper",8,7,8,4
       document.getElementById('fileInfo').classList.add('show');
       document.getElementById('fileUploadArea').classList.add('has-file');
       
+      console.log('UI updated, reading file...');
+      
       // Read and parse CSV
       const reader = new FileReader();
       reader.onload = function(e) {
+        console.log('File read successfully, parsing CSV...');
         parseCSV(e.target.result);
+      };
+      reader.onerror = function(e) {
+        console.error('File read error:', e);
+        showNotification('Error reading file', 'error');
       };
       reader.readAsText(file);
     }
@@ -1233,8 +1290,18 @@ CUST010,6,2024-01-24,"Average experience, nothing special",6,6,6,6`;
     `;
     document.head.appendChild(style);
 
-    // Initialize when page loads
-    document.addEventListener('DOMContentLoaded', initializeUpload);
+    // Initialize when page loads with better error handling
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🚀 Initializing NPS Upload Flow...');
+      
+      try {
+        initializeUpload();
+        console.log('✅ Upload flow initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize upload flow:', error);
+        showNotification('Failed to initialize upload system', 'error');
+      }
+    });
 
     // Handle keyboard shortcuts
     document.addEventListener('keydown', function(e) {
