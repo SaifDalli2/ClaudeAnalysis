@@ -103,11 +103,7 @@ function setupProgressMonitoring() {
       </div>
     `;
     
-    // Insert before the debug log
-    const debugLog = document.getElementById('debugLog');
-    if (debugLog) {
-      inputSection.insertBefore(statusDiv, debugLog);
-    }
+
   }
 }
 

@@ -10,13 +10,13 @@
   <!-- Load translations and industry manager FIRST -->
   <script src="js/translations.js"></script>
 
-  <!-- Load debug helper script (hidden by default) -->
-  <script src="js/debug-helper.js" style="display: none;"></script>
 
   <!-- SINGLE MODULE IMPORT -->
   <script type="module">
     import { initializeApp } from './js/module-index.js';
   </script>
+
+<script src="js/debug-helper.js"></script>
 
   <!-- Utilities -->
   <script>
@@ -41,29 +41,7 @@
     // Auto-update comment count
     setInterval(updateCommentCount, 1000);
 
-    // Debug mode toggle
-    function toggleDebugElements() {
-      const debugElements = document.getElementById('debugElements');
-      const isDevelopment = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.search.includes('debug=true');
-      
-      if (isDevelopment || window.location.search.includes('debug=true')) {
-        debugElements.style.display = 'block';
-        console.log('🔧 Debug mode enabled');
-      }
-    }
 
-    document.addEventListener('DOMContentLoaded', toggleDebugElements);
-
-    // Secret debug key (Ctrl+Shift+D)
-    document.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        const debugElements = document.getElementById('debugElements');
-        debugElements.style.display = debugElements.style.display === 'none' ? 'block' : 'none';
-        console.log('🔧 Debug mode toggled');
-      }
-    });
   </script>
 
   <!-- Authentication Integration (SINGLE INSTANCE) -->
@@ -753,36 +731,6 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
 
-      <!-- Hidden Debug Elements (only visible in development) -->
-      <div id="debugElements" style="display: none;">
-        <div class="system-status">
-          <h4>System Status</h4>
-          <div class="status-grid">
-            <div class="status-item">
-              <span class="status-label">API Server:</span>
-              <span id="apiStatus" class="status-value status-checking">Checking...</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Comments Loaded:</span>
-              <span id="commentCount" class="status-value">0</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Last Processed:</span>
-              <span id="lastProcessed" class="status-value">Never</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="debug-panel">
-          <h4>Debug Controls</h4>
-          <button id="debugBtn">🐛 Enable Debug Mode</button>
-          <button id="testDisplayBtn">🧪 Test Display</button>
-          <button id="clearConsoleBtn">🧹 Clear Console</button>
-          <div id="debugInfo"></div>
-        </div>
-
-        <div class="debug-log" id="debugLog"></div>
-      </div>
     </div>
     
     <div class="results-section">

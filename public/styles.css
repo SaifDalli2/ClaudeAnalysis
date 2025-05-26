@@ -193,20 +193,7 @@ body.rtl {
   box-shadow: 0 4px 12px rgba(226, 255, 102, 0.3);
 }
 
-/* ===== HIDE DEBUG ELEMENTS BY DEFAULT ===== */
-#debugElements {
-  display: none;
-  margin-top: 30px;
-  padding: 20px;
-  background: rgba(244, 67, 54, 0.1);
-  border: 1px solid var(--dark-error);
-  border-radius: 8px;
-}
 
-#debugElements h4 {
-  color: var(--dark-error);
-  margin-top: 0;
-}
 
 /* ===== MOBILE RESPONSIVENESS ===== */
 @media (max-width: 768px) {
@@ -886,24 +873,7 @@ button:hover {
   color: var(--dark-text-secondary);
 }
 
-.debug-log {
-  background: var(--dark-surface-lighter);
-  border: 1px solid var(--dark-border);
-  padding: 10px;
-  border-radius: 4px;
-  margin-top: 10px;
-  max-height: 150px;
-  overflow-y: auto;
-  font-family: monospace;
-  font-size: 12px;
-  display: none;
-  color: var(--dark-text-secondary);
-}
 
-/* Debug logs should stay LTR for code readability */
-.rtl .debug-log {
-  direction: ltr;
-}
 
 /* Scrollbar styling for WebKit browsers */
 ::-webkit-scrollbar {

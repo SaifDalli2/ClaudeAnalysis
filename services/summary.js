@@ -2,40 +2,8 @@ const axios = require('axios');
 const { detectLanguage } = require('../utils/helpers');
 const { parseClaudeResponse } = require('../utils/processing');
 
-async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
-  console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
-  
-  // ... existing code ...
-  
-  const summaryData = parseClaudeResponse(response);
-  
-  // DEBUG: Log the parsed summary data
-  console.log('📊 Parsed summary data structure:', Object.keys(summaryData || {}));
-  console.log('📊 Parsed summary data:', summaryData);
-  
-  // Add actual comment counts for each category
-  if (summaryData.summaries && Array.isArray(summaryData.summaries)) {
-    summaryData.summaries.forEach(summary => {
-      if (commentsByCategory[summary.category]) {
-        summary.commentCount = commentsByCategory[summary.category].length;
-      }
-    });
-    console.log(`📊 Enhanced ${summaryData.summaries.length} summaries with comment counts`);
-  } else {
-    console.warn('⚠️ No summaries array found in parsed data');
-    
-    // If no summaries found, check if we have categorizedComments instead
-    if (summaryData.categorizedComments) {
-      console.log('📊 Found categorizedComments in summary data');
-    }
-  }
-  
-  return summaryData;
-}
+const sumArray = arr => arr.reduce((a, b) => a + b, 0);
 
-/**
- * Enhanced summarizeComments function with better error handling
- */
 async function summarizeComments(categorizedComments, extractedTopics, apiKey) {
   console.log(`Summarizing ${categorizedComments.length} categorized comments...`);
   
