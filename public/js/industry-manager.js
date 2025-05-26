@@ -1,438 +1,235 @@
-// public/js/industry-manager.js
-/**
- * Industry-specific category management for the frontend
- * BULLETPROOF VERSION
- */
-
-(function() {
-  'use strict';
-  
-  console.log('🏭 Industry Manager script starting...');
-
-  // Define the class first
-  class IndustryManager {
-    constructor() {
-      console.log('🏭 IndustryManager constructor called');
-      this.currentIndustry = null;
-      this.availableIndustries = [];
-      this.categories = [];
-      this.npsFactors = [];
-      this.initialized = false;
-    }
-
-    /**
-     * Initialize the industry manager
-     */
-    async initialize() {
-      try {
-        console.log('🏭 Initializing Industry Manager...');
-        
-        // Load available industries
-        await this.loadAvailableIndustries();
-        
-        // Detect user's industry if authenticated
-        await this.detectUserIndustry();
-        
-        // Load categories for current industry
-        await this.loadIndustryConfig();
-        
-        this.initialized = true;
-        console.log(`✅ Industry Manager initialized for: ${this.currentIndustry}`);
-        
-        return true;
-      } catch (error) {
-        console.error('❌ Industry Manager initialization failed:', error);
-        // Set defaults on failure
-        this.currentIndustry = 'Default';
-        this.categories = await this.getDefaultCategories();
-        return false;
-      }
-    }
-
-    /**
-     * Load available industries from API
-     */
-    async loadAvailableIndustries() {
-      try {
-        const response = await fetch('/api/industries');
-        if (response.ok) {
-          const data = await response.json();
-          this.availableIndustries = data.industries;
-          console.log(`📋 Loaded ${data.industries.length} available industries`);
-        }
-      } catch (error) {
-        console.warn('Failed to load industries:', error);
-        this.availableIndustries = [
-          { name: 'SaaS/Technology', displayName: 'SaaS/Technology' },
-          { name: 'E-commerce/Retail', displayName: 'E-commerce/Retail' },
-          { name: 'Healthcare', displayName: 'Healthcare' },
-          { name: 'Financial Services', displayName: 'Financial Services' },
-          { name: 'Default', displayName: 'General' }
-        ];
-      }
-    }
-
-    /**
-     * Detect user's industry from authentication
-     */
-    async detectUserIndustry() {
-      try {
-        // Check if user is authenticated
-        if (window.isAuthenticated && window.isAuthenticated()) {
-          const user = window.getCurrentUser();
-          if (user && user.industry) {
-            this.currentIndustry = user.industry;
-            console.log(`👤 User industry detected: ${this.currentIndustry}`);
-            return this.currentIndustry;
-          }
-        }
-        
-        // Fallback to default
-        this.currentIndustry = 'Default';
-        console.log('👤 No user industry found, using Default');
-        return this.currentIndustry;
-        
-      } catch (error) {
-        console.warn('Error detecting user industry:', error);
-        this.currentIndustry = 'Default';
-        return this.currentIndustry;
-      }
-    }
-
-    /**
-     * Load industry configuration (categories and factors)
-     */
-    async loadIndustryConfig() {
-      try {
-        const industry = this.currentIndustry || 'Default';
-        
-        const headers = { 'Content-Type': 'application/json' };
-        
-        // Add authentication if available
-        if (window.authToken) {
-          headers['Authorization'] = `Bearer ${window.authToken}`;
-        }
-        
-        const response = await fetch(`/api/industries/${encodeURIComponent(industry)}/config`, {
-          headers: headers
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          this.categories = data.categories || [];
-          this.npsFactors = data.npsFactors || [];
-          
-          console.log(`📊 Loaded ${this.categories.length} categories for ${industry}`);
-          console.log(`⚖️ Loaded ${this.npsFactors.length} NPS factors for ${industry}`);
-          
-          return true;
-        } else {
-          throw new Error(`Failed to load config: ${response.status}`);
-        }
-        
-      } catch (error) {
-        console.warn('Failed to load industry config:', error);
-        // Load defaults
-        this.categories = await this.getDefaultCategories();
-        this.npsFactors = await this.getDefaultFactors();
-        return false;
-      }
-    }
-
-    /**
-     * Get categories for current industry
-     */
-    getCategories() {
-      return this.categories || [];
-    }
-
-    /**
-     * Get NPS factors for current industry
-     */
-    getNpsFactors() {
-      return this.npsFactors || [];
-    }
-
-    /**
-     * Get current industry
-     */
-    getCurrentIndustry() {
-      return this.currentIndustry || 'Default';
-    }
-
-    /**
-     * Get available industries
-     */
-    getAvailableIndustries() {
-      return this.availableIndustries || [];
-    }
-
-    /**
-     * Switch to a different industry
-     */
-    async switchIndustry(industry) {
-      try {
-        console.log(`🔄 Switching from ${this.currentIndustry} to ${industry}`);
-        
-        this.currentIndustry = industry;
-        
-        // Reload configuration for new industry
-        await this.loadIndustryConfig();
-        
-        // Notify about the change
-        this.notifyIndustryChange();
-        
-        console.log(`✅ Switched to ${industry} industry`);
-        return true;
-        
-      } catch (error) {
-        console.error('Failed to switch industry:', error);
-        return false;
-      }
-    }
-
-    /**
-     * Check if current industry is user's default
-     */
-    isUserIndustry() {
-      if (window.isAuthenticated && window.isAuthenticated()) {
-        const user = window.getCurrentUser();
-        return user && user.industry === this.currentIndustry;
-      }
-      return false;
-    }
-
-    /**
-     * Update UI with industry information
-     */
-    updateIndustryDisplay() {
-      // Update industry badge if exists
-      const industryBadge = document.getElementById('industryBadge');
-      if (industryBadge) {
-        industryBadge.textContent = this.currentIndustry;
-        industryBadge.style.display = this.currentIndustry !== 'Default' ? 'inline-block' : 'none';
-      }
-
-      // Update category count display
-      const categoryCount = document.getElementById('categoryCount');
-      if (categoryCount) {
-        categoryCount.textContent = this.categories.length;
-      }
-
-      // Add industry info to processing section
-      this.addIndustryInfo();
-    }
-
-    /**
-     * Add industry information to the processing section
-     */
-    addIndustryInfo() {
-      const apiKeySection = document.querySelector('.api-key-section');
-      if (apiKeySection && !document.getElementById('industryInfo')) {
-        const industryInfo = document.createElement('div');
-        industryInfo.id = 'industryInfo';
-        industryInfo.className = 'industry-info';
-        industryInfo.style.cssText = `
-          margin-top: 10px;
-          padding: 10px;
-          background: rgba(226, 255, 102, 0.1);
-          border: 1px solid rgba(226, 255, 102, 0.2);
-          border-radius: 4px;
-          font-size: 13px;
-          color: var(--dark-text-secondary);
-        `;
-        
-        this.updateIndustryInfoContent(industryInfo);
-        apiKeySection.appendChild(industryInfo);
-      } else if (document.getElementById('industryInfo')) {
-        this.updateIndustryInfoContent(document.getElementById('industryInfo'));
-      }
-    }
-
-    /**
-     * Update industry info content
-     */
-    updateIndustryInfoContent(element) {
-      if (!element) return;
-      
-      const isUserIndustry = this.isUserIndustry();
-      const categoryCount = this.categories.length;
-      
-      if (this.currentIndustry === 'Default') {
-        element.innerHTML = `
-          <strong>📋 Using General Categories</strong><br>
-          ${categoryCount} categories available. ${isUserIndustry ? '' : 'Login and set your industry for specialized categories.'}
-        `;
-      } else {
-        element.innerHTML = `
-          <strong>🏭 Industry: ${this.currentIndustry}</strong><br>
-          Using ${categoryCount} specialized categories for your industry.
-        `;
-      }
-    }
-
-    /**
-     * Notify other parts of the app about industry change
-     */
-    notifyIndustryChange() {
-      // Update UI
-      this.updateIndustryDisplay();
-      
-      // Dispatch custom event
-      window.dispatchEvent(new CustomEvent('industryChanged', {
-        detail: {
-          industry: this.currentIndustry,
-          categories: this.categories,
-          npsFactors: this.npsFactors
-        }
-      }));
-    }
-
-    /**
-     * Get default categories (fallback)
-     */
-    async getDefaultCategories() {
-      return [
-        'Product/Service Quality',
-        'Customer Service',
-        'Pricing/Value',
-        'User Experience',
-        'Technical Issues',
-        'Billing/Payment',
-        'Delivery/Fulfillment',
-        'Communication',
-        'Features/Functionality',
-        'Support/Help',
-        'Reliability',
-        'Ease of Use'
-      ];
-    }
-
-    /**
-     * Get default NPS factors (fallback)
-     */
-    async getDefaultFactors() {
-      return [
-        'Overall Quality',
-        'Customer Service',
-        'Value for Money',
-        'Ease of Use',
-        'Reliability'
-      ];
-    }
-
-    /**
-     * Get industry-aware processing options
-     */
-    getProcessingOptions() {
-      return {
-        industry: this.currentIndustry,
-        categories: this.categories,
-        npsFactors: this.npsFactors,
-        isUserIndustry: this.isUserIndustry()
-      };
-    }
+// Enhanced Industry Manager - Unified Detection System
+class UnifiedIndustryManager {
+  constructor() {
+    this.currentIndustry = 'Default';
+    this.availableIndustries = [];
+    this.categories = [];
+    this.npsFactors = [];
+    this.initialized = false;
+    this.sources = {
+      dashboard: null,
+      userProfile: null,
+      localStorage: null,
+      urlParam: null
+    };
   }
 
-  // Initialize safely - multiple strategies
-  function createIndustryManager() {
+  async initialize() {
     try {
-      console.log('🏭 Creating IndustryManager instance...');
+      console.log('🏭 Initializing Unified Industry Manager...');
       
-      // Test if the class is available
-      if (typeof IndustryManager !== 'function') {
-        throw new Error('IndustryManager class is not a function');
-      }
+      // Load available industries
+      await this.loadAvailableIndustries();
       
-      // Create the instance
-      const manager = new IndustryManager();
+      // Detect industry from all possible sources
+      await this.detectIndustryFromAllSources();
       
-      // Verify the instance
-      if (!manager || typeof manager.initialize !== 'function') {
-        throw new Error('IndustryManager instance is invalid');
-      }
+      // Load categories for detected industry
+      await this.loadIndustryConfig();
       
-      // Assign to window
-      window.industryManager = manager;
+      // Sync across all components
+      this.syncIndustryAcrossComponents();
       
-      console.log('✅ IndustryManager instance created successfully');
-      console.log('✅ Type check:', typeof window.industryManager);
-      console.log('✅ Constructor check:', window.industryManager.constructor.name);
+      this.initialized = true;
+      console.log(`✅ Unified Industry Manager initialized for: ${this.currentIndustry}`);
       
       return true;
-      
     } catch (error) {
-      console.error('❌ Failed to create IndustryManager:', error);
-      console.error('❌ IndustryManager type:', typeof IndustryManager);
+      console.error('❌ Industry Manager initialization failed:', error);
+      this.currentIndustry = 'Default';
       return false;
     }
   }
 
-  // Multiple initialization strategies
-  function initializeIndustryManager() {
-    console.log('🏭 Initializing Industry Manager...');
-    console.log('🏭 Document ready state:', document.readyState);
+  async detectIndustryFromAllSources() {
+    // Priority order: URL param > Dashboard selection > User profile > LocalStorage > Default
     
-    // Strategy 1: Try immediate creation
-    if (createIndustryManager()) {
+    // 1. Check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('industry')) {
+      this.sources.urlParam = urlParams.get('industry');
+      this.currentIndustry = this.sources.urlParam;
+      console.log(`🔗 Industry from URL: ${this.currentIndustry}`);
       return;
     }
     
-    // Strategy 2: Wait a bit and try again
-    setTimeout(() => {
-      console.log('🏭 Retry creating IndustryManager...');
-      if (createIndustryManager()) {
+    // 2. Check dashboard selector (if on dashboard page)
+    const dashboardSelector = document.getElementById('industrySelector');
+    if (dashboardSelector && dashboardSelector.value) {
+      this.sources.dashboard = dashboardSelector.value;
+      this.currentIndustry = this.sources.dashboard;
+      console.log(`📊 Industry from dashboard: ${this.currentIndustry}`);
+      return;
+    }
+    
+    // 3. Check user profile
+    if (window.isAuthenticated && window.isAuthenticated()) {
+      const user = window.getCurrentUser();
+      if (user && user.industry) {
+        this.sources.userProfile = user.industry;
+        this.currentIndustry = this.sources.userProfile;
+        console.log(`👤 Industry from user profile: ${this.currentIndustry}`);
         return;
       }
-      
-      // Strategy 3: Last resort - create a mock
-      console.warn('🏭 Creating mock IndustryManager');
-      window.industryManager = {
-        initialized: false,
-        currentIndustry: 'Default',
-        categories: [],
-        npsFactors: [],
-        availableIndustries: [
-          { name: 'Default', displayName: 'General' }
-        ],
-        initialize: async () => {
-          console.log('🏭 Mock initialize called');
-          return false;
-        },
-        getCurrentIndustry: () => 'Default',
-        getCategories: () => [],
-        getNpsFactors: () => [],
-        getAvailableIndustries: () => [{ name: 'Default', displayName: 'General' }],
-        switchIndustry: async () => false,
-        updateIndustryDisplay: () => {},
-        isUserIndustry: () => false,
-        getProcessingOptions: () => ({
-          industry: 'Default',
-          categories: [],
-          npsFactors: [],
-          isUserIndustry: false
-        })
-      };
-      console.log('⚠️ Mock IndustryManager created');
-    }, 100);
-  }
-
-  // Initialize based on document state
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeIndustryManager);
-  } else {
-    // Document is already ready
-    initializeIndustryManager();
-  }
-
-  // Fallback timer
-  setTimeout(() => {
-    if (!window.industryManager) {
-      console.warn('🏭 IndustryManager still not available after 2 seconds, force initializing...');
-      initializeIndustryManager();
     }
-  }, 2000);
+    
+    // 4. Check localStorage
+    const storedIndustry = localStorage.getItem('selectedIndustry');
+    if (storedIndustry) {
+      this.sources.localStorage = storedIndustry;
+      this.currentIndustry = this.sources.localStorage;
+      console.log(`💾 Industry from localStorage: ${this.currentIndustry}`);
+      return;
+    }
+    
+    // 5. Default fallback
+    this.currentIndustry = 'Default';
+    console.log(`🔧 Using default industry: ${this.currentIndustry}`);
+  }
 
-  console.log('🏭 Industry Manager script loaded');
+  syncIndustryAcrossComponents() {
+    // Update dashboard selector
+    const dashboardSelector = document.getElementById('industrySelector');
+    if (dashboardSelector && dashboardSelector.value !== this.currentIndustry) {
+      dashboardSelector.value = this.currentIndustry;
+    }
+    
+    // Update industry badge
+    const industryBadge = document.getElementById('industryBadge');
+    if (industryBadge) {
+      industryBadge.textContent = this.currentIndustry;
+      industryBadge.style.display = this.currentIndustry !== 'Default' ? 'inline-block' : 'none';
+    }
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('selectedIndustry', this.currentIndustry);
+    
+    // Dispatch industry change event
+    window.dispatchEvent(new CustomEvent('industryChanged', {
+      detail: { 
+        industry: this.currentIndustry,
+        source: this.getActiveSource(),
+        categories: this.categories,
+        npsFactors: this.npsFactors 
+      }
+    }));
+  }
 
-})();
+  getActiveSource() {
+    if (this.sources.urlParam) return 'url';
+    if (this.sources.dashboard) return 'dashboard';
+    if (this.sources.userProfile) return 'profile';
+    if (this.sources.localStorage) return 'localStorage';
+    return 'default';
+  }
+
+  async switchIndustry(industry, source = 'manual') {
+    console.log(`🔄 Switching industry to: ${industry} (source: ${source})`);
+    
+    this.currentIndustry = industry;
+    
+    // Update the appropriate source
+    this.sources[source] = industry;
+    
+    // Reload configuration
+    await this.loadIndustryConfig();
+    
+    // Sync across all components
+    this.syncIndustryAcrossComponents();
+    
+    console.log(`✅ Industry switched to: ${industry}`);
+    return true;
+  }
+
+  async loadAvailableIndustries() {
+    try {
+      const response = await fetch('/api/industries');
+      if (response.ok) {
+        const data = await response.json();
+        this.availableIndustries = data.industries;
+      }
+    } catch (error) {
+      console.warn('Failed to load industries:', error);
+      this.availableIndustries = [
+        { name: 'SaaS/Technology', displayName: 'SaaS/Technology' },
+        { name: 'E-commerce/Retail', displayName: 'E-commerce/Retail' },
+        { name: 'Healthcare', displayName: 'Healthcare' },
+        { name: 'Financial Services', displayName: 'Financial Services' },
+        { name: 'Hospitality', displayName: 'Hospitality' },
+        { name: 'Default', displayName: 'General' }
+      ];
+    }
+  }
+
+  async loadIndustryConfig() {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (window.authToken) {
+        headers['Authorization'] = `Bearer ${window.authToken}`;
+      }
+      
+      const response = await fetch(`/api/industries/${encodeURIComponent(this.currentIndustry)}/config`, {
+        headers: headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        this.categories = data.categories || [];
+        this.npsFactors = data.npsFactors || [];
+        console.log(`📊 Loaded ${this.categories.length} categories for ${this.currentIndustry}`);
+        return true;
+      }
+    } catch (error) {
+      console.warn('Failed to load industry config:', error);
+      this.categories = await this.getDefaultCategories();
+      this.npsFactors = await this.getDefaultFactors();
+    }
+  }
+
+  // Enhanced processing options with source tracking
+  getProcessingOptions() {
+    return {
+      industry: this.currentIndustry,
+      industrySource: this.getActiveSource(),
+      categories: this.categories,
+      npsFactors: this.npsFactors,
+      isUserIndustry: this.sources.userProfile === this.currentIndustry,
+      isDashboardIndustry: this.sources.dashboard === this.currentIndustry
+    };
+  }
+
+  async getDefaultCategories() {
+    return [
+      'Product/Service Quality',
+      'Customer Service',
+      'Pricing/Value',
+      'User Experience',
+      'Technical Issues',
+      'Billing/Payment',
+      'Delivery/Fulfillment',
+      'Communication',
+      'Features/Functionality',
+      'Support/Help',
+      'Reliability',
+      'Ease of Use'
+    ];
+  }
+
+  async getDefaultFactors() {
+    return [
+      'Overall Quality',
+      'Customer Service',
+      'Value for Money',
+      'Ease of Use',
+      'Reliability'
+    ];
+  }
+}
+
+// Global instance
+window.unifiedIndustryManager = new UnifiedIndustryManager();
+
+// Auto-initialize
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.unifiedIndustryManager.initialize();
+});

@@ -1356,25 +1356,364 @@
       }
     }
 
-    function processUpload() {
-      const fileInput = document.getElementById('fileInput');
-      if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        console.log('Processing file:', file.name);
-        
-        showNotification('Processing your NPS data...', 'info');
-        
-        // Simulate file processing
-        setTimeout(() => {
-          showNotification('NPS data uploaded and processed successfully!', 'success');
-          closeUploadModal();
-          updateDashboardMetrics();
-        }, 2000);
-      } else {
-        showNotification('Please select a file first.', 'error');
-      }
+    // Enhanced Dashboard Upload Process
+// Replace the existing processUpload function in dashboard.html
+
+async function processUpload() {
+  const fileInput = document.getElementById('fileInput');
+  
+  if (!fileInput || !fileInput.files.length) {
+    showNotification('Please select a file first.', 'error');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  console.log('📤 Starting enhanced upload process for:', file.name);
+
+  try {
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      throw new Error('Please upload a CSV file');
     }
 
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size must be less than 10MB');
+    }
+
+    // Close upload modal
+    closeUploadModal();
+
+    // Show processing notification
+    showNotification('Starting analysis of your NPS data...', 'info');
+
+    // Process the file using the dashboard data manager
+    const results = await window.dashboardDataManager.processUploadedFile(file);
+
+    // Update success notification with results
+    const totalComments = results.totalComments;
+    const npsScore = results.npsMetrics.npsScore;
+    const topCategory = results.categoriesByVolume[0]?.name || 'N/A';
+
+    showNotification(
+      `✅ Analysis complete! NPS: ${npsScore > 0 ? '+' : ''}${npsScore} • Top issue: ${topCategory} • ${totalComments} comments analyzed`,
+      'success'
+    );
+
+    // Update charts with new data
+    updateChartsWithRealData(results);
+
+    // Animate the dashboard update
+    animateDashboardUpdate();
+
+  } catch (error) {
+    console.error('❌ Upload process failed:', error);
+    showNotification(`Upload failed: ${error.message}`, 'error');
+    
+    // Reset upload modal state
+    resetUploadModal();
+  }
+}
+
+function updateChartsWithRealData(results) {
+  console.log('📊 Updating charts with real NPS data...');
+  
+  // Update the main NPS chart with real data
+  const npsChart = Chart.getChart('npsChart');
+  if (npsChart && results.npsMetrics) {
+    // Create mock monthly data based on current results
+    // In a real implementation, you'd have historical data
+    const currentMetrics = results.npsMetrics;
+    const mockHistoricalData = generateMockHistoricalData(currentMetrics);
+    
+    npsChart.data.datasets[0].data = mockHistoricalData.map(d => d.detractors);
+    npsChart.data.datasets[1].data = mockHistoricalData.map(d => d.passives);
+    npsChart.data.datasets[2].data = mockHistoricalData.map(d => d.promoters);
+    npsChart.data.datasets[3].data = mockHistoricalData.map(d => d.nps);
+    
+    npsChart.update('active');
+    
+    console.log('✅ NPS chart updated with real data trends');
+  }
+  
+  // Update customer analysis bars
+  updateCustomerAnalysisBars(results);
+}
+
+function generateMockHistoricalData(currentMetrics) {
+  // Generate 12 months of mock data trending toward current values
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const data = [];
+  
+  const currentNPS = currentMetrics.npsScore;
+  const currentPromoters = currentMetrics.promoters.percentage;
+  const currentPassives = currentMetrics.passives.percentage;
+  const currentDetractors = currentMetrics.detractors.percentage;
+  
+  for (let i = 0; i < 12; i++) {
+    // Create trending data that leads to current values
+    const progress = i / 11; // 0 to 1
+    const variance = (Math.random() - 0.5) * 10; // ±5% variance
+    
+    const nps = Math.round(currentNPS * 0.7 + (currentNPS * 0.3 * progress) + variance);
+    const promoters = Math.max(10, Math.min(80, Math.round(currentPromoters * 0.8 + (currentPromoters * 0.2 * progress) + variance)));
+    const detractors = Math.max(5, Math.min(40, Math.round(currentDetractors * 1.2 - (currentDetractors * 0.2 * progress) + variance)));
+    const passives = Math.max(10, 100 - promoters - detractors);
+    
+    data.push({
+      month: months[i],
+      nps: Math.max(-100, Math.min(100, nps)),
+      promoters,
+      passives,
+      detractors,
+      total: currentMetrics.total
+    });
+  }
+  
+  // Ensure the last month matches current data exactly
+  data[11] = {
+    month: 'Dec',
+    nps: currentNPS,
+    promoters: currentPromoters,
+    passives: currentPassives,
+    detractors: currentDetractors,
+    total: currentMetrics.total
+  };
+  
+  return data;
+}
+
+function updateCustomerAnalysisBars(results) {
+  // Update new customers analysis (this would come from real data in production)
+  const newCustomersBar = document.querySelector('.customer-analysis .customer-bar-container');
+  if (newCustomersBar) {
+    // Mock data for demonstration - in reality this would come from customer ID analysis
+    const mockNewCustomerData = {
+      declined: 18,
+      noChange: 45,
+      improved: 37
+    };
+    
+    newCustomersBar.innerHTML = `
+      <div class="customer-bar-segment" style="width: ${mockNewCustomerData.declined}%; background: var(--nps-detractor);"></div>
+      <div class="customer-bar-segment" style="width: ${mockNewCustomerData.noChange}%; background: #888888;"></div>
+      <div class="customer-bar-segment" style="width: ${mockNewCustomerData.improved}%; background: var(--nps-promoter);"></div>
+    `;
+    
+    // Update legend
+    const legend = newCustomersBar.nextElementSibling;
+    if (legend && legend.classList.contains('customer-legend')) {
+      legend.innerHTML = `
+        <div class="legend-item">
+          <div class="legend-color" style="background: var(--nps-detractor);"></div>
+          <span>Declined: ${Math.round(results.npsMetrics.total * mockNewCustomerData.declined / 100)} (${mockNewCustomerData.declined}%)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #888888;"></div>
+          <span>No Change: ${Math.round(results.npsMetrics.total * mockNewCustomerData.noChange / 100)} (${mockNewCustomerData.noChange}%)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: var(--nps-promoter);"></div>
+          <span>Improved: ${Math.round(results.npsMetrics.total * mockNewCustomerData.improved / 100)} (${mockNewCustomerData.improved}%)</span>
+        </div>
+      `;
+    }
+  }
+}
+
+function animateDashboardUpdate() {
+  // Add visual feedback that dashboard has been updated with real data
+  const cards = document.querySelectorAll('.nps-score-card, .chart-container, .insight-card, .analysis-card');
+  
+  cards.forEach((card, index) => {
+    setTimeout(() => {
+      card.style.transform = 'scale(1.02)';
+      card.style.boxShadow = '0 8px 32px rgba(226, 255, 102, 0.3)';
+      
+      setTimeout(() => {
+        card.style.transform = 'scale(1)';
+        card.style.boxShadow = '';
+      }, 300);
+    }, index * 100);
+  });
+}
+
+function resetUploadModal() {
+  const fileInput = document.getElementById('fileInput');
+  const dropZone = document.getElementById('fileDropZone');
+  
+  if (fileInput) fileInput.value = '';
+  
+  if (dropZone) {
+    dropZone.innerHTML = `
+      <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
+      <p><strong>Drop your CSV file here</strong></p>
+      <p style="color: var(--dark-text-secondary); font-size: 14px;">or click to browse your files</p>
+    `;
+  }
+}
+
+// Enhanced category details function with deep linking to comment tool
+function viewCategoryDetails(categoryName, isRealData = false) {
+  console.log(`🔍 Opening category analysis for: ${categoryName}`);
+  
+  if (isRealData && window.dashboardDataManager?.analysisResults) {
+    // Get the specific category data
+    const categoryData = window.dashboardDataManager.analysisResults.categoriesByVolume
+      .find(cat => cat.name === categoryName);
+    
+    if (categoryData) {
+      showNotification(`Opening detailed analysis for ${categoryName} (${categoryData.count} comments)...`, 'info');
+      
+      // Create URL parameters for the comment tool
+      const params = new URLSearchParams({
+        category: categoryName,
+        fromDashboard: 'true',
+        industry: window.unifiedIndustryManager?.getCurrentIndustry() || 'Default',
+        commentCount: categoryData.count,
+        avgSentiment: categoryData.avgSentiment
+      });
+      
+      // Open comment tool in new tab with pre-filtered results
+      setTimeout(() => {
+        window.open(`/comment-tool?${params.toString()}`, '_blank');
+      }, 500);
+      
+      return;
+    }
+  }
+  
+  // Fallback for simulated data
+  showNotification(`Category analysis for ${categoryName} would show detailed breakdown`, 'info');
+  
+  setTimeout(() => {
+    const shouldOpenTool = confirm(`Would you like to open the Comment Analysis tool to explore ${categoryName} in detail?`);
+    if (shouldOpenTool) {
+      window.open('/comment-tool', '_blank');
+    }
+  }, 1500);
+}
+
+// Add API key management for dashboard
+function ensureAPIKeyForAnalysis() {
+  let apiKey = localStorage.getItem('claudeApiKey');
+  
+  if (!apiKey) {
+    // Prompt user for API key
+    const modal = createAPIKeyModal();
+    document.body.appendChild(modal);
+    return new Promise((resolve, reject) => {
+      modal.style.display = 'flex';
+      
+      modal.querySelector('.api-key-submit').onclick = () => {
+        const inputKey = modal.querySelector('.api-key-input').value.trim();
+        if (inputKey.length > 10) {
+          localStorage.setItem('claudeApiKey', inputKey);
+          modal.remove();
+          resolve(inputKey);
+        } else {
+          alert('Please enter a valid Claude API key');
+        }
+      };
+      
+      modal.querySelector('.api-key-cancel').onclick = () => {
+        modal.remove();
+        reject(new Error('API key required for comment analysis'));
+      };
+    });
+  }
+  
+  return Promise.resolve(apiKey);
+}
+
+function createAPIKeyModal() {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      background: var(--dark-surface);
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      border: 1px solid var(--dark-border);
+    ">
+      <h3 style="color: var(--dark-primary-hover); margin-top: 0;">🔑 Claude API Key Required</h3>
+      <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">
+        To analyze your comments, we need your Claude API key. This will be stored locally in your browser.
+      </p>
+      <input type="password" class="api-key-input" placeholder="Enter your Claude API key" style="
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--dark-border);
+        border-radius: 6px;
+        background: var(--dark-surface-lighter);
+        color: var(--dark-text);
+        margin-bottom: 20px;
+      ">
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="api-key-cancel" style="
+          background: var(--dark-surface-lighter);
+          color: var(--dark-text);
+          border: 1px solid var(--dark-border);
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+        ">Cancel</button>
+        <button class="api-key-submit" style="
+          background: var(--dark-primary);
+          color: black;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+        ">Save & Continue</button>
+      </div>
+    </div>
+  `;
+  
+  return modal;
+}
+
+// Enhanced initialization with API key check
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('📊 Initializing enhanced dashboard...');
+  
+  // Initialize the unified industry manager first
+  if (window.unifiedIndustryManager) {
+    window.unifiedIndustryManager.initialize().then(() => {
+      console.log('✅ Industry manager ready');
+    });
+  }
+  
+  // Initialize dashboard data manager
+  if (window.dashboardDataManager) {
+    console.log('✅ Dashboard data manager ready');
+  }
+  
+  // Check if we have an API key for future use
+  const hasAPIKey = localStorage.getItem('claudeApiKey');
+  if (!hasAPIKey) {
+    console.log('⚠️ No API key found - comment analysis will prompt for key when needed');
+  } else {
+    console.log('✅ API key available for comment analysis');
+  }
+});
+
+console.log('📊 Enhanced upload process loaded');
     function updateDashboardMetrics() {
       // Simulate updated metrics after file upload
       const metrics = {
@@ -1545,5 +1884,506 @@
       }
     });
   </script>
+  <script> 
+  // Dashboard Real Data Integration System
+class DashboardDataManager {
+  constructor() {
+    this.uploadedData = null;
+    this.analysisResults = null;
+    this.isSimulated = true;
+    this.processingStatus = 'idle'; // idle, processing, completed, error
+  }
+
+  async processUploadedFile(file) {
+    console.log('📤 Processing uploaded NPS file:', file.name);
+    
+    try {
+      this.processingStatus = 'processing';
+      this.showProcessingIndicator('Analyzing your NPS data...');
+      
+      // Parse CSV file
+      const csvContent = await this.readFileAsText(file);
+      const parsedData = await this.parseNPSData(csvContent);
+      
+      if (!parsedData.comments || parsedData.comments.length === 0) {
+        throw new Error('No comments found in the uploaded file');
+      }
+      
+      console.log(`📊 Found ${parsedData.comments.length} comments to analyze`);
+      
+      // Get industry-specific processing options
+      const industryOptions = window.unifiedIndustryManager?.getProcessingOptions() || {
+        industry: 'Default',
+        categories: []
+      };
+      
+      console.log(`🏭 Processing with industry: ${industryOptions.industry}`);
+      
+      // Analyze comments using the comment categorization system
+      const analysisResults = await this.analyzeCommentsWithAPI(parsedData.comments, industryOptions);
+      
+      // Combine NPS data with comment analysis
+      this.analysisResults = this.combineNPSAndCommentData(parsedData, analysisResults);
+      
+      // Update dashboard with real data
+      this.updateDashboardWithRealData();
+      
+      this.isSimulated = false;
+      this.processingStatus = 'completed';
+      
+      this.showSuccessMessage(`Successfully analyzed ${parsedData.comments.length} comments from your NPS data!`);
+      
+      return this.analysisResults;
+      
+    } catch (error) {
+      console.error('❌ Error processing uploaded file:', error);
+      this.processingStatus = 'error';
+      this.showErrorMessage(`Failed to process file: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  }
+
+  async parseNPSData(csvContent) {
+    const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
+    
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
+    }
+    
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    console.log('📋 CSV Headers:', headers);
+    
+    // Find required columns
+    const columnMap = {
+      customerId: this.findColumn(headers, ['customer_id', 'customerid', 'customer id', 'id']),
+      npsScore: this.findColumn(headers, ['nps_score', 'npsscore', 'nps score', 'score', 'rating']),
+      surveyDate: this.findColumn(headers, ['survey_date', 'surveydate', 'survey date', 'date', 'timestamp']),
+      comments: this.findColumn(headers, ['comments', 'comment', 'feedback', 'text'])
+    };
+    
+    console.log('🗂️ Column mapping:', columnMap);
+    
+    if (columnMap.npsScore === -1) {
+      throw new Error('NPS Score column not found. Expected columns: nps_score, score, or rating');
+    }
+    
+    if (columnMap.comments === -1) {
+      throw new Error('Comments column not found. Expected columns: comments, comment, or feedback');
+    }
+    
+    const data = {
+      npsData: [],
+      comments: [],
+      factors: {}
+    };
+    
+    // Parse data rows
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',').map(cell => cell.trim().replace(/^["']|["']$/g, ''));
+      
+      if (row.length < headers.length) continue; // Skip incomplete rows
+      
+      const npsScore = parseInt(row[columnMap.npsScore]);
+      const comment = row[columnMap.comments];
+      
+      if (isNaN(npsScore) || npsScore < 0 || npsScore > 10) continue; // Skip invalid scores
+      if (!comment || comment.trim().length === 0) continue; // Skip empty comments
+      
+      const npsItem = {
+        customerId: columnMap.customerId !== -1 ? row[columnMap.customerId] : `customer_${i}`,
+        npsScore: npsScore,
+        surveyDate: columnMap.surveyDate !== -1 ? row[columnMap.surveyDate] : new Date().toISOString(),
+        comment: comment.trim(),
+        category: this.getNPSCategory(npsScore) // promoter, passive, detractor
+      };
+      
+      data.npsData.push(npsItem);
+      data.comments.push(comment.trim());
+    }
+    
+    console.log(`✅ Parsed ${data.npsData.length} valid NPS entries with comments`);
+    
+    if (data.npsData.length === 0) {
+      throw new Error('No valid NPS data found in the file');
+    }
+    
+    return data;
+  }
+
+  findColumn(headers, possibleNames) {
+    for (const name of possibleNames) {
+      const index = headers.findIndex(h => h.includes(name));
+      if (index !== -1) return index;
+    }
+    return -1;
+  }
+
+  getNPSCategory(score) {
+    if (score >= 9) return 'promoter';
+    if (score >= 7) return 'passive';
+    return 'detractor';
+  }
+
+  async analyzeCommentsWithAPI(comments, industryOptions) {
+    console.log(`🤖 Analyzing ${comments.length} comments with ${industryOptions.industry} categories`);
+    
+    // Check if we have API key
+    const apiKey = localStorage.getItem('claudeApiKey') || 
+                   document.getElementById('apiKeyInput')?.value;
+    
+    if (!apiKey) {
+      throw new Error('Claude API key required for comment analysis. Please set it in the comment tool.');
+    }
+    
+    try {
+      // Use the existing comment analysis system
+      const requestBody = {
+        comments: comments,
+        apiKey: apiKey,
+        industry: industryOptions.industry
+      };
+      
+      // Start categorization job
+      const response = await fetch('/api/categorize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to start comment analysis');
+      }
+      
+      const jobInfo = await response.json();
+      console.log(`🚀 Comment analysis job started: ${jobInfo.jobId}`);
+      
+      // Poll for results
+      const results = await this.pollForResults(jobInfo.jobId);
+      
+      console.log(`✅ Comment analysis completed: ${results.categorizedComments.length} comments categorized`);
+      
+      return results;
+      
+    } catch (error) {
+      console.error('❌ Comment analysis failed:', error);
+      throw new Error(`Comment analysis failed: ${error.message}`);
+    }
+  }
+
+  async pollForResults(jobId) {
+    const maxAttempts = 60; // 5 minutes max
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      attempts++;
+      
+      try {
+        const statusResponse = await fetch(`/api/categorize/${jobId}/status`);
+        const status = await statusResponse.json();
+        
+        this.updateProcessingProgress(status.progress, status.batchesCompleted, status.totalBatches);
+        
+        if (status.status === 'completed') {
+          // Get final results
+          const resultsResponse = await fetch(`/api/categorize/${jobId}/results`);
+          return await resultsResponse.json();
+        }
+        
+        if (status.status === 'failed') {
+          throw new Error(`Analysis failed: ${status.error}`);
+        }
+        
+      } catch (error) {
+        console.warn('Status check failed:', error);
+        continue;
+      }
+    }
+    
+    throw new Error('Comment analysis timed out');
+  }
+
+  combineNPSAndCommentData(npsData, analysisResults) {
+    console.log('🔗 Combining NPS data with comment analysis...');
+    
+    // Calculate NPS metrics
+    const npsMetrics = this.calculateNPSMetrics(npsData.npsData);
+    
+    // Group categorized comments by category
+    const categoriesByVolume = this.groupCommentsByCategory(analysisResults.categorizedComments);
+    
+    // Extract top topics
+    const topicsByVolume = this.extractTopTopics(analysisResults.extractedTopics || []);
+    
+    // Calculate sentiment by NPS category
+    const sentimentByNPSCategory = this.calculateSentimentByNPSCategory(
+      npsData.npsData, 
+      analysisResults.categorizedComments
+    );
+    
+    return {
+      npsMetrics,
+      categoriesByVolume,
+      topicsByVolume,
+      sentimentByNPSCategory,
+      totalComments: npsData.comments.length,
+      analysisDate: new Date().toISOString(),
+      industry: window.unifiedIndustryManager?.getCurrentIndustry() || 'Default'
+    };
+  }
+
+  calculateNPSMetrics(npsData) {
+    const total = npsData.length;
+    const promoters = npsData.filter(item => item.category === 'promoter').length;
+    const passives = npsData.filter(item => item.category === 'passive').length;
+    const detractors = npsData.filter(item => item.category === 'detractor').length;
+    
+    const npsScore = Math.round(((promoters - detractors) / total) * 100);
+    
+    return {
+      npsScore,
+      total,
+      promoters: { count: promoters, percentage: Math.round((promoters / total) * 100) },
+      passives: { count: passives, percentage: Math.round((passives / total) * 100) },
+      detractors: { count: detractors, percentage: Math.round((detractors / total) * 100) }
+    };
+  }
+
+  groupCommentsByCategory(categorizedComments) {
+    const categoryMap = new Map();
+    
+    categorizedComments.forEach(item => {
+      const category = item.category || 'Uncategorized';
+      if (!categoryMap.has(category)) {
+        categoryMap.set(category, { count: 0, comments: [] });
+      }
+      categoryMap.get(category).count++;
+      categoryMap.get(category).comments.push(item);
+    });
+    
+    // Convert to array and sort by count
+    return Array.from(categoryMap.entries())
+      .map(([name, data]) => ({
+        name,
+        count: data.count,
+        percentage: Math.round((data.count / categorizedComments.length) * 100),
+        comments: data.comments,
+        avgSentiment: this.calculateAverageSentiment(data.comments)
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10
+  }
+
+  extractTopTopics(extractedTopics) {
+    return extractedTopics
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
+      .slice(0, 10)
+      .map(topic => ({
+        name: topic.topic,
+        count: topic.count || 0,
+        percentage: 0 // Will be calculated based on total
+      }));
+  }
+
+  calculateAverageSentiment(comments) {
+    if (!comments.length) return 0;
+    const total = comments.reduce((sum, comment) => sum + (comment.sentiment || 0), 0);
+    return Math.round((total / comments.length) * 100) / 100;
+  }
+
+  calculateSentimentByNPSCategory(npsData, categorizedComments) {
+    // Create lookup for comment sentiments
+    const commentSentiments = new Map();
+    categorizedComments.forEach((comment, index) => {
+      commentSentiments.set(index, comment.sentiment || 0);
+    });
+    
+    const categories = { promoter: [], passive: [], detractor: [] };
+    
+    npsData.forEach((item, index) => {
+      const sentiment = commentSentiments.get(index) || 0;
+      categories[item.category].push(sentiment);
+    });
+    
+    return {
+      promoter: this.calculateAverage(categories.promoter),
+      passive: this.calculateAverage(categories.passive),
+      detractor: this.calculateAverage(categories.detractor)
+    };
+  }
+
+  calculateAverage(values) {
+    if (!values.length) return 0;
+    return Math.round((values.reduce((sum, val) => sum + val, 0) / values.length) * 100) / 100;
+  }
+
+  updateDashboardWithRealData() {
+    if (!this.analysisResults) return;
+    
+    console.log('📊 Updating dashboard with real analysis results');
+    
+    // Update NPS score
+    const npsElement = document.getElementById('overallNPS');
+    if (npsElement) {
+      const score = this.analysisResults.npsMetrics.npsScore;
+      npsElement.textContent = score > 0 ? `+${score}` : score.toString();
+    }
+    
+    // Update categories list
+    this.updateCategoriesList();
+    
+    // Update topics list
+    this.updateTopicsList();
+    
+    // Add indicator that this is real data
+    this.addRealDataIndicator();
+  }
+
+  updateCategoriesList() {
+    const container = document.getElementById('categoriesList');
+    if (!container || !this.analysisResults.categoriesByVolume) return;
+    
+    container.innerHTML = this.analysisResults.categoriesByVolume
+      .slice(0, 5)
+      .map(category => `
+        <div class="insight-item" onclick="viewCategoryDetails('${category.name}', true)">
+          <div class="insight-name">${category.name}</div>
+          <div class="insight-bar-container">
+            <div class="insight-bar">
+              <div class="insight-bar-fill ${this.getSentimentClass(category.avgSentiment)}" 
+                   style="width: ${category.percentage}%"></div>
+            </div>
+            <div class="insight-percentage">${category.percentage}%</div>
+          </div>
+          <div class="insight-count">${category.count} comments</div>
+        </div>
+      `).join('');
+  }
+
+  updateTopicsList() {
+    const container = document.getElementById('topicsList');
+    if (!container || !this.analysisResults.topicsByVolume) return;
+    
+    const totalTopics = this.analysisResults.topicsByVolume.reduce((sum, topic) => sum + topic.count, 0);
+    
+    container.innerHTML = this.analysisResults.topicsByVolume
+      .slice(0, 5)
+      .map(topic => {
+        const percentage = Math.round((topic.count / totalTopics) * 100);
+        return `
+          <div class="insight-item">
+            <div class="insight-name">${topic.name}</div>
+            <div class="insight-bar-container">
+              <div class="insight-bar">
+                <div class="insight-bar-fill sentiment-neutral" style="width: ${percentage}%"></div>
+              </div>
+              <div class="insight-percentage">${percentage}%</div>
+            </div>
+            <div class="insight-count">${topic.count} mentions</div>
+          </div>
+        `;
+      }).join('');
+  }
+
+  getSentimentClass(sentiment) {
+    if (sentiment > 0.3) return 'sentiment-positive';
+    if (sentiment < -0.3) return 'sentiment-negative';
+    return 'sentiment-neutral';
+  }
+
+  addRealDataIndicator() {
+    const existingIndicator = document.getElementById('realDataIndicator');
+    if (existingIndicator) existingIndicator.remove();
+    
+    const indicator = document.createElement('div');
+    indicator.id = 'realDataIndicator';
+    indicator.style.cssText = `
+      position: fixed;
+      top: 90px;
+      right: 20px;
+      background: var(--dark-success);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    `;
+    indicator.innerHTML = `✅ Real Data Analysis • ${this.analysisResults.totalComments} comments`;
+    
+    document.body.appendChild(indicator);
+  }
+
+  showProcessingIndicator(message) {
+    // Implementation for processing indicator
+    console.log('⏳', message);
+  }
+
+  updateProcessingProgress(progress, completed, total) {
+    console.log(`📊 Progress: ${progress}% (${completed}/${total} batches)`);
+  }
+
+  showSuccessMessage(message) {
+    console.log('✅', message);
+    this.showNotification(message, 'success');
+  }
+
+  showErrorMessage(message) {
+    console.log('❌', message);
+    this.showNotification(message, 'error');
+  }
+
+  showNotification(message, type) {
+    // Reuse existing notification system from dashboard
+    if (typeof showNotification === 'function') {
+      showNotification(message, type);
+    }
+  }
+}
+
+// Enhanced category details view function
+window.viewCategoryDetails = function(categoryName, isRealData = false) {
+  console.log(`🔍 Viewing details for: ${categoryName} (Real data: ${isRealData})`);
+  
+  if (isRealData && window.dashboardDataManager?.analysisResults) {
+    // Find the category data
+    const categoryData = window.dashboardDataManager.analysisResults.categoriesByVolume
+      .find(cat => cat.name === categoryName);
+    
+    if (categoryData) {
+      // Create URL with category filter for comment tool
+      const params = new URLSearchParams({
+        category: categoryName,
+        fromDashboard: 'true',
+        industry: window.unifiedIndustryManager?.getCurrentIndustry() || 'Default'
+      });
+      
+      // Open comment tool with pre-filtered results
+      window.open(`/comment-tool?${params.toString()}`, '_blank');
+      return;
+    }
+  }
+  
+  // Fallback to original behavior
+  showNotification(`Opening detailed analysis for ${categoryName}...`, 'info');
+};
+
+// Global instance
+window.dashboardDataManager = new DashboardDataManager();
+
+console.log('📊 Dashboard Data Manager loaded'); </script>
 </body>
 </html>

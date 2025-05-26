@@ -488,5 +488,401 @@
       setTimeout(initialize, 100);
     }
   </script>
+  <script>
+    // Comment Tool Dashboard Integration
+// Add this to comment-tool.html or as a separate script
+
+class CommentToolDashboardIntegration {
+  constructor() {
+    this.urlParams = new URLSearchParams(window.location.search);
+    this.dashboardData = null;
+    this.isFromDashboard = this.urlParams.get('fromDashboard') === 'true';
+  }
+
+  initialize() {
+    if (this.isFromDashboard) {
+      console.log('🔗 Comment tool opened from dashboard');
+      this.handleDashboardIntegration();
+    }
+  }
+
+  handleDashboardIntegration() {
+    // Get parameters passed from dashboard
+    const category = this.urlParams.get('category');
+    const industry = this.urlParams.get('industry');
+    const commentCount = this.urlParams.get('commentCount');
+    const avgSentiment = this.urlParams.get('avgSentiment');
+
+    console.log(`📊 Dashboard context: ${category} category, ${industry} industry`);
+
+    // Add dashboard context banner
+    this.addDashboardBanner(category, commentCount, avgSentiment);
+
+    // Set industry if provided
+    if (industry && window.unifiedIndustryManager) {
+      window.unifiedIndustryManager.switchIndustry(industry, 'dashboard');
+    }
+
+    // If we have category data, show filtered view
+    if (category) {
+      this.showCategoryFocusMode(category);
+    }
+
+    // Add "Back to Dashboard" button
+    this.addBackToDashboardButton();
+  }
+
+  addDashboardBanner(category, commentCount, avgSentiment) {
+    const banner = document.createElement('div');
+    banner.id = 'dashboardBanner';
+    banner.style.cssText = `
+      background: linear-gradient(135deg, var(--dark-primary), var(--dark-primary-hover));
+      color: black;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(226, 255, 102, 0.3);
+    `;
+
+    const sentimentEmoji = this.getSentimentEmoji(parseFloat(avgSentiment) || 0);
+    
+    banner.innerHTML = `
+      <div>
+        <span style="font-size: 18px;">📊 Dashboard Analysis Focus</span>
+        <div style="font-size: 14px; margin-top: 5px; opacity: 0.8;">
+          Category: <strong>${category || 'All Categories'}</strong> 
+          ${commentCount ? `• ${commentCount} comments` : ''} 
+          ${avgSentiment ? `• Avg sentiment: ${sentimentEmoji} ${avgSentiment}` : ''}
+        </div>
+      </div>
+      <button onclick="window.commentToolDashboardIntegration.closeDashboardMode()" style="
+        background: rgba(0, 0, 0, 0.2);
+        color: black;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+      ">✕ Close Focus</button>
+    `;
+
+    // Insert at the top of the container
+    const container = document.querySelector('.container');
+    if (container) {
+      container.insertBefore(banner, container.firstChild);
+    }
+  }
+
+  addBackToDashboardButton() {
+    const backButton = document.createElement('button');
+    backButton.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--dark-primary);
+      color: black;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    `;
+    
+    backButton.innerHTML = '📊 Back to Dashboard';
+    backButton.onclick = () => {
+      if (window.opener) {
+        window.close();
+      } else {
+        window.location.href = '/dashboard';
+      }
+    };
+
+    backButton.onmouseover = () => {
+      backButton.style.background = 'var(--dark-primary-hover)';
+      backButton.style.transform = 'translateY(-2px)';
+    };
+
+    backButton.onmouseout = () => {
+      backButton.style.background = 'var(--dark-primary)';
+      backButton.style.transform = 'translateY(0)';
+    };
+
+    document.body.appendChild(backButton);
+  }
+
+  showCategoryFocusMode(category) {
+    // Add instructions for focusing on the specific category
+    const focusInstructions = document.createElement('div');
+    focusInstructions.style.cssText = `
+      background: rgba(226, 255, 102, 0.1);
+      border: 1px solid rgba(226, 255, 102, 0.3);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    `;
+
+    focusInstructions.innerHTML = `
+      <h3 style="margin-top: 0; color: var(--dark-primary-hover);">🎯 Category Focus Mode</h3>
+      <p style="margin-bottom: 10px;">
+        You're analyzing the <strong>"${category}"</strong> category from your dashboard data.
+      </p>
+      <div style="display: flex; gap: 15px; margin-top: 15px;">
+        <button onclick="window.commentToolDashboardIntegration.loadCategoryComments('${category}')" style="
+          background: var(--dark-primary);
+          color: black;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: 600;
+        ">📥 Load Comments from Dashboard</button>
+        <button onclick="window.commentToolDashboardIntegration.generateSampleComments('${category}')" style="
+          background: var(--dark-surface-lighter);
+          color: var(--dark-text);
+          border: 1px solid var(--dark-border);
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+        ">🎲 Generate Sample Comments</button>
+      </div>
+    `;
+
+    // Insert after dashboard banner
+    const banner = document.getElementById('dashboardBanner');
+    if (banner && banner.parentNode) {
+      banner.parentNode.insertBefore(focusInstructions, banner.nextSibling);
+    }
+  }
+
+  async loadCategoryComments(category) {
+    console.log(`📥 Loading comments for category: ${category}`);
+    
+    try {
+      // This would typically load the actual comments from the dashboard analysis
+      // For now, we'll simulate this by generating relevant sample comments
+      const sampleComments = this.generateRelevantComments(category);
+      
+      // Clear existing comments
+      if (window.comments) {
+        window.comments.length = 0;
+      }
+      
+      // Add sample comments
+      sampleComments.forEach(comment => {
+        if (window.comments) {
+          window.comments.push(comment);
+        }
+      });
+      
+      // Update the UI
+      this.updateCommentsDisplay(sampleComments);
+      
+      // Show success message
+      this.showNotification(`Loaded ${sampleComments.length} sample comments for ${category}`, 'success');
+      
+    } catch (error) {
+      console.error('Failed to load category comments:', error);
+      this.showNotification('Failed to load comments from dashboard', 'error');
+    }
+  }
+
+  generateSampleComments(category) {
+    const sampleComments = this.generateRelevantComments(category);
+    this.loadSampleCommentsIntoTool(sampleComments);
+  }
+
+  generateRelevantComments(category) {
+    // Generate sample comments relevant to the category
+    const commentTemplates = {
+      'Customer Service': [
+        "The support team took too long to respond to my ticket",
+        "Customer service was very helpful and resolved my issue quickly",
+        "I had to wait on hold for 45 minutes before speaking to someone",
+        "The support agent was knowledgeable and patient",
+        "My issue was escalated multiple times without resolution",
+        "Great customer service experience, very professional",
+        "The response time for email support is too slow",
+        "Phone support was excellent, got help immediately"
+      ],
+      'Product Quality': [
+        "The product exceeded my expectations in terms of quality",
+        "Build quality feels cheap for the price point",
+        "Very impressed with the attention to detail",
+        "Product broke after just two weeks of normal use",
+        "The materials feel premium and well-crafted",
+        "Quality has declined compared to previous versions",
+        "Excellent build quality, feels very durable",
+        "The product feels flimsy and poorly made"
+      ],
+      'Pricing': [
+        "The price is too high for what you get",
+        "Great value for money, very reasonable pricing",
+        "Pricing is competitive compared to alternatives",
+        "Too expensive, there are cheaper options available",
+        "The subscription model is confusing and expensive",
+        "Fair pricing for the quality provided",
+        "Hidden fees make it more expensive than advertised",
+        "Worth every penny, excellent value proposition"
+      ],
+      'User Experience': [
+        "The interface is intuitive and easy to navigate",
+        "The app is confusing and hard to use",
+        "Great user experience, everything works smoothly",
+        "The design is outdated and not user-friendly",
+        "Love the clean and modern interface",
+        "Too many clicks to accomplish simple tasks",
+        "The user flow is logical and efficient",
+        "The interface is cluttered and overwhelming"
+      ],
+      'Performance': [
+        "The app is very fast and responsive",
+        "Performance is slow, especially during peak hours",
+        "Loading times are excellent, very snappy",
+        "The system frequently crashes and freezes",
+        "Great performance across all devices",
+        "Slow response times make it frustrating to use",
+        "Performance has improved significantly with recent updates",
+        "The app is laggy and unresponsive"
+      ]
+    };
+
+    const templates = commentTemplates[category] || commentTemplates['Product Quality'];
+    return templates.slice(0, 6); // Return 6 sample comments
+  }
+
+  loadSampleCommentsIntoTool(comments) {
+    // Clear existing comments
+    if (window.comments) {
+      window.comments.length = 0;
+    }
+
+    // Add comments to the global array
+    comments.forEach(comment => {
+      if (window.comments) {
+        window.comments.push(comment);
+      }
+    });
+
+    // Update the UI
+    this.updateCommentsDisplay(comments);
+
+    this.showNotification(`Generated ${comments.length} sample comments for analysis`, 'success');
+  }
+
+  updateCommentsDisplay(comments) {
+    const commentsList = document.getElementById('commentsList');
+    if (commentsList) {
+      commentsList.innerHTML = '';
+      
+      comments.forEach((comment, index) => {
+        const commentItem = document.createElement('div');
+        commentItem.className = 'comment-item';
+        commentItem.textContent = comment;
+        commentsList.appendChild(commentItem);
+      });
+    }
+
+    // Update comment count if the function exists
+    if (window.updateCommentCount) {
+      window.updateCommentCount();
+    }
+  }
+
+  closeDashboardMode() {
+    // Remove dashboard-specific elements
+    const banner = document.getElementById('dashboardBanner');
+    if (banner) banner.remove();
+
+    const backButton = document.querySelector('button[onclick*="Back to Dashboard"]');
+    if (backButton) backButton.remove();
+
+    // Remove URL parameters
+    const newUrl = window.location.pathname;
+    history.replaceState({}, document.title, newUrl);
+
+    this.showNotification('Dashboard focus mode disabled', 'info');
+  }
+
+  getSentimentEmoji(sentiment) {
+    if (sentiment > 0.3) return '😊';
+    if (sentiment < -0.3) return '😞';
+    return '😐';
+  }
+
+  showNotification(message, type = 'info') {
+    // Create a simple notification
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: ${type === 'success' ? 'var(--dark-success)' : type === 'error' ? 'var(--dark-error)' : 'var(--dark-primary)'};
+      color: ${type === 'error' ? 'white' : 'black'};
+      padding: 12px 20px;
+      border-radius: 6px;
+      z-index: 1001;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      animation: slideInDown 0.3s ease;
+    `;
+    notification.textContent = message;
+
+    document.body.appendChild(notification);
+
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+      notification.style.animation = 'slideOutUp 0.3s ease';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 4000);
+  }
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slideInDown {
+    from {
+      transform: translateX(-50%) translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideOutUp {
+    from {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(-50%) translateY(-100%);
+      opacity: 0;
+    }
+  }
+`;
+document.head.appendChild(style);
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  window.commentToolDashboardIntegration = new CommentToolDashboardIntegration();
+  window.commentToolDashboardIntegration.initialize();
+});
+
+console.log('🔗 Comment Tool Dashboard Integration loaded');
+  </script>
 </body>
 </html>
